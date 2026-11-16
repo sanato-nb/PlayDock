@@ -65,7 +65,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
   throw 'This build must run on Windows. Use GitHub Actions for a cloud Windows build.'
 }
 foreach ($required in @('app.py','title_editor.py','setup_wizard.py','requirements.txt',
-                       'setup_paths.py','native_caption.py','uninstall_wizard.py','install_management.py','ai_providers.py','game_codes.py','assets\playdock.ico')) {
+                       'src\playdock\setup_paths.py','src\playdock\native_caption.py','uninstall_wizard.py','src\playdock\install_management.py','src\playdock\ai_providers.py','src\playdock\game_codes.py','assets\playdock.ico')) {
   if (!(Test-Path -LiteralPath $required)) { throw "Missing source file: $required" }
 }
 

@@ -6,8 +6,12 @@ ZIP·7z·RAR로 보관한 게임을 관리·설치·실행하는 Python/PySide6 
 
 - `src/playdock/ui/` — 화면, 공통 대화상자, 스타일
 - `src/playdock/controllers/` — 사용자 동작 및 화면과 기능 연결
-- `src/playdock/services/` — 작업 스레드 및 서비스 로직
-- `src/playdock/*.py` — 기존 코어·이미지·DLsite·DB 기능 모듈 (기능별 추가 정리 예정)
+- `src/playdock/services/` — 압축 해제·설치·실행 파일 탐색·라이브러리 관리·작업 스레드
+- `src/playdock/models/` — 게임 데이터 모델과 식별자
+- `src/playdock/database/` — SQLite 작품 저장·조회
+- `src/playdock/integrations/` — DLsite 외부 조회
+- `src/playdock/core.py`, `src/playdock/work_db.py` — 이전 import 경로를 유지하는 호환 모듈
+- `src/playdock/*.py` — 아직 분리되지 않은 이미지·이름 등 기능 모듈
 - `app.py`, `title_editor.py`, `setup_wizard.py`, `uninstall_wizard.py` — 각 EXE 진입점
 - `scripts/` — Windows 실행·빌드·공개 배포 스크립트
 - `tests/` — 자동 테스트
@@ -26,3 +30,5 @@ python app.py
 Windows 빌드는 `scripts\00_BUILD_WINDOWS_EXE.bat`, 기존 EXE 재포장은 `scripts\01_REPACKAGE_EXISTING_EXES.bat`으로 실행할 수 있습니다. GitHub Actions EXE 빌드는 수동 실행만 허용합니다. Windows 빌드의 실제 성공 여부는 별도 환경에서 검증해야 합니다.
 
 개인 게임 목록, 압축파일, API 키, 이미지 캐시, 사용자 DB는 저장소에 업로드하지 않습니다.
+
+자세한 파일별 역할은 [`docs/소스코드_구조_v0.8.4.md`](docs/소스코드_구조_v0.8.4.md)를 참고하세요.
