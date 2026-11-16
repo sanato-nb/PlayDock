@@ -1,0 +1,12 @@
+PlayDock v0.7.7 Windows 공개 배포 BAT 수정 패치
+
+문제: Windows cmd.exe에서 UTF-8 한글 설명서 파일명이 깨지고 실제 파일명과도 불일치하여 공개 ZIP 생성에 실패했습니다.
+
+적용 방법:
+1) 현재 사용 중인 PlayDock가 아닌 다운로드한 PlayDock_v0.7.7_CleanPublicReleaseKit 프로젝트 폴더를 엽니다.
+2) 이 패치 ZIP의 00_BUILD_WINDOWS_EXE.bat 및 01_REPACKAGE_EXISTING_EXES.bat을 그 폴더에 덮어씁니다.
+3) 이미 dist/ 에서 PlayDock.exe, PlayDock_TitleEditor.exe, PlayDock_Uninstall.exe, PlayDock_Setup.exe가 모두 생성되었고 .venv/Scripts/python.exe가 있으면 01_REPACKAGE_EXISTING_EXES.bat을 실행합니다. 다시 EXE를 빌드하지 않습니다.
+4) EXE가 아직 없으면 00_BUILD_WINDOWS_EXE.bat으로 전체 빌드합니다.
+5) public_release에 생성된 결과물을 사용하세요. 실제 설치 폴더를 압축하지 마세요.
+
+두 BAT 파일은 ASCII/CRLF이므로 Windows 한국어 CMD에서도 코드페이지 영향을 받지 않습니다.

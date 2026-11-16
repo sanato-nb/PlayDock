@@ -1,0 +1,291 @@
+"""PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
+from __future__ import annotations
+
+import os
+import subprocess
+import weakref
+from pathlib import Path
+from functools import lru_cache
+from time import monotonic
+import sys
+import traceback
+import webbrowser
+
+from PySide6.QtCore import Qt, QThread, Signal, QSize, QFileInfo, QTimer, QPoint, QRect, QRectF, QPointF, QObject, QEvent
+from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap, QLinearGradient, QPen, QBrush, QPainterPath, QCursor
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel,
+    QPushButton, QLineEdit, QListWidget, QListWidgetItem, QFileDialog,
+    QSplitter, QScrollArea, QProgressBar, QDialog, QFormLayout, QCheckBox,
+    QDialogButtonBox, QFileIconProvider, QAbstractItemView, QSizePolicy, QMenu,
+    QTreeWidget, QTreeWidgetItem, QHeaderView, QStackedWidget, QComboBox, QTabWidget,
+)
+
+from core import Game, Library, load_json, install, uninstall_target, uninstall_to_recycle_bin, executable_candidates, chosen_executable, archive_requires_password, ArchivePasswordRequired, ArchivePasswordInvalid
+from launch_approval import needs_launch_confirmation, launch_approval_changes, executable_selection_changes
+from game_collections import CollectionStore
+from game_icons import game_art_icon
+from cache_management import image_stats, recycle_images
+from data_management import inventory, backup_data, inspect_backup, restore_data
+from ui.collection_board import CollectionBoard
+from library_tree import make_sidebar_groups
+from artwork import get_secret, set_secret, save_image, discover_local
+from ui.artwork_dialog import OnlineArtworkDialog
+from ui.selectors import DarkMenuSelect
+from ai_providers import (PROVIDERS, current_provider, current_models, save_provider_settings)
+from setup_paths import save_folder_settings, proposed_paths
+from native_caption import windows_dark_caption
+from launch_options import parse_game_arguments
+from save_backups import create_save_backup, restore_save_backup
+from title_editor_entry import title_editor_command
+from work_db import WorkDatabase
+from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
+
+
+from ui.styles import MAIN_STYLESHEET as STYLESHEET
+from ui.launcher_layout import build_main_ui
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Public compatibility imports: existing integrations may import these from app.py.
+from ui.widgets.launcher import (collection_chevron, PopupMenuState, LibraryFilterButton,
+                                 ChevronMenuButton, friendly_bytes, game_placeholder_icon, Banner)
+from ui.dialogs.common import (apply_windows_dark_titlebar, DarkCaptionEventFilter,
+                               DialogCloseButton, ThemedDialog, TextEntryDialog, ChoiceDialog,
+                               MessageDialog, ask_text, ask_archive_password, ask_choice,
+                               ask_yes_no, show_message)
+from ui.dialogs.library import (SettingsDialog, FirstRunDialog, GameCollectionsDialog,
+                                CacheManagerDialog, DataManagerDialog, LibraryInfoDialog)
+from services.workers import InstallThread, UninstallThread, SaveBackupThread
+
+from controllers.library import LibraryControllerMixin
+from controllers.game_actions import GameActionControllerMixin
+from controllers.metadata import MetadataControllerMixin
+from controllers.window_actions import WindowActionControllerMixin
+
+class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, WindowActionControllerMixin, QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.library = Library()
+        self.collections = CollectionStore(self.library.store)
+        self.work_db = WorkDatabase(self.library.store)
+        self.work_lookup_worker = None
+        self.games: list[Game] = []
+        self.selected_id: str | None = None
+        self.selected_game_item = None
+        self.expanded_groups: set[str] = {'__uncategorized__'}
+        self.install_worker: InstallThread | None = None
+        self.uninstall_worker: UninstallThread | None = None
+        self.removing_game: Game | None = None
+        self.save_worker: SaveBackupThread | None = None
+        self.sort_mode = "name"
+        # The editor is an independent process. Polling lets the launcher
+        # refresh edited titles after it exits without keeping Qt process
+        # objects alive if the main window is closed first.
+        self.title_editor_process: subprocess.Popen | None = None
+        self.title_editor_game_id: str | None = None
+        self.title_editor_monitor = QTimer(self)
+        self.title_editor_monitor.setInterval(1000)
+        self.title_editor_monitor.timeout.connect(self.title_editor_check_finished)
+        self.setWindowTitle("PlayDock")
+        icon_root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
+        ico = icon_root / 'assets' / 'playdock.ico'
+        if ico.is_file():
+            self.setWindowIcon(QIcon(str(ico)))
+        self.resize(1380, 840)
+        self.setMinimumSize(950, 620)
+        self.build_ui()
+        self.reload()
+
+    def action_button(self, label: str, fn, primary: bool = False) -> QPushButton:
+        btn = QPushButton(label)
+        if primary:
+            btn.setObjectName("Primary")
+        btn.clicked.connect(fn)
+        return btn
+
+    def build_ui(self):
+        return build_main_ui(self, LibraryFilterButton=LibraryFilterButton, ChevronMenuButton=ChevronMenuButton, Banner=Banner)
+        # No QMainWindow.statusBar(): no permanent status messages.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def set_message(self, text: str):
+        self.message_timer.stop()
+        if not text:
+            self.message.hide()
+            return
+        self.message.setText(text)
+        self.message.show()
+        self.message_timer.start(5000)
+
+    def library_info_dialog(self):
+        dialog = LibraryInfoDialog(self.library, self.games, self)
+        dialog.exec()
+
+    def data_manager_dialog(self):
+        DataManagerDialog(self).exec()
+
+
+    def folder_wizard(self):
+        dialog = FirstRunDialog(self.library, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.library = Library()
+            self.reload()
+
+    @staticmethod
+    def tree_identity(item):
+        if item is None:
+            return None, None
+        data = item.data(0, Qt.ItemDataRole.UserRole)
+        if isinstance(data, tuple) and len(data) == 2:
+            return data
+        return None, None
+
+    def selected_collection(self) -> str:
+        item = self.tree.currentItem()
+        if item is None:
+            return "__uncategorized__"
+        kind, value = self.tree_identity(item)
+        if kind == "group":
+            return value
+        if kind == "game" and item.parent() is not None:
+            return self.tree_identity(item.parent())[1]
+        return "__uncategorized__"
+
+
+
+        # Clicking a collection does not clear or change the displayed game.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    def settings_dialog(self):
+        dialog = SettingsDialog(self.library, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.present_game()
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setStyle("Fusion")
+    app.setStyleSheet(STYLESHEET)
+    caption_filter = DarkCaptionEventFilter(app)
+    app.installEventFilter(caption_filter)
+    library = Library()
+    # Existing v0.1.x installations keep their paths; brand-new users see setup once.
+    if not library.config_path.is_file() or not library.settings.get("first_run_complete", False):
+        if library.config_path.is_file() and all(k in load_json(library.config_path)
+                                                     for k in ("library", "archives")):
+            library.settings["first_run_complete"] = True
+            library.save_settings()
+        else:
+            dialog = FirstRunDialog(library)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+    win = MainWindow()
+    win.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

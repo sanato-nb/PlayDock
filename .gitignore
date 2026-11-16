@@ -1,4 +1,4 @@
-# Python 실행 환경 및 빌드 산출물
+# 개발 가상 환경 / 빌드 산출물
 .venv/
 venv/
 env/
@@ -10,7 +10,7 @@ __pycache__/
 *.spec
 *.log
 
-# 사용자 개인 데이터 및 공개 배포 산출물
+# 사용자 개인 데이터 / DB / 게임 라이브러리
 data/
 public_release/
 release/
@@ -27,7 +27,7 @@ product_titles.json
 PlayDock.install.json
 LocalGameShelf.install.json
 
-# 인증 정보와 로컬 환경 설정
+# 인증 정보
 .env
 .env.*
 !.env.example
@@ -38,8 +38,14 @@ LocalGameShelf.install.json
 credentials.json
 secrets.json
 
-# OS / IDE
+# 개발 도구
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+
+# 게임 원본 및 개인 설치 산출물 (경로와 무관)
+*.rar
+*.7z
+*.zip
+*.exe

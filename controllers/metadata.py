@@ -1,0 +1,160 @@
+"""PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+
+from PySide6.QtWidgets import QDialog
+
+from artwork import discover_local
+from ui.artwork_dialog import OnlineArtworkDialog
+from title_editor_entry import title_editor_command
+from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
+
+
+from ui.dialogs.common import ask_yes_no, show_message
+
+
+class MetadataControllerMixin:
+    """Keep workflow/event handling outside the Qt window layout."""
+
+    def lookup_work_database(self):
+        """Retrieve one user-selected work; no automatic site crawling."""
+        game = self.current()
+        if game is None:
+            return
+        code = self.library.product_code(game)
+        if not code:
+            show_message(self, '작품 코드가 없습니다',
+                         '이 게임은 작품 코드가 없습니다. 게임 이름 관리자에서 RJ/VJ/BJ/EJ 코드를 등록하거나\n'
+                         '기존 무료 이미지 검색 기능으로 작품을 찾아주세요.')
+            return
+        if self.work_lookup_worker is not None and self.work_lookup_worker.isRunning():
+            show_message(self, '조회 중', '다른 작품의 정보를 조회하고 있습니다.')
+            return
+        cached = self.work_db.get_work(code)
+        if cached and not ask_yes_no(self, '작품 DB',
+                f'{code} 정보가 로컬 DB에 저장돼 있습니다.\n새로 DLsite에서 조회할까요?\n'
+                '인터넷이 필요 없으면 [저장된 정보 보기]를 선택하세요.',
+                'DLsite 새로 조회', '저장된 정보 보기'):
+            self.preview_work_database(cached, game.id, is_cached=True)
+            return
+        worker = WorkLookupThread(code, self)
+        self.work_lookup_worker = worker
+        worker.complete.connect(lambda result, game_id=game.id:
+                                self.preview_work_database(result, game_id, is_cached=False))
+        worker.failed.connect(lambda error: show_message(self, '작품 정보 조회 실패', error))
+        worker.finished.connect(self.work_lookup_finished)
+        self.set_message(f'DLsite 작품 정보 조회 중: {code}')
+        worker.start()
+
+
+    def work_lookup_finished(self):
+        self.work_lookup_worker = None
+        self.set_message('')
+
+
+    def preview_work_database(self, result, game_id, *, is_cached=False):
+        game = next((g for g in self.games if g.id == game_id), None)
+        if game is None:
+            return
+        dialog = WorkPreviewDialog(result, is_cached=is_cached, parent=self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            if not is_cached:
+                self.work_db.save_work(result)
+            if dialog.apply_title.isChecked():
+                from product_titles import display_title
+                title = dialog.selected_title()
+                if not title:
+                    raise ValueError('적용 가능한 작품명이 없습니다.')
+                self.library.update_meta(game, title=display_title(title, game.name, result['code']),
+                                         prefer_manual_title=True)
+            self.reload(prefer_id=game.id)
+            self.set_message(f'작품 정보 확인 완료: {result["code"]} · DB 저장')
+        except (OSError, ValueError) as exc:
+            show_message(self, '작품 DB 저장 실패', str(exc))
+
+
+    def open_title_editor(self):
+        """Open standalone editor, optionally focusing the selected game."""
+        existing = self.title_editor_process
+        if existing is not None:
+            if existing.poll() is None:
+                show_message(self, '게임 이름 관리자',
+                             '게임 이름 관리자가 이미 실행 중입니다. 열린 창에서 수정해 주세요.')
+                return
+            self.title_editor_check_finished()
+        game = self.current()
+        selected_id = game.id if game is not None else None
+        try:
+            program, arguments, working = title_editor_command(game_id=selected_id)
+            process = subprocess.Popen([program, *arguments], cwd=working)
+        except (OSError, ValueError) as exc:
+            show_message(self, '게임 이름 관리자 실행 실패', str(exc))
+            return
+        self.title_editor_process = process
+        self.title_editor_game_id = selected_id
+        self.title_editor_monitor.start()
+        self.set_message('게임 이름 관리자를 열었습니다. 저장 후 창을 닫으면 이름이 반영됩니다.')
+
+
+    def title_editor_check_finished(self):
+        process = self.title_editor_process
+        if process is None:
+            self.title_editor_monitor.stop()
+            return
+        exit_code = process.poll()
+        if exit_code is None:
+            return
+        self.title_editor_monitor.stop()
+        self.title_editor_process = None
+        selected_id = self.title_editor_game_id
+        self.title_editor_game_id = None
+        self.reload(prefer_id=selected_id)
+        if exit_code != 0:
+            show_message(self, '게임 이름 관리자 종료 오류',
+                         f'이름 관리자가 정상적으로 종료되지 않았습니다 (종료 코드 {exit_code}).\n'
+                         '편집한 이름이 저장되었는지 확인해 주세요.')
+
+
+    def open_online_artwork(self):
+        game = self.current()
+        if game is None:
+            return
+        def confirm_replace(kind: str) -> bool:
+            label = '배너' if kind == 'hero' else '아이콘'
+            return ask_yes_no(self, '기존 이미지 교체',
+                              f'이미 저장된 {label} 이미지가 있어.\n교체하면 이전 이미지는 data/backups/artwork에 백업돼.\n진행할까?',
+                              '교체', '취소')
+        dialog = OnlineArtworkDialog(self.library, game, self, confirm_replace=confirm_replace)
+        dialog.applied.connect(lambda _kind: self.reload(prefer_id=game.id))
+        dialog.exec()
+
+
+    def open_artwork_library(self):
+        folder = self.library.store / 'artwork_library'
+        folder.mkdir(parents=True, exist_ok=True)
+        if sys.platform == 'win32':
+            os.startfile(str(folder))
+        else:
+            from PySide6.QtGui import QDesktopServices
+            from PySide6.QtCore import QUrl
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+
+    def refresh_local_art(self):
+        game = self.current()
+        if not game:
+            return
+        found = discover_local(self.library, game)
+        if found:
+            self.reload(prefer_id=game.id)
+            self.set_message('로컬 이미지 적용: ' + ', '.join(found))
+        else:
+            show_message(self, '이미지 검색', '새로 찾은 배너·아이콘이 없습니다.\n'
+                         '게임 폴더 또는 data/artwork_library/게임명 폴더에 이미지를 넣어 주세요.\n'
+                         '기존 이미지는 덮어쓰지 않습니다.')
+
