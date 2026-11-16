@@ -94,7 +94,9 @@ def test_dialog_and_editor_have_separate_code_input_and_drag_preview():
     editor = (root / 'title_editor.py').read_text(encoding='utf-8') + _ui_editor
     assert 'class DragCropPreview(QLabel):' in dialog
     assert 'self.preview.dragged.connect(self.drag_image)' in dialog
-    assert 'self.library.set_product_code(self.game, code)' in dialog
+    service = (root / 'src/playdock/services/artwork_service.py').read_text(encoding='utf-8')
+    assert 'self.artwork_actions.save_product_code(' in dialog
+    assert 'self.library.set_product_code(self.game, code)' in service
     assert "self.search()" in dialog
     assert "self.code_save_btn.clicked.connect(self.save_code)" in editor
     assert 'product_code=code' in editor
