@@ -14,7 +14,7 @@ def test_gui_layouts_are_outside_launcher_and_editor():
     assert "return build_title_editor_ui(self)" in editor
     for file, name in (("launcher_layout.py", "build_main_ui"),
                        ("editor_layout.py", "build_title_editor_ui")):
-        mod = ast.parse((ROOT / "ui" / file).read_text(encoding="utf-8"))
+        mod = ast.parse((ROOT / "src/playdock/ui" / file).read_text(encoding="utf-8"))
         assert any(isinstance(item, ast.FunctionDef) and item.name == name for item in mod.body)
 
 
@@ -23,9 +23,9 @@ def test_ui_package_keeps_legacy_imports_working():
                      ("collection_board.py", "collection_board"),
                      ("work_db_dialog.py", "work_info_dialog"),
                      ("dark_selector.py", "selectors")):
-        source = (ROOT / old).read_text(encoding="utf-8")
+        source = (ROOT / "src" / "playdock" / old).read_text(encoding="utf-8")
         assert f"from ui.{new} import " in source
-        assert (ROOT / "ui" / f"{new}.py").is_file()
+        assert (ROOT / "src/playdock/ui" / f"{new}.py").is_file()
 
 
 def test_qss_is_separate_and_ui_package_has_no_user_data():

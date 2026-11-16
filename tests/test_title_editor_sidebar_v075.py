@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 def test_title_editor_single_line_list_elides_long_titles_without_horizontal_scroll():
-    source = Path(__file__).resolve().parents[1].joinpath('ui/editor_layout.py').read_text(encoding='utf-8')
+    source = Path(__file__).resolve().parents[1].joinpath('src/playdock/ui/editor_layout.py').read_text(encoding='utf-8')
     root = ast.parse(source)
     # Check the configuration of the actual left-hand game list, not other dialogs.
     make_ui = next(node for node in root.body
@@ -25,7 +25,7 @@ def test_title_editor_single_line_list_elides_long_titles_without_horizontal_scr
 
 
 def test_game_item_still_uses_full_title_in_model():
-    source = Path(__file__).resolve().parents[1].joinpath('controllers/title_editor.py').read_text(encoding='utf-8')
+    source = Path(__file__).resolve().parents[1].joinpath('src/playdock/controllers/title_editor.py').read_text(encoding='utf-8')
     root = ast.parse(source)
     pop = next(node for node in ast.walk(root)
                if isinstance(node, ast.FunctionDef) and node.name == 'populate'

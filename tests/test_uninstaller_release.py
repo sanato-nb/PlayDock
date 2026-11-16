@@ -103,8 +103,8 @@ def test_shortcut_protection_against_retargeted_shortcuts(tmp_path, monkeypatch)
 
 def test_build_script_includes_uninstaller_exe():
     root = Path(__file__).resolve().parents[1]
-    ps = (root / 'Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
-    cmd = (root / 'build_setup_windows.bat').read_text(encoding='utf-8')
+    ps = (root / 'scripts/Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
+    cmd = (root / 'scripts/build_setup_windows.bat').read_text(encoding='utf-8')
     assert "Run-PyInstaller 'PlayDock_Uninstall'" in ps
     assert "'--add-binary','dist\\PlayDock_Uninstall.exe;payload'" in ps
     assert '--add-binary "dist\\PlayDock_Uninstall.exe;payload"' in cmd

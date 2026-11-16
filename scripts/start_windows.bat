@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 title PlayDock - Launcher
-pushd "%~dp0"
+pushd "%~dp0.."
 if errorlevel 1 goto ERROR_FOLDER
 
 set "VENV_PY=%CD%\.venv\Scripts\python.exe"
@@ -68,7 +68,7 @@ goto ERROR_END
 
 :ERROR_END
 echo.
-echo Please check README_KO.md for details.
+echo Please check docs\README_KO.md for details.
 pause
 popd
 exit /b 1

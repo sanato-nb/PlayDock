@@ -21,6 +21,14 @@ from PySide6.QtWidgets import (
     QHeaderView, QProgressBar, QStackedWidget, QScrollArea, QCheckBox,
 )
 
+
+# Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.
+import sys as _playdock_sys
+from pathlib import Path as _playdock_Path
+_playdock_source = _playdock_Path(__file__).resolve().parent / "src" / "playdock"
+if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path:
+    _playdock_sys.path.insert(0, str(_playdock_source))
+
 from core import Library
 from simple_title_edit import save_display_title, undo_display_title, restore_filename_title, title_history
 from bulk_title_edit import BulkChange, replace_name, name_was_manually_changed, apply_bulk_changes, preview_undo_name

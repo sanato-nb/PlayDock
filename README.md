@@ -1,53 +1,28 @@
 # PlayDock
 
-**PlayDock**는 ZIP, 7z, RAR 등으로 보관된 게임을 한곳에서 관리하고, 필요할 때 압축을 해제하여 실행하는 Windows용 로컬 게임 라이브러리 프로그램입니다.
+ZIP·7z·RAR로 보관한 게임을 관리·설치·실행하는 Python/PySide6 데스크톱 앱입니다.
 
-## 주요 기능
+## 소스코드 구성
 
-- 게임 압축파일 검색 및 라이브러리 관리
-- 압축 해제, 실행 파일 선택, 게임 실행 및 설치 폴더 제거
-- 게임 아이콘·배경 이미지 검색, 수동 지정 및 편집
-- RJ·VJ·BJ·EJ 작품 코드 기반 게임 정보 조회와 제목 관리
-- 한국어·일본어·영어 제목 관리, 일괄 제목 수정
-- 사용자 모음집, 이미지 캐시, 데이터 백업·복원
-- SQLite를 이용한 로컬 작품 정보 데이터베이스
+- `src/playdock/ui/` — 화면, 공통 대화상자, 스타일
+- `src/playdock/controllers/` — 사용자 동작 및 화면과 기능 연결
+- `src/playdock/services/` — 작업 스레드 및 서비스 로직
+- `src/playdock/*.py` — 기존 코어·이미지·DLsite·DB 기능 모듈 (기능별 추가 정리 예정)
+- `app.py`, `title_editor.py`, `setup_wizard.py`, `uninstall_wizard.py` — 각 EXE 진입점
+- `scripts/` — Windows 실행·빌드·공개 배포 스크립트
+- `tests/` — 자동 테스트
+- `docs/` — 한국어 문서 및 사용자 설명서
 
-## 사용 기술
+**중요:** 기존 `core`·`ui` 등 절대 임포트 호환성을 유지하기 위해 진입점과 테스트에서 `src/playdock`을 Python 검색 경로에 추가합니다. 다음 단계에서는 상대 임포트와 정식 패키징으로 이행할 수 있습니다.
 
-- **언어:** Python
-- **데스크톱 UI:** PySide6 (Qt Widgets / QSS)
-- **로컬 DB:** SQLite
-- **Windows 실행 파일 빌드:** PyInstaller
+## 개발 환경
 
-## Windows에서 실행 파일 빌드
+```bash
+python -m pip install -r requirements.txt pytest
+python -m pytest -q tests
+python app.py
+```
 
-1. Python 3.12 또는 3.13을 설치합니다.
-2. 저장소를 다운로드하거나 복제합니다.
-3. `00_BUILD_WINDOWS_EXE.bat`을 실행합니다.
-4. 빌드가 완료되면 `public_release/` 폴더의 초기화된 배포 결과를 확인합니다.
+Windows 빌드는 `scripts\00_BUILD_WINDOWS_EXE.bat`, 기존 EXE 재포장은 `scripts\01_REPACKAGE_EXISTING_EXES.bat`으로 실행할 수 있습니다. GitHub Actions EXE 빌드는 수동 실행만 허용합니다. Windows 빌드의 실제 성공 여부는 별도 환경에서 검증해야 합니다.
 
-> 다른 사람에게 배포할 때는 개인 `data/` 폴더를 압축하지 마세요. 새 Windows 사용자 계정에서 최초 실행 상태를 검증하세요.
-
-## 소스코드 관리 원칙
-
-1. 커밋 제목과 변경 설명은 **한글**로 작성합니다.
-2. 화면과 시각 구성은 `ui/`, 사용자 동작 연결은 `controllers/`, 백그라운드 작업은 `services/`에서 관리합니다.
-3. 사용자의 게임 파일, 개인 설정, API 키, 작품 DB 및 이미지 캐시는 GitHub에 올리지 않습니다.
-4. 공개 배포 결과는 GitHub Actions의 빌드 결과물이나 Releases에서 별도 관리합니다.
-
-## 소스 구성 (v0.8.2)
-
-- `app.py` / `title_editor.py`: 프로그램 진입점, 창 초기화, UI 생성 호출
-- `ui/`: 위젯, 레이아웃, 공통 대화상자, 모음집, 이미지 및 테마
-- `controllers/`: 사용자 이벤트를 처리하고 UI와 기능 코드를 연결하는 메서드
-- `services/`: 설치·제거·세이브 백업, 제목 조회를 실행하는 `QThread` 작업자
-- `core.py`, `work_db.py`, `game_identity.py` 등: 압축파일·메타데이터·DB 등의 기존 독립 로직
-- `tests/`: UI 소스 위치 검증과 핵심 기능의 회귀 테스트
-
-전체 구조와 마이그레이션 설명은 [UI 및 소스 구조](UI_코드구조_설명.md)를 참조하세요.
-
-## 문서
-
-- [기능 안내](README_KO.md)
-- [DB 안내](README_DB_KO.md)
-- [UI 코드 구조](UI_코드구조_설명.md)
+개인 게임 목록, 압축파일, API 키, 이미지 캐시, 사용자 DB는 저장소에 업로드하지 않습니다.

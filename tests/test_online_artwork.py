@@ -158,5 +158,5 @@ def test_integration_menu_has_explicit_free_search():
     app = (root / 'app.py').read_text(encoding='utf-8') + _ui_main
     assert '인터넷 이미지 검색·편집' in app
     assert 'OnlineArtworkDialog' in app
-    assert 'PlayDock_Setup' in (root/'Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
+    assert 'PlayDock_Setup' in (root/'scripts/Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
     assert 'ddgs' in (root/'requirements.txt').read_text(encoding='utf-8')

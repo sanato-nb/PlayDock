@@ -91,7 +91,7 @@ def test_saved_gemini_model_alias_avoids_new_user_404(tmp_path):
 
 def test_ui_has_code_entry_and_manual_search_fallback():
     from pathlib import Path
-    source = (Path(__file__).resolve().parents[1] / 'ui/artwork_dialog.py').read_text(encoding='utf-8')
+    source = (Path(__file__).resolve().parents[1] / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
     assert 'self.code_input' in source
     assert "self.resolve_identity('discover')" in source
     assert 'AI로 게임명 추천 (선택)' in source

@@ -35,7 +35,7 @@ def test_game_membership_order_tracks_library_games():
 
 
 def test_board_has_overview_and_click_navigation_without_network_calls():
-    board = (ROOT/'ui/collection_board.py').read_text(encoding='utf8')
+    board = (ROOT/'src/playdock/ui/collection_board.py').read_text(encoding='utf8')
     app = (ROOT/'app.py').read_text(encoding='utf8') + _ui_main
     assert 'class CollectionBoard(QScrollArea)' in board
     assert 'self.createRequested.emit' in board
@@ -48,7 +48,7 @@ def test_board_has_overview_and_click_navigation_without_network_calls():
 
 
 def test_card_context_menu_and_sidebar_right_click_allow_management():
-    board = (ROOT/'ui/collection_board.py').read_text(encoding='utf8')
+    board = (ROOT/'src/playdock/ui/collection_board.py').read_text(encoding='utf8')
     app = (ROOT/'app.py').read_text(encoding='utf8') + _ui_main
     assert "self.renameRequested.emit(cid)" in board
     assert "self.deleteRequested.emit(cid)" in board

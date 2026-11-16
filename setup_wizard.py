@@ -18,6 +18,14 @@ import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
+
+# Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.
+import sys as _playdock_sys
+from pathlib import Path as _playdock_Path
+_playdock_source = _playdock_Path(__file__).resolve().parent / "src" / "playdock"
+if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path:
+    _playdock_sys.path.insert(0, str(_playdock_source))
+
 from setup_paths import proposed_paths, normalize_paths, save_folder_settings, config_path
 from native_caption import darken_tk_root
 from install_management import (UNINSTALL_EXE, app_install_directory, register_uninstall_entry,

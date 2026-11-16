@@ -9,7 +9,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-Set-Location -LiteralPath $PSScriptRoot
+$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+Set-Location -LiteralPath $RepoRoot
 
 function Step([string]$Message) {
   Write-Host "`n==> $Message" -ForegroundColor Cyan
@@ -53,7 +54,7 @@ function Find-Python {
 function Run-PyInstaller([string]$Name, [string]$Source, [string[]]$Extra) {
   Step "Building $Name.exe"
   $params = @('--noconfirm', '--clean', '--onefile', '--windowed', '--name', $Name,
-              '--icon', 'assets\playdock.ico') + $Extra + @($Source)
+              '--icon', 'assets\playdock.ico', '--paths', 'src\playdock') + $Extra + @($Source)
   & $script:VenvPython -m PyInstaller @params
   Assert-ExitCode "PyInstaller $Name"
   $built = Join-Path $script:Dist "$Name.exe"
@@ -87,10 +88,10 @@ $pythonExe = [string]$python.Exe
 $pythonArgs = [string[]]$python.Args
 Write-Host "Using $pythonExe $($pythonArgs -join ' ')"
 
-$script:VenvPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
+$script:VenvPython = Join-Path $RepoRoot '.venv\Scripts\python.exe'
 if (!(Test-Path -LiteralPath $script:VenvPython)) {
   Step 'Creating isolated packaging environment'
-  & $pythonExe @pythonArgs -m venv (Join-Path $PSScriptRoot '.venv')
+  & $pythonExe @pythonArgs -m venv (Join-Path $RepoRoot '.venv')
   Assert-ExitCode 'Python venv'
 }
 Step 'Installing Windows dependencies'
@@ -105,7 +106,7 @@ if (!$SkipTests) {
   Assert-ExitCode 'Unit tests'
 }
 
-$script:Dist = Join-Path $PSScriptRoot 'dist'
+$script:Dist = Join-Path $RepoRoot 'dist'
 New-Item -ItemType Directory -Path $script:Dist -Force | Out-Null
 Run-PyInstaller 'PlayDock' 'app.py' @('--collect-all','keyring','--collect-all','pyzipper',
                                         '--collect-all','send2trash','--collect-all','ddgs','--hidden-import','rarfile',

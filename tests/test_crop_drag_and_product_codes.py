@@ -90,7 +90,7 @@ def test_zoomed_crop_moves_pixel_content():
 
 def test_dialog_and_editor_have_separate_code_input_and_drag_preview():
     root = Path(__file__).resolve().parents[1]
-    dialog = (root / 'ui/artwork_dialog.py').read_text(encoding='utf-8')
+    dialog = (root / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
     editor = (root / 'title_editor.py').read_text(encoding='utf-8') + _ui_editor
     assert 'class DragCropPreview(QLabel):' in dialog
     assert 'self.preview.dragged.connect(self.drag_image)' in dialog

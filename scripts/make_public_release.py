@@ -20,7 +20,7 @@ import sys
 import tempfile
 from zipfile import ZipFile, ZIP_DEFLATED
 
-VERSION = "0.8.2"
+VERSION = "0.8.3"
 EXECUTABLES = (
     "PlayDock.exe",
     "PlayDock_TitleEditor.exe",
@@ -103,7 +103,7 @@ def build_public_release(dist: Path, out: Path, manual: Path, *, source: Path | 
             json.dumps({"id": "playdock-installed-v1", "data_directory": "data", "version": VERSION},
                        ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (stage / DB_GUIDE_FILENAME).write_text(
-            'PlayDock 작품 정보 DB (v0.8.2)\n\n'
+            'PlayDock 작품 정보 DB (v0.8.3)\n\n'
             '1. 게임 선택 -> 게임 관리 -> DLsite 작품 정보 조회 · DB 저장\n'
             '2. 품번(RJ/VJ/BJ/EJ)이 있어야 하며, 작품을 한 건씩 조회합니다.\n'
             '3. 이름·제작사·발매일·장르·표지/샘플 이미지 URL을 확인한 뒤 저장합니다.\n'
