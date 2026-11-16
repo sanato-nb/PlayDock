@@ -23,6 +23,10 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: requirements.txt
+      - name: Linux Qt 오프스크린 실행 의존성 설치
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libopengl0 libxkbcommon0
       - name: Python 의존성 설치
         run: |
           python -m pip install --upgrade pip
