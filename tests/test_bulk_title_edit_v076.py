@@ -155,7 +155,9 @@ def test_bulk_editor_has_detailed_controls_and_old_screen(tmp_path):
     assert 'class BulkTitleSettingsDialog(QDialog)' in src
     assert 'self.keep_custom.setChecked(True)' in src
     assert 'self.preview_table.itemChanged.connect(self.preview_edited)' in src
-    assert 'apply_bulk_changes(self.library, self.games, changes)' in src
+    service = (Path(__file__).resolve().parents[1] / 'src/playdock/services/bulk_title_service.py').read_text(encoding='utf-8')
+    assert 'self.bulk_actions.apply_changes(self.games, changes)' in src
+    assert 'apply_bulk_changes(self.library, games, changes)' in service
     assert 'self.mode_btn = QPushButton(\'상세 기능 보기\')' in src
     assert 'self.bulk_btn = QPushButton(\'품번만 있는 게임 일괄 조회\')' in src
 
