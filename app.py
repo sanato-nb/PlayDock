@@ -125,6 +125,7 @@ from controllers.library import LibraryControllerMixin
 from controllers.game_actions import GameActionControllerMixin
 from controllers.metadata import MetadataControllerMixin
 from controllers.window_actions import WindowActionControllerMixin
+from controllers.data_manager import DataManagementController
 
 class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, WindowActionControllerMixin, QMainWindow):
     def __init__(self):
@@ -134,6 +135,7 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.work_db = WorkDatabase(self.library.store)
         self.work_lookup_worker = None
         self.games: list[Game] = []
+        self.data_actions = DataManagementController(self)
         self.selected_id: str | None = None
         self.selected_game_item = None
         self.expanded_groups: set[str] = {'__uncategorized__'}
