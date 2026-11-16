@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from core import Game, Library
 from game_collections import CollectionStore
+from services.collection_service import CollectionMembershipActions
 from services.cache_service import CacheService
 from ui.selectors import DarkMenuSelect
 from services.settings_service import (
@@ -171,7 +172,7 @@ class FirstRunDialog(ThemedDialog):
 class GameCollectionsDialog(ThemedDialog):
     """Checkbox-based many-to-many collection organizer for one game."""
     def __init__(self, collections: CollectionStore, game: Game, title: str, parent=None):
-        self.collections = collections
+        self.memberships = CollectionMembershipActions(collections)
         self.game = game
         super().__init__("게임을 모음집에 추가 / 제거", parent, 440)
         layout = self.body
@@ -186,8 +187,8 @@ class GameCollectionsDialog(ThemedDialog):
         self.check_area = QVBoxLayout()
         self.checkboxes: dict[str, QCheckBox] = {}
         layout.addLayout(self.check_area)
-        for col in collections.list():
-            self.append_choice(col["id"], col["name"], game.id in col["game_ids"])
+        for cid, name, checked in self.memberships.choices_for_game(game.id):
+            self.append_choice(cid, name, checked)
         if not self.checkboxes:
             hint = QLabel("아직 모음집이 없습니다. 아래 버튼으로 첫 모음집을 만들어 보세요.")
             hint.setObjectName("Subtle")
@@ -212,16 +213,16 @@ class GameCollectionsDialog(ThemedDialog):
         if not ok:
             return
         try:
-            cid = self.collections.create(name)
+            cid, label = self.memberships.create(name)
         except ValueError as exc:
             show_message(self, "모음집 생성 실패", str(exc))
             return
-        self.append_choice(cid, name.strip(), True)
+        self.append_choice(cid, label, True)
 
     def apply_changes(self):
         chosen = {cid for cid, checkbox in self.checkboxes.items() if checkbox.isChecked()}
         try:
-            self.collections.set_game_memberships(self.game.id, chosen)
+            self.memberships.save_memberships(self.game.id, chosen)
             self.accept()
         except Exception as exc:
             show_message(self, "모음집 저장 실패", str(exc))
