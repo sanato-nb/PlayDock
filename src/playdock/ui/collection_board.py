@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QMenu, QSizePolicy,
 )
 
-from collection_board_model import list_collection_cards, member_games
+from collection_board_model import list_collection_cards, member_games, unassigned_games
 
 PALETTES = [
     ("#294a67", "#47677e"), ("#35445c", "#665069"),
@@ -228,8 +228,7 @@ class CollectionBoard(QScrollArea):
         else:
             cid = self._active_collection
             if cid == '__uncategorized__':
-                assigned_ids = {gid for row in records for gid in row['game_ids']}
-                members = [g for g in self.games if g.id not in assigned_ids]
+                members = unassigned_games(self.games, records)
                 name = '미분류'
             else:
                 record = record_map[cid]
