@@ -1,0 +1,45 @@
+# Python 실행 환경 및 빌드 산출물
+.venv/
+venv/
+env/
+build/
+dist/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.spec
+*.log
+
+# 사용자 개인 데이터 및 공개 배포 산출물
+data/
+public_release/
+release/
+backups/
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+settings.json
+collections.json
+manual_games.json
+product_titles.json
+PlayDock.install.json
+LocalGameShelf.install.json
+
+# 인증 정보와 로컬 환경 설정
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+credentials.json
+secrets.json
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
