@@ -1,11 +1,7 @@
 """Qt image-search chooser and interactive, non-generative crop editor."""
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
 from urllib.parse import quote_plus
-from pathlib import Path
-import shutil
 
 from PySide6.QtCore import Qt, Signal, QTimer, QUrl
 from PySide6.QtGui import QPixmap, QDesktopServices
@@ -15,12 +11,11 @@ from PySide6.QtWidgets import (
 )
 from ui.selectors import DarkMenuSelect
 
-from online_artwork import Candidate, read_image, crop_png, save_selected_art, crop_pan_center
-from game_identity import initial_identity, GameIdentity
+from online_artwork import Candidate, read_image, crop_png, crop_pan_center
+from services.artwork_service import ArtworkActions
 from ai_providers import current_provider, current_models, provider_details
 from services.artwork_workers import SearchJob, DownloadJob, IdentityJob
 from product_titles import extract_code
-from game_codes import normalize_code
 
 
 class DragCropPreview(QLabel):
@@ -174,22 +169,8 @@ class OnlineArtworkDialog(QDialog):
         self._identity_job = None
         self._identity_search_pending = False
         self._automatic_code_lookup = False
-        self.identity = initial_identity(self.library.base_title(game), game.name,
-                                         game.archive.name if game.archive else '')
-        meta = self.library.meta(game)
-        registered_code = self.library.product_code(game)
-        if 'product_code' in meta and not registered_code:
-            # User explicitly designated this as a game without a work code.
-            self.identity = GameIdentity(self.identity.title, '작품 코드 없음 · 게임명으로 검색',
-                                         None, self.identity.confidence, False)
-        elif registered_code:
-            self.identity = GameIdentity(self.identity.title, self.identity.source,
-                                         registered_code, self.identity.confidence, False)
-        saved_code = meta.get('artwork_identity_code', '')
-        saved_title = meta.get('artwork_identity_title', '')
-        if registered_code and extract_code(saved_code) == registered_code and isinstance(saved_title, str) and saved_title.strip():
-            self.identity = GameIdentity(saved_title, '이전에 확인한 작품 정보 (게임 캐시)',
-                                         registered_code, 1.0, True)
+        self.artwork_actions = ArtworkActions(self.library, self.game)
+        self.identity = self.artwork_actions.initial_identity()
         self._setup_ui(initial_kind)
         # The caller explicitly asked to search for existing game artwork.
         # Start in the next GUI event cycle so results appear without a second menu click.
@@ -288,23 +269,17 @@ class OnlineArtworkDialog(QDialog):
         layout.addLayout(bottom)
 
     def save_code(self):
-        """Store optional product code, never rename ZIPs/folders."""
+        """작품 코드 입력값은 UI에서 읽고 Service에 저장을 요청한다."""
         try:
-            code = normalize_code(self.code_input.text())
-            self.library.set_product_code(self.game, code)
+            code, self.identity = self.artwork_actions.save_product_code(
+                self.code_input.text(), self.query.text(), self.identity)
             self.code_input.setText(code)
         except ValueError as exc:
             self.status.setText('품번 저장 실패: ' + str(exc))
             return
         if code:
-            if self.identity.code != code:
-                self.identity = GameIdentity(self.query.text().strip(),
-                                             '직접 입력한 작품 코드 · 공식 작품 확인 전',
-                                             code, 0.5, False)
             self.status.setText('품번 ' + code + ' 저장 완료. 제목에 없으면 자동 표시돼. 작품 확인은 별도로 할 수 있어.')
         else:
-            self.identity = GameIdentity(self.query.text().strip(),
-                                         '품번 없는 게임 · 이름으로 검색', None, 0.5, False)
             self.status.setText('품번 없음으로 저장했어. 제목에 품번을 자동으로 붙이지 않아.')
         self.identity_note.setText(self.identity.source)
         self.applied.emit('identity')
@@ -361,12 +336,9 @@ class OnlineArtworkDialog(QDialog):
         self.code_input.setText(identity.code or '')
         self.query.setText(identity.title)
         if identity.verified and identity.code:
-            # Keep verified identity across runs; do not rename actual game files.
             try:
-                self.library.update_meta(self.game, artwork_identity_code=identity.code,
-                                         artwork_identity_title=identity.title)
-                self.library.set_product_code(self.game, identity.code)
-                self.applied.emit('identity')
+                if self.artwork_actions.record_verified_identity(identity):
+                    self.applied.emit('identity')
             except (OSError, ValueError):
                 pass
         self.identity_note.setText('검색 작품명: ' + identity.title + ' · ' + identity.source)
@@ -431,9 +403,8 @@ class OnlineArtworkDialog(QDialog):
             return
         self._clear()
         self.search_btn.setEnabled(False)
-        confirmed_code = (self.identity.code if self.identity.verified and
-                          self.query.text().strip() == self.identity.title and
-                          self.code_input.text().strip().upper() == self.identity.code else None)
+        confirmed_code = self.artwork_actions.confirmed_search_code(
+            self.identity, self.query.text(), self.code_input.text())
         self.identity_note.setText('검색 기준: ' + self.query.text().strip()
                                    + (' · ' + confirmed_code if confirmed_code else ' · 작품 코드 미확인')
                                    + ' · 사용자 검토 필요')
@@ -517,24 +488,14 @@ class OnlineArtworkDialog(QDialog):
         if editor.exec() != QDialog.DialogCode.Accepted:
             self.status.setText('편집 취소 · 기존 이미지 유지')
             return
-        target = self.library.art_dir(self.game) / f'{kind}.png'
-        if target.exists():
+        if self.artwork_actions.has_artwork(kind):
             if self.confirm_replace is None or not self.confirm_replace(kind):
                 self.status.setText('기존 이미지가 있어 변경하지 않았어.')
                 return
         try:
-            if target.exists():
-                backup = self.library.store / 'backups' / 'artwork' / self.game.id
-                backup.mkdir(parents=True, exist_ok=True)
-                saved = backup / f'{kind}_{datetime.now().strftime("%Y%m%d_%H%M%S_%f")}.png'
-                shutil.copy2(target, saved)
-            save_selected_art(image_data, target, kind, editor.x.value(), editor.y.value(), editor.zoom.value())
-            metadata = self.library.meta(self.game)
-            sources = metadata.get('artwork_sources')
-            sources = dict(sources) if isinstance(sources, dict) else {}
-            sources[kind] = {'url': candidate.image_url, 'page': candidate.source_url,
-                             'source': candidate.provider, 'license': candidate.license_label}
-            self.library.update_meta(self.game, artwork_source='인터넷 검색 · 사용자가 선택함', artwork_sources=sources)
+            self.artwork_actions.apply_selection(
+                image_data, candidate, kind,
+                editor.x.value(), editor.y.value(), editor.zoom.value())
             self.status.setText('저장 완료! ' + ('배너' if kind == 'hero' else '아이콘') + '이(가) 게임 캐시에 저장됐어.')
             self.applied.emit(kind)
         except Exception as exc:
