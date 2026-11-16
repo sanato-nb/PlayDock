@@ -27,10 +27,11 @@ from core import Game, Library
 from game_collections import CollectionStore
 from cache_management import image_stats, recycle_images
 from data_management import inventory, backup_data, inspect_backup, restore_data
-from artwork import get_secret, set_secret
 from ui.selectors import DarkMenuSelect
-from ai_providers import PROVIDERS, current_provider, current_models, save_provider_settings
-from setup_paths import save_folder_settings, proposed_paths
+from services.settings_service import (
+    PROVIDERS, current_provider, load_provider_preferences,
+    save_provider_preferences, save_folder_settings, proposed_paths,
+)
 
 
 from ui.dialogs.common import ThemedDialog, ask_text, ask_yes_no, show_message
@@ -87,9 +88,8 @@ class SettingsDialog(ThemedDialog):
 
     def on_provider_changed(self, _index=None):
         provider = self.provider.currentData() or "openai"
-        details = PROVIDERS[provider]
-        text, _unused_image_model = current_models(self.library, provider)
-        self.text_model.setText(text)
+        preferences = load_provider_preferences(self.library, provider)
+        self.text_model.setText(preferences.text_model)
         self.api_key.clear()
         self.delete_key.setChecked(False)
         if provider == "ollama":
@@ -99,28 +99,19 @@ class SettingsDialog(ThemedDialog):
         else:
             self.api_key.setEnabled(True)
             self.delete_key.setEnabled(True)
-            self.api_key.setPlaceholderText("등록됨" if get_secret(provider) else "API 키 입력")
-        self.help_label.setText(details["hint"])
+            self.api_key.setPlaceholderText("등록됨" if preferences.has_key else "API 키 입력")
+        self.help_label.setText(preferences.hint)
 
     def save(self):
         try:
-            provider = self.provider.currentData() or "openai"
-            # Validate models before modifying saved credentials.
-            if not self.text_model.text().strip() or len(self.text_model.text().strip()) > 160:
-                raise ValueError("게임 이름 모델을 입력해 주세요.")
-            if provider != "ollama":
-                if self.delete_key.isChecked():
-                    set_secret(provider, "")
-                elif self.api_key.text().strip():
-                    set_secret(provider, self.api_key.text())
-            # Keep the previous image-model field in settings for compatibility;
-            # no image-generation action is available in this application.
-            saved_image_model = current_models(self.library, provider)[1]
-            save_provider_settings(self.library, provider, self.text_model.text(), saved_image_model)
+            save_provider_preferences(
+                self.library, self.provider.currentData() or "openai",
+                self.text_model.text(), api_key=self.api_key.text(),
+                delete_key=self.delete_key.isChecked(),
+            )
             self.accept()
         except Exception as exc:
             show_message(self, "AI 설정 저장 실패", str(exc))
-
 
 class FirstRunDialog(ThemedDialog):
     def __init__(self, library: Library, parent=None):
