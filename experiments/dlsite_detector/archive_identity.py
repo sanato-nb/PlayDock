@@ -16,6 +16,7 @@ from .archive_inspector import ArchiveInspection, inspect_archive
 from .detector import normalized_title
 from .pipeline import SearchDecision
 from .enhanced_search import enhanced_classify_game
+from .identity_hints import extract_hints
 
 CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game", "platform_confirmed_game"})
 CANDIDATES = frozenset({"internet_candidate"})
@@ -57,6 +58,12 @@ class IdentityReport:
     def to_dict(self) -> dict:
         data = asdict(self)
         data["label"] = self.label
+        data["archive_kind"] = extract_hints(self.archive_name).archive_kind
+        source = next((x.decision for x in reversed(self.attempts)
+                       if x.decision.source_platform), None)
+        data["source_platform"] = source.source_platform if source else ""
+        data["source_id"] = source.source_id if source else ""
+        data["source_url"] = source.source_url if source else ""
         return data
 
 
