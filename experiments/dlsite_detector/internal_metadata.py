@@ -17,7 +17,7 @@ import re
 import stat
 import zipfile
 
-from .archive_inspector import _safe_member_path, _interesting_title
+from .archive_inspector import _safe_member_path
 from .detector import extract_code
 from .search_terms import cleaned_search_title
 
@@ -32,7 +32,7 @@ MAX_TITLES = 6
 MAX_CODES = 4
 
 ALLOWED_EXACT = frozenset({
-    "readme", "readme.txt", "readme.md", "readme.rtf",  # RTF는 텍스트로 처리하지 않는다
+    "readme", "readme.txt", "readme.md",
     "game.ini", "rpg_rt.ini", "project.godot",
     "game.json", "metadata.json", "package.json", "version.json",
     "app.info", "options.rpy",
@@ -101,9 +101,7 @@ def _safe_title(value) -> str:
 
 def _pick_members(rows) -> list[tuple[str, str]]:
     candidates = []
-    for member, size, compressed, encrypted, is_dir, symlink in rows:
-        if len(candidates) >= MAX_CANDIDATE_FILES or len(candidates) >= MAX_MEMBERS:
-            break
+    for member, size, compressed, encrypted, is_dir, symlink in rows[:MAX_MEMBERS]:
         if is_dir or encrypted or symlink or size <= 0 or size > MAX_MEMBER_BYTES:
             continue
         if compressed is not None and (compressed <= 0 or compressed > MAX_COMPRESSED_BYTES
@@ -124,7 +122,7 @@ def _pick_members(rows) -> list[tuple[str, str]]:
 
 
 def _parse_metadata_text(basename: str, payload: bytes):
-    if b"\x00" in payload[:1024]:
+    if b"\x00" in payload[:1024] and not payload.startswith((b"\xff\xfe", b"\xfe\xff")):
         return []
     decoded = None
     for encoding in ("utf-8-sig", "utf-16", "cp949", "shift_jis"):
@@ -241,13 +239,14 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                     break
                 try:
                     with zf.open(member, "r") as stream:
-                        chunk = stream.read(MAX_MEMBER_BYTES + 1)
+                        cap = min(MAX_MEMBER_BYTES, MAX_TOTAL_BYTES - read_bytes)
+                        chunk = stream.read(cap + 1)
                 except (OSError, RuntimeError, ValueError, zipfile.BadZipFile, EOFError) as exc:
                     errors.append(type(exc).__name__)
                     continue
                 count += 1
                 read_bytes += len(chunk)
-                if len(chunk) > MAX_MEMBER_BYTES:
+                if len(chunk) > cap:
                     continue
                 for field, raw_title in _parse_metadata_text(basename, chunk):
                     title = _safe_title(raw_title)
