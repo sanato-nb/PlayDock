@@ -227,7 +227,7 @@ def test_result_json_includes_individual_evidence_provenance(tmp_path):
 
 def test_steam_appid_file_is_product_identifier_not_game_title(tmp_path):
     archive = create_zip(tmp_path, {
-        "Game/steam_appid.txt": "1621540\\n",
+        "Game/steam_appid.txt": "1621540\n",
         "Game/Game.exe": b"binary",
     })
     evidence = inspect_metadata(archive)
@@ -243,7 +243,7 @@ def test_steam_appid_file_is_product_identifier_not_game_title(tmp_path):
 
 def test_steam_id_in_explicit_ini_and_json_fields_is_distinct(tmp_path):
     archive = create_zip(tmp_path, {
-        "Game/Game.ini": "Title=Ocean Story\\nSteam App ID: 1621540\\n",
+        "Game/Game.ini": "Title=Ocean Story\nSteam App ID: 1621540\n",
         "Game/metadata.json": '{"steam_app_id": 1621540, "title":"Ocean Story"}',
     })
     evidence = inspect_metadata(archive)
