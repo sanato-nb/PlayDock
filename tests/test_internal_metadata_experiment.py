@@ -116,7 +116,7 @@ def test_7z_does_not_trigger_unsafe_solid_archive_decompression(tmp_path):
     path = tmp_path / "Game.7z"
     path.write_bytes(b"not a valid archive but no content read")
     r = inspect_metadata(path)
-    assert r.state == "index_only"
+    assert r.state == "unavailable"  # 손상된 7z: 암호 상태 확인 불가이므로 내용 미검사
     assert r.read_bytes == 0
 
 
