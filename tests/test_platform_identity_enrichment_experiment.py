@@ -272,3 +272,79 @@ def test_review_db_keeps_original_name_and_does_not_rename(tmp_path):
     result = store.get_game("one")
     assert result["original_name"] == result["display_name"]
     assert result["classification"] == "platform_confirmed_game"
+
+
+def test_two_platform_ids_correlated_when_both_titles_agree():
+    result = enhanced_classify_game(
+        "Dual Game [RJ01081508] [Steam 1621540]",
+        classifier=lambda *_a, **_kw: SearchDecision(
+            "confirmed_game", "Dual Game", proposed_title="Dual Game",
+            dlsite_code="RJ01081508", dlsite_status="confirmed_game",
+        ),
+        steam_fetcher=lambda _: product(name="Dual Game"),
+    )
+    assert result.status == "confirmed_game"
+    assert result.source_platform == "dlsite+steam"
+    assert result.source_id == "1621540"
+
+
+def test_two_platform_ids_disagree_and_never_auto_confirm():
+    result = enhanced_classify_game(
+        "Dual Game [RJ01081508] [Steam 1621540]",
+        classifier=lambda *_a, **_kw: SearchDecision(
+            "confirmed_game", "Dual Game", proposed_title="Dual Game",
+            dlsite_code="RJ01081508",
+        ),
+        steam_fetcher=lambda _: product(name="Completely Different Title"),
+    )
+    assert result.status == "internet_candidate"
+    assert result.source_platform == "steam"
+    assert "수동 검토" in result.reason
+
+
+def test_square_bracket_translation_notes_never_become_alternative_titles():
+    h = extract_hints("Game [AI 번역 수정1·이미지 번역] [RJ01081508].7z")
+    assert h.title_aliases == ()
+
+
+def test_search_history_persists_platform_provenance_and_archive_kind(tmp_path):
+    store = ReviewStore(tmp_path / "review.db")
+    store.add_game("game1", "My Game [Steam 1621540]", "My Game [Steam 1621540].zip")
+    result = enhanced_classify_game(
+        "My Game [Steam 1621540]",
+        classifier=base,
+        steam_fetcher=lambda _: product(name="My Game"),
+    )
+    store.save_search_result("game1", result)
+    saved = store.search_history("game1")[0]
+    assert saved["source_platform"] == "steam"
+    assert saved["source_id"] == "1621540"
+    assert saved["source_url"] == "https://store.steampowered.com/app/1621540/"
+    assert saved["archive_kind"] == "unknown"
+    assert store.get_game("game1")["display_name"] == "My Game [Steam 1621540]"
+
+
+def test_existing_experiment_db_search_history_schema_is_upgraded_without_deleting_rows(tmp_path):
+    import sqlite3
+    path = tmp_path / "legacy-experiment.db"
+    with sqlite3.connect(path) as db:
+        db.execute("""
+            CREATE TABLE search_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                game_id TEXT NOT NULL, status TEXT NOT NULL,
+                proposed_title TEXT NOT NULL, dlsite_status TEXT NOT NULL,
+                dlsite_code TEXT NOT NULL, web_checked INTEGER NOT NULL,
+                evidence_json TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL
+            )
+        """)
+        db.execute("""
+            INSERT INTO search_runs(game_id,status,proposed_title,dlsite_status,dlsite_code,
+                                    web_checked,evidence_json,reason,created_at)
+            VALUES ('g1','lookup_unavailable','','unverified','',1,'[]','과거 실험','2026-01-01')
+        """)
+    store = ReviewStore(path)
+    row = store.search_history("g1")[0]
+    assert row["reason"] == "과거 실험"
+    assert row["source_platform"] == ""
+    assert row["source_id"] == ""
+    assert row["archive_kind"] == "unknown"
