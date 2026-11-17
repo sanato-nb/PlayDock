@@ -143,24 +143,24 @@ python -m experiments.dlsite_detector.archive_cli "D:\\games\\Unknown Game.zip" 
 ### 실행 순서
 
 1. **1단계 · 압축파일 이름으로 검색:** 파일명에서 확장자를 제외한 문자열로 DLsite → 일반 인터넷 검색을 수행합니다.
-2. **게임 확인 시 즉시 종료:** 더 이상 내부 파일을 읽지 않습니다. DLsite 비게임 작품은 비게임 **추정**으로 별도 분류합니다.
-3. **1단계 실패 시 2단계:** ZIP/7z/RAR을 풀지 않고 내부 파일 목록을 확인해 EXE 이름·최상위 폴더·작품 코드 후보를 추출합니다.
-4. **2단계 재검색:** 단서에서 얻은 서로 다른 제목 후보 최대 4개와 작품 코드 최대 2개로 DLsite·일반 인터넷 검색을 다시 시도합니다.
-5. **정체 후보 발견:** 실제 게임 작품은 확인되더라도 **압축파일과 같은 게임이라는 검증은 남았으므로 수동 확인 필요**로 표시합니다. 여러 게임이 나오면 복수 후보를 보여주고 자동 선택하지 않습니다.
-6. **모든 검색 실패:** 🔴 조회 불가로 표시합니다. 원본 파일을 수정하지 않습니다.
+2. **2단계 · 이름 기반 외부 작품 검색:** DLsite·Steam 및 일반 웹에서 작품 후보를 확인합니다. 이름으로 찾았더라도 압축파일 정체는 아직 미확정입니다.
+3. **3단계 · 암호화 여부 확인:** 암호화된 ZIP/7z/RAR은 이름 기반 결과만 유지하고, 실패하면 '분류 불가'로 중단합니다.
+4. **4단계 · 비암호화 압축파일 전체 목록 분석:** 파일명 검색에 성공해도 EXE·최상위 폴더·게임 데이터·번역 폴더·작품 코드를 모두 검사합니다. 안전 제한(최대 120,000항목)을 넘으면 '전체 검사 미완료'로 보고합니다. 필요 시 목록에서 얻은 제목 최대 4개·품번 최대 2개로 재검색합니다.
+5. **5단계 · 작은 메타데이터 읽기:** 온라인 실행에서는 기본적으로 작은 README·INI·JSON 등을 선택적으로 읽습니다(파일당 32KiB, 총 128KiB). 파일명 검색 성공 시에도 내부 작품 이름을 수집합니다. 다른 제목이 나타나면 자동 확정하지 않고 검토가 필요하다고 표시합니다.
+6. **5단계까지는 근거 수집:** 찾은 작품은 압축파일 동일성 '후보'로 남겨 6단계 최종 교차검증을 나중에 진행합니다. 암호화 파일만 이름 기반 검색 결과를 별도로 기록합니다. 원본 파일·DB는 수정하지 않습니다.
 
 ```powershell
 # 기본: 인터넷 검색 없이 압축파일 내부 파일 목록의 단서만 확인
 python -m experiments.dlsite_detector.identify_cli "D:\\games\\Unknown Game.zip"
 
-# 1차 파일명 → 실패하면 2차 내부 목록 + 재검색 (실제 웹 접속)
+# 온라인 이름 검색 → 암호 확인 → 비암호화 목록 전체 → 작은 메타데이터 분석
 python -m experiments.dlsite_detector.identify_cli "D:\\games\\Unknown Game.zip" --online
 
-# 전 단계 판정/근거를 구조화된 JSON으로 출력
+# 후보 출처 단계(stage)와 실제 수행한 1~5단계(completed_steps)를 JSON으로 출력
 python -m experiments.dlsite_detector.identify_cli "D:\\games\\Unknown Game.zip" --online --json
 ```
 
-실행 과정에서 **파일명 전체 경로는 웹에 전송하지 않으며**, 2단계 검색 시에는 내부 경로 대신 추출된 짧은 제목/품번 후보만 검색어로 사용합니다. 검색기는 압축파일을 풀거나 안의 실행파일을 실행하지 않습니다.
+실행 과정에서 **파일명 전체 경로는 웹에 전송하지 않으며**, 내부 목록이나 메타데이터로 재검색할 때도 추출된 짧은 제목/품번만 검색어로 사용합니다. 검색기는 압축파일을 풀거나 안의 실행파일을 실행하지 않습니다.
 
 `identify_archive(path)` 함수는 매 단계 결과와 내부 목록 근거를 구조화된 결과로 반환합니다. 직접 DB를 수정하거나 PlayDock 본체 설정을 건드리지 않으므로, 검색기 검증 후 별도 Service를 통해 이식할 수 있습니다.
 
@@ -255,11 +255,8 @@ python -m experiments.dlsite_detector.filename_batch ".\\powershell-list.txt" `
 `[패치 전용]`처럼 *단독 파일*이라고 명시된 경우만 `patch_candidate`로 분류합니다.
 기존 게임 정체 판정과 파일 구성 판정은 반드시 별도로 표시합니다.
 
-기본 모드는 기존과 같이 **압축파일명 → 2차 내부 파일 *목록* 재검색**입니다.
-`--metadata`를 명시했을 때만 목록과 함께 아주 작은 메타데이터 파일을 읽습니다.
-검색 결과가 게임 *후보*인 경우에도 `--metadata`를 명시하면 내부 제목과 교차 확인하고,
-서로 다른 제목이 나타나면 `ambiguous`로 분류합니다.
-이미 원본 작품 정보를 확정한 경우에는 내부 읽기를 생략합니다.
+**온라인 실행은 기본으로 1~5단계까지 수행합니다.** 이름 기반 작품 검색이 성공하더라도 비암호화 ZIP·7z·RAR의 전체 내부 목록을 확인합니다. 작은 메타데이터 파일은 정해진 종류만 선택적으로 읽으며, 내용 읽기를 끄려면 `--no-metadata`를 지정합니다. 오프라인에서는 기존처럼 `--metadata`를 지정해야 내용 분석을 수행합니다.
+검색 결과가 게임 후보 또는 공식 등록 작품이어도 로컬 압축파일과 동일하다고 확정하지 않습니다. 내부 제목과 충돌하면 `ambiguous`로 보류합니다.
 
 ### 읽을 수 있는 근거
 
@@ -277,7 +274,7 @@ python -m experiments.dlsite_detector.filename_batch ".\\powershell-list.txt" `
 # 1: 완전 오프라인. ZIP/7z/RAR의 메타데이터 필드만 검사. 인터넷 요청 없음
 python -m experiments.dlsite_detector.identify_cli "D:\\Games\\NOR [한글패치].zip" --metadata --json
 
-# 2: 이름·파일 목록 검색이 실패하면 메타데이터로 3차 인터넷 검색
+# 2: 온라인 검색 결과와 관계없이 비암호화 내부 목록·작은 메타데이터까지 조사
 python -m experiments.dlsite_detector.identify_cli "D:\\Games\\NOR [한글패치].zip" --online --metadata --json
 
 # 소형 테스트 압축파일로 기능과 보안 경계를 검증
@@ -311,3 +308,33 @@ python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Locked Game.zip" 
 
 암호 ZIP의 일부 항목만 보호된 경우에도 **압축파일 전체를 이름만 검색**합니다.
 자동 테스트는 암호 ZIP 플래그, 7z/RAR 암호 헤더, 암호 상태 확인 불가, 비암호화 정상 처리 등으로 검증합니다.
+
+## 13. 1~5단계 전수 목록 검사 (최신 동작)
+
+`identify_archive()`의 `stage` 필드는 **후보가 나온 검색 근거(1=파일명, 2=내부 목록, 3=내부 메타데이터)**를 나타내는 기존 호환 필드입니다.
+새 `completed_steps` 필드는 이번에 요청한 **실제 1~5단계 처리 이력**을 나타냅니다.
+
+1. 압축파일 이름에서 게임 검색어·DLsite/Steam 코드·배포 태그 추출
+2. DLsite·Steam·일반 인터넷으로 후보 확인
+3. 암호화 여부 판정. 암호화 파일은 이 단계에서 종료하고 이름 검색 실패 시 `unclassifiable`
+4. **게임 검색 성공 여부와 관계없이** 비암호화 압축파일의 내부 목록 검사. 최대 120,000개 항목을 읽으며 제한을 넘으면 `limit_exceeded`; 보고서 `inspection_complete=false`
+5. 작은 README·INI·JSON·설정파일에서 제목·품번을 제한적으로 읽어 추가 검색 근거로 보관. `--online`이면 기본 활성화하며 `--no-metadata`로 해제 가능
+
+**6단계 최종 동일성 비교 및 라이브러리 자동 등록/이름 변경은 아직 구현하지 않았습니다.**
+외부에서 원본 작품을 확인했더라도 비암호화 파일의 현재 결과는 `candidate_found`로 남겨 사용자 검토를 기다립니다.
+출처의 원래 판정은 `attempts`와 `external_status`에 남습니다.
+`encryption_state`, `inspection_complete`, `evidence_conflict`를 결과에 포함합니다.
+
+```powershell
+# 1~5단계 자동 조사, 결과만 출력 (원본 수정하지 않음)
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Unknown Game.zip" --online --json
+
+# 내용을 열지 않고 내부 목록까지만 조사
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Unknown Game.zip" --online --no-metadata --json
+
+# 인터넷 없이 내부 목록 + 허용된 소형 메타데이터만 조사
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Unknown Game.zip" --metadata --json
+
+# 자동 회귀 검사
+python -m pytest -q tests/test_full_five_stage_archive_experiment.py
+```
