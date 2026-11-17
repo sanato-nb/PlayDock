@@ -28,13 +28,14 @@ MAX_COMPRESSED_BYTES = 131_072
 MAX_RATIO = 120
 MAX_TITLES = 6
 MAX_CODES = 4
+MAX_STEAM_IDS = 4
 MAX_EVIDENCE = 24
 
 ALLOWED_EXACT = frozenset({
     "readme", "readme.txt", "readme.md",
     "game.ini", "rpg_rt.ini", "project.godot",
     "game.json", "metadata.json", "package.json", "version.json",
-    "system.json",
+    "system.json", "steam_appid.txt",
     "app.info", "options.rpy",
 })
 ALLOWED_SUFFIX = re.compile(r"^readme(?:[_\-][a-z]{2,3})?\.(?:txt|md)$", re.I)
@@ -79,6 +80,7 @@ class MetadataInspection:
     product_codes: tuple[str, ...]
     evidence: tuple[MetadataEvidence, ...]
     reason: str
+    steam_app_ids: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -129,12 +131,13 @@ def _pick_members(rows) -> list[tuple[str, str]]:
             continue
         if basename == "system.json" and not "/".join(p.casefold() for p in parts).endswith("/data/system.json"):
             continue
-        if Path(basename).suffix.casefold() not in READABLE and basename != "readme":
+        if Path(basename).suffix.casefold() not in READABLE and basename not in ("readme", "steam_appid.txt"):
             continue
         candidates.append((member, basename))
     # 게임 실행 설정과 엔진별 title 필드를 패키지/README보다 우선 확인한다.
     order = {
-        "game.ini": 0, "rpg_rt.ini": 0, "options.rpy": 0, "system.json": 0,
+        "steam_appid.txt": 0, "game.ini": 0, "rpg_rt.ini": 0, "options.rpy": 0,
+        "system.json": 0,
         "app.info": 1, "project.godot": 1, "game.json": 2,
         "metadata.json": 3, "package.json": 4, "version.json": 5,
     }
@@ -151,9 +154,22 @@ def _parse_metadata_text(member: str, payload: bytes):
 
 def _accept_evidence(member: str, payload: bytes,
                      titles: list[str], codes: list[str],
-                     evidence: list[MetadataEvidence]) -> None:
+                     evidence: list[MetadataEvidence],
+                     steam_ids: list[str]) -> None:
     """필드 등급과 출처를 유지하며 제목과 다른 종류의 단서를 혼동하지 않는다."""
     for item in _parse_metadata_text(member, payload):
+        if item.kind == "steam_app_id":
+            steam_id = item.value.strip()
+            if not (steam_id.isascii() and steam_id.isdecimal()
+                    and 3 <= len(steam_id) <= 10):
+                continue
+            if steam_id not in steam_ids and len(steam_ids) < MAX_STEAM_IDS:
+                steam_ids.append(steam_id)
+            if len(evidence) < MAX_EVIDENCE:
+                evidence.append(MetadataEvidence(
+                    member, item.field, steam_id, item.kind, item.strength,
+                    item.parser))
+            continue
         if item.kind == "product_code":
             code = extract_code(item.value)
             if not code or code.upper() != item.value.upper():
@@ -250,7 +266,7 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
                                           "제한된 메타데이터 후보 파일 없음")
             factory = MemoryFactory()
             zf.extract(targets=[p for p, _ in selected], recursive=False, factory=factory)
-            titles, codes, evidence = [], [], []
+            titles, codes, evidence, steam_ids = [], [], [], []
             size = 0
             for member, basename in selected:
                 writer = factory.members.get(member)
@@ -261,10 +277,13 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
                 if size > MAX_TOTAL_BYTES:
                     return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
                                               "7z 누적 읽기 제한 초과")
-                _accept_evidence(member, contents, titles, codes, evidence)
-            return MetadataInspection(archive.name, "ok" if titles or codes else "no_metadata",
-                                      len(factory.members), size, tuple(titles), tuple(codes),
-                                      tuple(evidence), "안전 상한을 적용한 비-solid 7z 소형 항목만 조회")
+                _accept_evidence(member, contents, titles, codes, evidence, steam_ids)
+            return MetadataInspection(
+                archive.name, "ok" if titles or codes or steam_ids else "no_metadata",
+                len(factory.members), size, tuple(titles), tuple(codes),
+                tuple(evidence), "안전 상한을 적용한 비-solid 7z 소형 항목만 조회",
+                tuple(steam_ids),
+            )
     except Exception as exc:
         return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
                                   f"7z 부분 읽기를 완료하지 못해 목록 정보만 사용: {type(exc).__name__}")
@@ -298,6 +317,7 @@ def inspect_metadata(path: Path) -> MetadataInspection:
 
     titles = []
     codes = []
+    steam_ids = []
     evidence = []
     read_bytes = 0
     count = 0
@@ -342,11 +362,11 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                 read_bytes += len(chunk)
                 if len(chunk) > cap:
                     continue
-                _accept_evidence(member, chunk, titles, codes, evidence)
+                _accept_evidence(member, chunk, titles, codes, evidence, steam_ids)
     except (ImportError, OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
         errors.append(type(exc).__name__)
 
-    if titles or codes:
+    if titles or codes or steam_ids:
         state = "ok"
     elif errors:
         state = "partial"
@@ -358,4 +378,5 @@ def inspect_metadata(path: Path) -> MetadataInspection:
         ("제한된 메타데이터 제목 필드만 추출했습니다. "
          "로컬 게임과의 동일성은 증명하지 않습니다."
          + (" 일부 파일 읽기 실패: " + ", ".join(errors[:3]) if errors else "")),
+        tuple(steam_ids),
     )
