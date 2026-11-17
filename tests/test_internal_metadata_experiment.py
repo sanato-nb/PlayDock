@@ -217,3 +217,47 @@ def test_non_solid_7z_skips_files_beyond_per_member_limit(tmp_path):
     result = inspect_metadata(path)
     assert result.title_candidates == ()
     assert result.read_bytes == 0
+
+
+def test_translated_full_game_archive_has_payload_and_korean_evidence(tmp_path):
+    from experiments.dlsite_detector.archive_inspector import inspect_archive
+    path = make_zip(tmp_path, {
+        "Night of Revenge/Night of Revenge.exe": b"binary sample",
+        "Night of Revenge/game/arc.rpa": b"asset sample",
+        "Night of Revenge/game/tl/korean/script.rpy": b"translate korean",
+        "Night of Revenge/Game.ini": "Title=Night of Revenge\n",
+    }, name="NOR [한글패치].zip")
+    hints = extract_hints(path.name)
+    inspection = inspect_archive(path)
+    metadata = inspect_metadata(path)
+    assert hints.archive_kind == "localized_release_unknown"
+    assert "Windows 실행파일 존재" in inspection.package_signals
+    assert "Ren'Py 게임 데이터 파일 존재" in inspection.package_signals
+    assert "한국어 번역 파일/폴더 경로 단서" in inspection.localization_signals
+    assert metadata.title_candidates == ("Night of Revenge",)
+    assert "패치" not in inspection.package_signals
+
+
+def test_web_title_candidate_can_be_checked_against_metadata_when_requested(tmp_path):
+    path = make_zip(tmp_path, {
+        "Root/Game.ini": "Title=Night of Revenge\n",
+        "Root/game.exe": b"sample",
+    }, name="NOR [한글패치].zip")
+    found = lambda _: SearchDecision("internet_candidate", "NOR", proposed_title="Night of Revenge")
+    original = identify_archive(path, classifier=found)
+    assert original.stage == 1 and original.metadata is None
+    deeper = identify_archive(path, classifier=found, allow_metadata=True)
+    assert deeper.status == "candidate_found"
+    assert deeper.metadata.title_candidates == ("Night of Revenge",)
+    assert deeper.stage == 3
+
+
+def test_conflicting_search_title_and_internal_title_flagged_ambiguous(tmp_path):
+    path = make_zip(tmp_path, {"Game/Game.ini": "Title=Different Game\n"})
+    first = identify_archive(
+        path, classifier=lambda _: SearchDecision("internet_candidate", "Unknown",
+                                                  proposed_title="Another Game"),
+        allow_metadata=True,
+    )
+    assert first.status == "ambiguous"
+    assert first.metadata.title_candidates == ("Different Game",)
