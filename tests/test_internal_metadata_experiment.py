@@ -45,7 +45,7 @@ def test_corrected_translation_note_does_not_mean_patch_only():
         h = extract_hints(filename)
         assert h.archive_kind == "localized_release_unknown"
         assert "패치 파일로 분류하지 않음" in h.kind_reason
-    assert extract_hints("NOR [패치 전용].zip").archive_kind == "unknown"  # 명시적 패치-only는 별도 규칙 개선 대상
+    assert extract_hints("NOR [패치 전용].zip").archive_kind == "patch_candidate"
 
 
 def test_metadata_finds_rpgmaker_ini_title_without_extracting(tmp_path, monkeypatch):
