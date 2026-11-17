@@ -1,12 +1,8 @@
-"""선택적 내부 메타데이터 검사: 파일명 검색 실패 후 작은 텍스트만 읽는다.
+"""선택적 내부 메타데이터 검사: 비암호화 압축 안의 작은 설정 파일만 읽는다.
 
-ZIP: 한정된 읽기. RAR: 비-solid·비암호화 파일을 읽을 수 있을 때만.
-7z: solid 압축의 임의 파일 읽기에서 대량 해제 위험이 있으므로 내용 읽기는
-안전한 상한이 보장될 때까지 생략하고 기존 '목록만 검사'를 사용한다.
-
-기본 실행에서 외부 인터넷/디스크 추출/실행/사용자 DB 변경 없음.
-README와 설정파일에서 *명시적으로 이름을 표기한 필드*만 검색 단서로 사용한다.
-비밀번호/토큰/로컬 경로/파일 원문은 결과에 넣지 않는다.
+실행/디스크 추출/사용자 DB 변경은 하지 않는다. 파일 종류별 파서가
+명시적으로 지정한 필드만 단서로 수집하고 제목/품번/제작사/프로젝트명을
+분리해 근거 출처 및 등급을 함께 보존한다. 게임 정체는 확정하지 않는다.
 """
 from __future__ import annotations
 
@@ -21,6 +17,7 @@ from .archive_inspector import _safe_member_path
 from .detector import extract_code
 from .archive_encryption import probe_archive_encryption
 from .search_terms import cleaned_search_title
+from .metadata_fields import parse_metadata_fields
 
 
 MAX_MEMBERS = 20_000
@@ -31,11 +28,13 @@ MAX_COMPRESSED_BYTES = 131_072
 MAX_RATIO = 120
 MAX_TITLES = 6
 MAX_CODES = 4
+MAX_EVIDENCE = 24
 
 ALLOWED_EXACT = frozenset({
     "readme", "readme.txt", "readme.md",
     "game.ini", "rpg_rt.ini", "project.godot",
     "game.json", "metadata.json", "package.json", "version.json",
+    "system.json",
     "app.info", "options.rpy",
 })
 ALLOWED_SUFFIX = re.compile(r"^readme(?:[_\-][a-z]{2,3})?\.(?:txt|md)$", re.I)
@@ -64,7 +63,10 @@ GENERIC_TITLES = frozenset({"game", "new game", "untitled", "project", "readme",
 class MetadataEvidence:
     member: str
     field: str
-    candidate_title: str
+    candidate_title: str  # 호환 필드: 작품 코드·제작사라면 해당 값을 보관
+    kind: str = "title"
+    strength: str = "supporting"
+    parser: str = "generic"
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,13 @@ class MetadataInspection:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+    @property
+    def strong_titles(self) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(
+            e.candidate_title for e in self.evidence
+            if e.kind == "title" and e.strength == "strong"
+        ))
 
 
 def _safe_title(value) -> str:
@@ -118,64 +127,52 @@ def _pick_members(rows) -> list[tuple[str, str]]:
         basename = parts[-1].casefold()
         if (basename not in ALLOWED_EXACT and not ALLOWED_SUFFIX.fullmatch(basename)):
             continue
+        if basename == "system.json" and not "/".join(p.casefold() for p in parts).endswith("/data/system.json"):
+            continue
         if Path(basename).suffix.casefold() not in READABLE and basename != "readme":
             continue
         candidates.append((member, basename))
-    # '명시적 메타데이터'가 README보다 우선
-    candidates.sort(key=lambda x: (x[1].startswith("readme"), len(x[0]), x[0].casefold()))
+    # 게임 실행 설정과 엔진별 title 필드를 패키지/README보다 우선 확인한다.
+    order = {
+        "game.ini": 0, "rpg_rt.ini": 0, "options.rpy": 0, "system.json": 0,
+        "app.info": 1, "project.godot": 1, "game.json": 2,
+        "metadata.json": 3, "package.json": 4, "version.json": 5,
+    }
+    candidates.sort(key=lambda x: (
+        order.get(x[1], 9), len(x[0].split("/")), x[0].casefold(),
+    ))
     return candidates[:MAX_CANDIDATE_FILES]
 
 
-def _parse_metadata_text(basename: str, payload: bytes):
-    if b"\x00" in payload[:1024] and not payload.startswith((b"\xff\xfe", b"\xfe\xff")):
-        return []
-    decoded = None
-    for encoding in ("utf-8-sig", "utf-16", "cp949", "shift_jis"):
-        try:
-            decoded = payload.decode(encoding)
-            break
-        except UnicodeError:
+def _parse_metadata_text(member: str, payload: bytes):
+    """엔진별 허용된 필드만 추출한다 (전체 텍스트 검색 아님)."""
+    return parse_metadata_fields(member, payload)
+
+
+def _accept_evidence(member: str, payload: bytes,
+                     titles: list[str], codes: list[str],
+                     evidence: list[MetadataEvidence]) -> None:
+    """필드 등급과 출처를 유지하며 제목과 다른 종류의 단서를 혼동하지 않는다."""
+    for item in _parse_metadata_text(member, payload):
+        if item.kind == "product_code":
+            code = extract_code(item.value)
+            if not code or code.upper() != item.value.upper():
+                continue
+            if code not in codes and len(codes) < MAX_CODES:
+                codes.append(code)
+            if len(evidence) < MAX_EVIDENCE:
+                evidence.append(MetadataEvidence(
+                    member, item.field, code, "product_code", item.strength, item.parser))
             continue
-    if decoded is None:
-        return []
-    values = []
-    if basename.endswith(".json"):
-        try:
-            data = json.loads(decoded)
-        except (json.JSONDecodeError, ValueError):
-            data = None
-        if isinstance(data, dict):
-            # 임의 JSON 깊이 검색 금지: 인증·개인 설정/스크립트 값 수집 방지.
-            for key in ("displayName", "gameTitle", "game_name", "gameName",
-                        "title", "productName", "work_name", "name"):
-                if key in data:
-                    values.append((key, data[key]))
-            for key in ("dlsite_code", "workno", "work_no", "product_id"):
-                if key in data:
-                    values.append(("product_code", data[key]))
-        return values
-    for line in decoded.splitlines()[:180]:
-        if len(line) > 300:
+        value = _safe_title(item.value)
+        if not value:
             continue
-        code = CODE_KEY.match(line)
-        if code:
-            values.append(("product_code", code.group(1)))
-            continue
-        if basename == "options.rpy":
-            m = RENPY_TITLE.match(line)
-            if m:
-                values.append(("config.name", m.group(2)))
-            continue
-        matcher = README_TITLE if basename.startswith("readme") else TITLE_KEY
-        m = matcher.match(line)
-        if m:
-            values.append(("title", m.group(1)))
-    if basename == "app.info" and len(values) == 0:
-        # Unity app.info는 보통 1행 제작사/2행 게임명. 짧은 텍스트만 참고.
-        lines = [row.strip() for row in decoded.splitlines()[:3]]
-        if len(lines) == 2:
-            values.append(("unity_app_info_second_line", lines[1]))
-    return values[:8]
+        if item.kind == "title" and value not in titles and len(titles) < MAX_TITLES:
+            titles.append(value)
+        # 중복 제목이라도 서로 다른 *파일*의 근거는 기록한다.
+        if len(evidence) < MAX_EVIDENCE:
+            evidence.append(MetadataEvidence(
+                member, item.field, value, item.kind, item.strength, item.parser))
 
 
 def _zip_index(path: Path):
@@ -264,21 +261,7 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
                 if size > MAX_TOTAL_BYTES:
                     return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
                                               "7z 누적 읽기 제한 초과")
-                for field, raw in _parse_metadata_text(basename, contents):
-                    if field == "product_code":
-                        code = extract_code(str(raw))
-                        if code and code not in codes and len(codes) < MAX_CODES:
-                            codes.append(code)
-                        continue
-                    title = _safe_title(raw)
-                    if not title:
-                        continue
-                    if title not in titles and len(titles) < MAX_TITLES:
-                        titles.append(title)
-                        evidence.append(MetadataEvidence(member, field, title))
-                    code = extract_code(str(raw))
-                    if code and code not in codes and len(codes) < MAX_CODES:
-                        codes.append(code)
+                _accept_evidence(member, contents, titles, codes, evidence)
             return MetadataInspection(archive.name, "ok" if titles or codes else "no_metadata",
                                       len(factory.members), size, tuple(titles), tuple(codes),
                                       tuple(evidence), "안전 상한을 적용한 비-solid 7z 소형 항목만 조회")
@@ -288,10 +271,9 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
 
 
 def inspect_metadata(path: Path) -> MetadataInspection:
-    """압축파일을 풀지 않고 소수의 작은 지정 파일에서 제목만 추출한다.
+    """비암호화 압축 안의 작은 파일만 메모리에 읽고 제목·코드 근거를 남긴다.
 
-    RAR은 압축해제 백엔드 설치가 필요할 수 있으며, 솔리드/암호화 RAR은
-    안전성 우선으로 읽지 않는다. 7z 역시 솔리드 블록 위험으로 메타내용 미지원.
+    RAR은 추가 백엔드가 필요할 수 있고, 솔리드 7z와 암호 압축은 읽지 않는다.
     """
     archive = Path(path)
     if archive.is_symlink() or not archive.is_file():
@@ -360,21 +342,7 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                 read_bytes += len(chunk)
                 if len(chunk) > cap:
                     continue
-                for field, raw_title in _parse_metadata_text(basename, chunk):
-                    if field == "product_code":
-                        code = extract_code(str(raw_title))
-                        if code and code not in codes and len(codes) < MAX_CODES:
-                            codes.append(code)
-                        continue
-                    title = _safe_title(raw_title)
-                    if not title:
-                        continue
-                    if title not in titles and len(titles) < MAX_TITLES:
-                        titles.append(title)
-                        evidence.append(MetadataEvidence(member, field, title))
-                    code = extract_code(str(raw_title))
-                    if code and code not in codes and len(codes) < MAX_CODES:
-                        codes.append(code)
+                _accept_evidence(member, chunk, titles, codes, evidence)
     except (ImportError, OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
         errors.append(type(exc).__name__)
 
