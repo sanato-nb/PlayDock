@@ -230,9 +230,11 @@ def identify_archive(
     # 제목이 외부 작품명과 충돌할 때만 안전하게 '보류'로 표시한다.
     conflicts = bool(
         first.status in FOUND and first_title and metadata
-        and metadata.title_candidates
+        # README·패키지 설명 등은 보조 근거라서 제목이 달라도
+        # 그것만으로 게임 정체 충돌이라고 처리하지 않는다.
+        and metadata.strong_titles
         and normalized_title(first_title) not in {
-            normalized_title(v) for v in metadata.title_candidates
+            normalized_title(v) for v in metadata.strong_titles
         }
     )
     note = ("내부 목록 분석이 항목 수 제한으로 중단됐으므로 전체 목록은 미검사입니다. "
