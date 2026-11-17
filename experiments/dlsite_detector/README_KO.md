@@ -49,7 +49,11 @@ experiments/                               # 본체 이식 전 독립 실험 코
     ├── archive_inspector.py              # ZIP/7z/RAR 내부 목록·실행파일·엔진 단서
     ├── internal_metadata.py              # 작은 README/INI/JSON 내용 읽기·근거 출처 보존
     ├── metadata_fields.py                # 엔진별 메타데이터 허용 필드·근거 등급 정의
-    ├── archive_identity.py               # 이름→내부 목록→선택적 메타 3단계 순서 제어
+    ├── archive_identity.py               # 이름→내부 목록→선택적 메타 1~5단계 근거 수집
+    ├── evidence_normalizer.py            # 6-A: 외부·내부 근거의 출처별 분리·정규화
+    ├── identity_matcher.py               # 6-B/C: 공식 ID·제목·검증된 별칭 비교
+    ├── identity_verifier.py              # 6-D: 보수적인 다섯 가지 판정 실행
+    ├── verification_report.py            # 6-E: 읽기 전용 판정 사유·근거 보고서
     ├── identify_cli.py                   # 단일 압축파일 실험 명령행 실행기
     ├── filename_batch.py                 # PowerShell 파일 목록 대량 실험 도구
     └── README_KO.md                       # 현재 실험 절차 안내
@@ -411,3 +415,66 @@ ZIP·비솔리드 RAR/7z에 대한 이전 읽기 상한과 암호화 파일 차�
 ```powershell
 python -m pytest -q tests/test_metadata_evidence_stage5_experiment.py
 ```
+
+## 15. 6단계 게임 정체 교차검증 (독립 실험)
+
+**이제 6단계도 코드로 구현했습니다.** `--online --verify`를 명시하면 기존
+1~5단계 원본 수집 결과를 **수정하지 않고** 별도의 `verification` 보고서를 반환합니다.
+결과는 작품 존재 여부와 로컬 압축파일 동일성을 구분하며, UI·원본 압축파일·
+PlayDock 본체 DB에 쓰지 않습니다. 이름·아이콘을 자동 변경하지 않습니다.
+
+### 처리 모듈
+
+- `evidence_normalizer.py` (6-A): 압축파일명, DLsite/Steam 공식 확인,
+  웹 후보, 내부 INI/JSON, 파일 목록을 서로 다른 출처로 분리.
+  같은 README/같은 폴더 설정은 무조건 독립적인 2개 증거로 가산하지 않습니다.
+- `identity_matcher.py` (6-B/C): **동일 플랫폼 내** 공식 작품 식별자와
+  내부 명시 식별자를 대조. 게임명은 정확한 정규화 일치 또는
+  *출처가 확인되어 명시적으로 전달된 별칭*만 같은 이름으로 판단합니다.
+  AI 유추/번역/유사도 추정으로 후속작·동명 이작을 합치지 않습니다.
+- `identity_verifier.py` (6-D): 조건 기반의 안전한 5개 판정 적용.
+- `verification_report.py` (6-E): 후보 이름, 내외부 근거 출처, 일치·충돌 사유,
+  미검사 사유, 파일 구성과 한국어 흔적을 별도로 보고.
+
+### 판정 종류
+
+| 판정값 | 설명 |
+|---|---|
+| `matched` / 일치 확인 | **공식 원본 작품 확인 + 같은 플랫폼의 내부 명시 ID 일치 + 강한 게임명 필드 일치 + 실행파일과 엔진 데이터 단서 + 정상 목록/메타 검사**, 그리고 식별자·제목이 같은 게임 루트에서 확인된 경우에 한함 |
+| `likely_candidate` / 유력 후보 | 외부 작품 후보와 내부 강한 제목 및 게임 실행 구성이 부합하지만 위의 엄격한 ID 조건까지는 충족하지 않음 |
+| `needs_review` / 확인 필요 | 제목 근거 부족, 중복·합본 후보, 패치/DLC/서버팩, 암호화 파일 이름 검색 성공 등 |
+| `conflict` / 근거 충돌 | 같은 플랫폼의 외부 공식 ID와 내부 명시 ID가 다르거나 강한 게임 제목이 검증된 별칭과 불일치하는 경우 |
+| `unclassifiable` / 분류 불가 | 검색 및 내부 근거가 없어 작품 후보를 특정할 수 없음. 암호화 파일은 이름 검색 실패 시 여기로 처리 |
+
+**중요:** `matched`도 위 조건에 따라 자료가 *서로 부합한다*는 의미이지
+압축파일의 배포 진위·안전성·정품 여부를 보증하지 않습니다.
+`requires_manual_review = true`, `automatic_binding_allowed = false`
+값을 항상 유지합니다. 어떠한 결과도 자동으로 PlayDock 게임 목록에 반영하지 않습니다.
+
+파일 종류(`archive_kind`, `package_assessment`)와 한국어 적용 흔적
+(`localization_assessment`)은 작품 정체 판정과 **독립된 필드**입니다.
+한국어 경로 존재는 번역이 정상 작동한다는 증거가 아닙니다.
+합본·DLC·서버·패치 전용 이름으로 표시된 압축파일은 단일 게임 본편으로
+자동 확정하지 않습니다. 별칭 맵을 전달하지 않으면 비슷한 이름도 병합하지 않습니다.
+
+### 실행 예시
+
+```powershell
+# 1~5단계 수집 + 6단계 정체 교차검증. 온라인 접속, 원본 파일 읽기 전용
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Unknown Game.zip" --online --verify --json
+
+# 1~5단계 수집만 수행 (기존 실행 유지)
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Unknown Game.zip" --online --json
+
+# 6단계 전용 보수 판정 테스트
+python -m pytest -q tests/test_identity_verification_stage6_experiment.py
+```
+
+`--verify`를 사용하면 JSON 최상위 `stages_1_to_5`와 `verification`을
+분리합니다. 규칙 세부 정보는 `verification.matched_rules`, `blockers`,
+`comparison`, `limitations`, `evidence`에서 확인할 수 있습니다.
+JSON 보고서는 출력만 하고 별도 DB에 저장하지 않습니다.
+
+**남은 검증:** 현재 테스트는 임시 ZIP 및 모의 플랫폼 검색을 기반으로 하므로,
+실제 사용자가 보유한 129개 압축파일을 검사한 성공률·오탐률로 볼 수 없습니다.
+실제 파일 및 신뢰 가능한 정답표를 확보한 뒤 정확도 평가가 필요합니다.
