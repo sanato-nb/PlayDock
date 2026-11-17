@@ -15,6 +15,8 @@ import json
 import re
 import unicodedata
 
+from .search_terms import cleaned_search_title, search_title_variants
+
 
 CATEGORIES = ("maniax", "home", "soft", "girls", "pro")
 CODE_PATTERN = re.compile(r"(?<![A-Za-z0-9])((?:RJ|VJ|BJ|EJ)\d{6,8})(?![A-Za-z0-9])", re.I)
@@ -86,11 +88,7 @@ def _clean_input_title(raw: str) -> str:
 
 
 def normalized_title(raw: str) -> str:
-    title = unicodedata.normalize("NFKC", _clean_input_title(raw)).casefold()
-    title = CODE_PATTERN.sub(" ", title)
-    # 버전·번역·패치 표기는 제외하지만 게임 시리즈 번호는 보존한다.
-    title = re.sub(r"\[\s*(?:v\d[^\]]*|ver\.?\s*\d[^\]]*|한글패치|한국어패치|번역패치|patch|translation|kor)\s*\]",
-                   " ", title, flags=re.I)
+    title = cleaned_search_title(raw).casefold()
     return "".join(ch for ch in title if ch.isalnum())
 
 
@@ -277,12 +275,22 @@ def detect_dlsite_game(title: str, *, code: str = "",
     if searcher is None:
         return Detection("lookup_unavailable", query, reason="제목 검색 기능이 연결되지 않았습니다.")
 
-    try:
-        rows = searcher(query) or []
-    except Exception as exc:
-        return Detection("lookup_unavailable", query, reason=f"웹 검색 실패: {type(exc).__name__}")
+    # 정확한 작품명이 파일명에 가려져 있을 수 있으므로, 정리한 제목을
+    # 먼저 검색하고 증거가 없으면 원본 제목을 최대 한 차례 다시 시도한다.
+    queries = search_title_variants(query)
+    rows = []
+    errors = []
+    for title_query in queries:
+        try:
+            found_rows = searcher(title_query) or []
+            rows.extend(found_rows[:MAX_SEARCH_RESULTS])
+        except Exception as exc:
+            errors.append(type(exc).__name__)
+    if not rows and errors:
+        return Detection("lookup_unavailable", query,
+                         reason="DLsite 제목 검색 실패: " + ", ".join(errors))
     candidates: dict[str, str] = {}
-    for row in rows[:MAX_SEARCH_RESULTS]:
+    for row in rows[:2 * MAX_SEARCH_RESULTS]:
         if not isinstance(row, dict):
             continue
         hit = product_page_candidate(str(row.get("href") or row.get("url") or ""))
@@ -291,8 +299,11 @@ def detect_dlsite_game(title: str, *, code: str = "",
             candidates.setdefault(candidate_code, category)
     codes = tuple(candidates)
     if not codes:
-        return Detection("unverified", query,
-                         reason="공개 검색에서 DLsite 작품 페이지를 확인하지 못했습니다. DLsite에 없다는 증거는 아닙니다.")
+        status = "lookup_unavailable" if errors else "unverified"
+        return Detection(status, query,
+                         reason="공개 검색에서 DLsite 작품 페이지를 확인하지 못했습니다. "
+                                + ("일부 검색 오류: " + ", ".join(errors) if errors
+                                   else "DLsite에 없다는 증거는 아닙니다."))
     if len(codes) > MAX_CANDIDATES:
         return Detection("needs_review", query, possible_codes=codes,
                          reason="검색된 DLsite 품번이 많아 자동 선택하지 않았습니다.")
