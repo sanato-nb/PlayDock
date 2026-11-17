@@ -92,7 +92,7 @@ def test_steam_non_game_product_types_never_confirmed(kind):
 
 @pytest.mark.parametrize("filename,expected", (
     ("Craft to Exile 2 [Server v1.1.3].zip", "server_package_candidate"),
-    ("SummertimeSaga [한국어 패치 Fix2].zip", "patch_candidate"),
+    ("SummertimeSaga [한국어 패치 Fix2].zip", "localized_release_unknown"),
     ("Game [DLC 2.0.1].7z", "dlc_candidate"),
     ("Game [한글패치·본편 포함].zip", "game_with_patch_candidate"),
     ("Fate Empire of Dirt + Made in Heaven.7z", "bundle_candidate"),
