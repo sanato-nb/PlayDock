@@ -9,7 +9,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .pipeline import classify_game
+from .enhanced_search import enhanced_classify_game
 from .review_store import ReviewStore
 from .artwork_staging import ArtworkStaging
 
@@ -74,7 +74,7 @@ def main(argv=None) -> int:
         if not args.online:
             parser.error("네트워크 요청과 검색 결과 저장은 --online 명시가 필요합니다.")
         store.add_game(args.id, args.title, args.archive, archive_size=args.size)
-        result = classify_game(args.title, code=args.code)
+        result = enhanced_classify_game(args.title, code=args.code)
         store.save_search_result(args.id, result)
         _dump(result.to_dict())
         return 0
