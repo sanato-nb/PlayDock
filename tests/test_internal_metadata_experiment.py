@@ -266,7 +266,7 @@ def test_conflicting_search_title_and_internal_title_flagged_ambiguous(tmp_path)
 
 def test_metadata_reads_explicit_dlsite_code_from_ini_and_json(tmp_path):
     path = make_zip(tmp_path, {
-        "Game/Game.ini": "[Game]\\nTitle=Sample Game\\nWork_No=RJ01234567\\n",
+        "Game/Game.ini": "[Game]\nTitle=Sample Game\nWork_No=RJ01234567\n",
         "Game/metadata.json": '{"title":"Sample Game","dlsite_code":"RJ01234567"}',
     })
     metadata = inspect_metadata(path)
@@ -276,7 +276,7 @@ def test_metadata_reads_explicit_dlsite_code_from_ini_and_json(tmp_path):
 
 def test_stage3_uses_internal_code_field_for_search(tmp_path):
     path = make_zip(tmp_path, {
-        "Game/Game.ini": "[Game]\\nWork_No=RJ01234567\\n",
+        "Game/Game.ini": "[Game]\nWork_No=RJ01234567\n",
     })
     queried = []
     def classifier(query):
