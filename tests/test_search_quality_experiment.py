@@ -163,17 +163,17 @@ def test_default_web_search_fallback_survives_first_search_error(monkeypatch):
     assert len(default_web_search("Test Game")) == 1
 
 
-def test_archive_stage1_web_candidate_does_not_force_archive_inspection(tmp_path):
+def test_archive_stage1_web_candidate_still_scans_index(tmp_path):
     path = tmp_path / "Candidate_v1.2.zip"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("Completely Unrelated/Other.exe", b"content")
     def classifier(query):
         return SearchDecision("internet_candidate", query, proposed_title="Candidate")
-    result = identify_archive(path, classifier=classifier,
-                              inspector=lambda _: pytest.fail("1단계 후보 발견 후 자동 내부 분석 금지"))
+    result = identify_archive(path, classifier=classifier)
     assert result.status == "candidate_found"
     assert result.stage == 1
-    assert result.inspection is None
+    assert result.inspection.member_count == 1
+    assert result.completed_steps == (1, 2, 3, 4)
 
 
 def test_archive_stage2_web_candidate_requires_manual_confirmation(tmp_path):
