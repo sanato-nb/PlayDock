@@ -13,5 +13,9 @@ __all__ = [
 
 from .pipeline import SearchDecision, WebEvidence, classify_game, examine_web_results
 from .review_store import ReviewStore
+from .enhanced_search import enhanced_classify_game
+from .identity_hints import extract_hints, ArchiveHints
+from .steam_client import SteamProduct, fetch_steam_product
 
-__all__ += ["SearchDecision", "WebEvidence", "classify_game", "examine_web_results", "ReviewStore"]
+__all__ += ["SearchDecision", "WebEvidence", "classify_game", "examine_web_results", "ReviewStore", "enhanced_classify_game", "extract_hints", "ArchiveHints",
+            "SteamProduct", "fetch_steam_product"]
