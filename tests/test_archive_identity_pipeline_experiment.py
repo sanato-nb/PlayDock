@@ -34,18 +34,23 @@ def missing(query):
     return SearchDecision("lookup_unavailable", query, reason="모의 검색 실패", web_checked=True)
 
 
-def test_stage1_success_never_reads_archive_index(tmp_path):
+def test_stage1_success_still_scans_non_encrypted_index(tmp_path):
+    from experiments.dlsite_detector.archive_inspector import inspect_archive
     path = archive(tmp_path, entries=["ABC/ABC.exe"])
-    calls = []
+    calls, inspected = [], []
     def classifier(query):
         calls.append(query)
         return found("Original Verified")
-    result = identify_archive(
-        path, classifier=classifier,
-        inspector=lambda _: pytest.fail("검색에 성공했으니 내부 파일을 읽으면 안 됩니다."))
+    def inspector(value):
+        inspected.append(value)
+        return inspect_archive(value)
+    result = identify_archive(path, classifier=classifier, inspector=inspector)
     assert calls == ["Unknown_Game"]
-    assert result.status == "confirmed_game" and result.stage == 1
-    assert result.inspection is None
+    assert inspected == [path]
+    assert result.status == "candidate_found" and result.stage == 1
+    assert result.inspection.member_count == 1
+    assert result.completed_steps == (1, 2, 3, 4)
+    assert result.to_dict()["external_status"] == "internet_confirmed_game"
 
 
 def test_stage1_dlsite_non_game_stays_separate(tmp_path):
@@ -53,9 +58,9 @@ def test_stage1_dlsite_non_game_stays_separate(tmp_path):
     result = identify_archive(
         path,
         classifier=lambda q: SearchDecision("suspected_non_game", q, proposed_title="음성 작품"),
-        inspector=lambda _: pytest.fail("비게임 추정은 별도 분류"),
     )
     assert result.status == "suspected_non_game" and result.stage == 1
+    assert result.inspection.state == "ok"
 
 
 def test_stage1_failure_uses_internal_exe_to_search_again(tmp_path):
@@ -203,9 +208,11 @@ def test_cli_offline_default_makes_no_internet_requests(tmp_path, monkeypatch, c
 def test_cli_online_invokes_full_pipeline(tmp_path, monkeypatch, capsys):
     path = archive(tmp_path)
     monkeypatch.setattr(identify_cli, "identify_archive",
-                        lambda _: identify_archive(path, classifier=missing))
+                        lambda _, **kw: identify_archive(path, classifier=missing, **kw))
     assert identify_cli.main([str(path), "--online", "--json"]) == 1
     output = json.loads(capsys.readouterr().out)
-    assert output["stage"] == 2
+    assert output["stage"] == 3
+    assert output["completed_steps"] == [1, 2, 3, 4, 5]
+    assert output["inspection_complete"] is True
     assert output["status"] == "lookup_unavailable"
     assert output["label"].startswith("정체 조회 불가")
