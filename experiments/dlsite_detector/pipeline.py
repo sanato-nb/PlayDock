@@ -11,6 +11,7 @@ import ipaddress
 import re
 
 from .detector import Detection, detect_dlsite_game, normalized_title, _clean_input_title
+from .search_terms import cleaned_search_title, search_title_variants
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ class SearchDecision:
             "confirmed_game": "DLsite 게임 확인 · 통과",
             "suspected_non_game": "비게임으로 추정 · 별도 분류",
             "internet_confirmed_game": "인터넷 검색으로 게임 확인",
+            "internet_candidate": "인터넷에서 게임 후보 발견 · 원본 확인 필요",
             "lookup_unavailable": "조회 불가 · 별도 보관",
             "input_error": "입력 오류",
         }[self.status]
@@ -99,20 +101,50 @@ def _heading_matches(local: str, heading: str) -> bool:
 
 
 def default_web_search(query: str) -> list[dict]:
-    """사용자가 온라인 조회를 요청한 경우에만 실행되는 검색 연결기."""
+    """언어별 검색식과 완전 일치 검색을 차례로 수행하는 bounded 검색 연결기.
+
+    한 번의 검색이 실패해도 다음 검색식을 시도한다. 사용자 경로나
+    압축파일 내부 파일 목록은 전송하지 않는다.
+    """
     try:
         from ddgs import DDGS
     except ImportError as exc:
         raise RuntimeError("일반 인터넷 검색에 ddgs 패키지가 필요합니다.") from exc
+    clean = cleaned_search_title(query)
+    if not clean:
+        return []
+    if any("\u3040" <= ch <= "\u30ff" or "\u4e00" <= ch <= "\u9fff" for ch in clean):
+        qualifier = "ゲーム"
+    elif any("\uac00" <= ch <= "\ud7a3" for ch in clean):
+        qualifier = "게임"
+    else:
+        qualifier = "game"
+    searches = (f'"{clean}" {qualifier}', f'"{clean}"')
+    records = []
+    seen = set()
+    errors = []
     with DDGS(timeout=12) as client:
-        return list(client.text(f'"{query}" game', max_results=12) or [])
+        for phrase in searches:
+            try:
+                for item in (client.text(phrase, max_results=8) or []):
+                    if not isinstance(item, dict):
+                        continue
+                    url = item.get("href") or item.get("url")
+                    if url and url not in seen:
+                        seen.add(url)
+                        records.append(item)
+            except Exception as exc:
+                errors.append(type(exc).__name__)
+    if not records and errors:
+        raise RuntimeError("일반 인터넷 검색 실패: " + ", ".join(errors))
+    return records[:16]
 
 
 def examine_web_results(query: str, records: list[dict]) -> tuple[WebEvidence, ...]:
     local = normalized_title(query)
     seen = set()
     collected = []
-    for row in records[:12]:
+    for row in records[:16]:
         if not isinstance(row, dict):
             continue
         url = str(row.get("href") or row.get("url") or "")
@@ -173,35 +205,46 @@ def classify_game(
     # DLsite가 '다른 제목의 게임'을 반환했더라도 그 작품명으로 검색하면
     # 엉뚱한 게임을 확인 처리하게 된다. 로컬 제목이 있는 동안에는 로컬 우선.
     is_code_only = bool(re.fullmatch(r"(?:RJ|VJ|BJ|EJ)\d{6,8}", display.strip(), re.I))
-    query = (first.work_title if is_code_only and first.work_title else display)
-    query = re.sub(r"\[(?:RJ|VJ|BJ|EJ)\d{6,8}\]", "", query, flags=re.I).strip()
-    if not normalized_title(query):
-        query = first.code or code.strip()
-    if not query:
+    query_source = first.work_title if is_code_only and first.work_title else display
+    queries = search_title_variants(query_source)
+    # 품번뿐인 파일명은 작품 코드 자체로 검색할 수 있다.
+    if not queries and (first.code or code.strip()):
+        queries = (first.code or code.strip(),)
+    if not queries:
         return SearchDecision("lookup_unavailable", display, dlsite_status=first.status,
                               dlsite_code=first.code,
                               reason="검색할 작품명이나 코드가 없어 조회 불가", web_checked=False)
-    try:
-        hits = web_search(query) or []
-        evidence = examine_web_results(query, hits)
-    except Exception as exc:
-        return SearchDecision("lookup_unavailable", display, dlsite_status=first.status,
-                              dlsite_code=first.code, web_checked=True,
-                              reason=f"일반 인터넷 검색 실패: {type(exc).__name__}")
-    # 독립 출처 최소 2개 + 그중 하나는 알려진 게임 플랫폼/DB인 경우에만 자동 확정.
-    exact_game_sources = {
-        row.domain: row for row in evidence
-        if row.strong_match and (row.trusted_source or row.game_context)
-    }
-    if (len(exact_game_sources) >= 2
-            and any(row.trusted_source for row in exact_game_sources.values())):
-        return SearchDecision(
-            "internet_confirmed_game", display, proposed_title=query,
-            dlsite_status=first.status, dlsite_code=first.code,
-            reason="같은 작품명과 게임 문맥이 확인된 독립 출처 2곳 이상을 대조함",
-            web_checked=True, evidence=evidence)
+    all_evidence = []
+    seen_urls = set()
+    errors = []
+    exact_game_sources = {}
+    preferred_title = queries[0]
+    for query in queries:
+        try:
+            hits = web_search(query) or []
+            evidence = examine_web_results(query, hits)
+        except Exception as exc:
+            errors.append(type(exc).__name__)
+            continue
+        for row in evidence:
+            if row.url not in seen_urls:
+                seen_urls.add(row.url)
+                all_evidence.append(row)
+            if row.strong_match and (row.trusted_source or row.game_context):
+                exact_game_sources[row.domain] = row
+        if (len(exact_game_sources) >= 2
+                and any(row.trusted_source for row in exact_game_sources.values())):
+            # 검색 결과 제목·요약은 실제 판매 페이지의 진위 확인이 아니다.
+            # 작품 페이지 원문 검증 전에는 확정 대신 후보로만 기록한다.
+            return SearchDecision(
+                "internet_candidate", display, proposed_title=preferred_title,
+                dlsite_status=first.status, dlsite_code=first.code,
+                reason="독립된 게임 관련 출처 2곳 이상에서 제목이 일치했습니다. "
+                       "검색 결과만 확인했으므로 동일 작품인지 수동 또는 원문 검증이 필요합니다.",
+                web_checked=True, evidence=tuple(all_evidence))
     return SearchDecision(
         "lookup_unavailable", display, dlsite_status=first.status,
-        dlsite_code=first.code, web_checked=True, evidence=evidence,
-        reason="인터넷 검색 후에도 게임 정체를 확정할 근거가 부족하여 조회 불가로 보관. 수동 분류 가능",
+        dlsite_code=first.code, web_checked=True, evidence=tuple(all_evidence),
+        reason=("일반 인터넷 검색 오류: " + ", ".join(errors) + ". " if errors else "")
+               + "검색 후에도 게임 정체를 확정할 근거가 부족하여 조회 불가로 보관. 수동 분류 가능",
     )
