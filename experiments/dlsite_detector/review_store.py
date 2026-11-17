@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 import re
 import sqlite3
 
@@ -78,14 +79,28 @@ class ReviewStore:
                     applied_at TEXT
                 );
                 CREATE INDEX IF NOT EXISTS ix_names_game ON name_changes(game_id, id);
+                CREATE TABLE IF NOT EXISTS search_runs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    game_id TEXT NOT NULL REFERENCES games(game_id),
+                    status TEXT NOT NULL,
+                    proposed_title TEXT NOT NULL,
+                    dlsite_status TEXT NOT NULL,
+                    dlsite_code TEXT NOT NULL,
+                    web_checked INTEGER NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ix_search_game ON search_runs(game_id, id);
             """)
 
     @contextmanager
     def connect(self):
-        with sqlite3.connect(self.path) as db:
+        with closing(sqlite3.connect(self.path)) as db:
             db.row_factory = sqlite3.Row
             db.execute("PRAGMA foreign_keys=ON")
-            yield db
+            with db:
+                yield db
 
     @staticmethod
     def _validate_id(game_id: str):
@@ -130,14 +145,27 @@ class ReviewStore:
             old_status, source = row["classification"], row["classification_source"]
             # 수동 판정을 자동 검색이 무단 덮어쓰지 않는다.
             next_status = old_status if source == "manual" else result.status
-            db.execute("""
-                UPDATE games SET classification=?, automatic_status=?,
-                    classification_reason=?, updated_at=? WHERE game_id=?
-            """, (next_status, result.status, result.reason, _stamp(), game_id))
+            if source == "manual":
+                db.execute("""
+                    UPDATE games SET automatic_status=?, updated_at=? WHERE game_id=?
+                """, (result.status, _stamp(), game_id))
+            else:
+                db.execute("""
+                    UPDATE games SET classification=?, automatic_status=?,
+                        classification_reason=?, updated_at=? WHERE game_id=?
+                """, (next_status, result.status, result.reason, _stamp(), game_id))
             db.execute("""
                 INSERT INTO classifications(game_id, before_status, after_status, source, reason, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (game_id, old_status, next_status, "automatic", result.reason, _stamp()))
+            db.execute("""
+                INSERT INTO search_runs(game_id, status, proposed_title, dlsite_status,
+                        dlsite_code, web_checked, evidence_json, reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (game_id, result.status, result.proposed_title, result.dlsite_status,
+                  result.dlsite_code, int(result.web_checked),
+                  json.dumps([row.__dict__ for row in result.evidence],
+                             ensure_ascii=False), result.reason, _stamp()))
 
     def manual_classify(self, game_id: str, status: str, *, reason: str = "사용자 선택"):
         if status not in CATEGORIES:
@@ -166,6 +194,14 @@ class ReviewStore:
         with self.connect() as db:
             return [dict(row) for row in db.execute(
                 f"SELECT * FROM games WHERE classification IN ({placeholders}) ORDER BY game_id", statuses)]
+
+    def search_history(self, game_id: str) -> list[dict]:
+        with self.connect() as db:
+            records = [dict(row) for row in db.execute(
+                "SELECT * FROM search_runs WHERE game_id=? ORDER BY id", (game_id,))]
+        for row in records:
+            row["evidence"] = json.loads(row.pop("evidence_json"))
+        return records
 
     def classification_history(self, game_id: str) -> list[dict]:
         with self.connect() as db:
