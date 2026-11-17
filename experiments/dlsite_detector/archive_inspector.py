@@ -12,6 +12,7 @@ import re
 import zipfile
 
 from .detector import extract_code
+from .archive_encryption import probe_archive_encryption
 
 
 MAX_MEMBERS = 120_000
@@ -139,6 +140,20 @@ def inspect_archive(path: Path) -> ArchiveInspection:
     if not archive.is_file() or archive.is_symlink():
         return ArchiveInspection(archive.name, fmt, "unavailable", 0, 0, None,
                                  False, (), (), (), (), "파일을 읽을 수 없거나 링크 파일입니다.")
+
+    # 암호 보호 압축파일은 파일명이 보이는 형식이라도 내부 폴더명/EXE
+    # 이름/작품 코드를 정체 판단에 사용하지 않는다.
+    probe = probe_archive_encryption(archive)
+    if probe.state != "clear":
+        encrypted = probe.state == "encrypted"
+        return ArchiveInspection(
+            archive.name, fmt,
+            "encrypted" if encrypted else "unavailable",
+            0, 0, None, encrypted, (), (), (), (),
+            ("암호화된 압축파일은 내부 목록 단서를 분석하지 않습니다. "
+             if encrypted else "암호 상태가 불명확해 내부 분석을 생략했습니다. ")
+            + probe.reason,
+        )
 
     total = 0
     count = 0
