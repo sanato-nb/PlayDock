@@ -17,6 +17,7 @@ from .detector import normalized_title
 from .pipeline import SearchDecision, classify_game
 
 CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game"})
+CANDIDATES = frozenset({"internet_candidate"})
 ARCHIVE_EXTS = frozenset({".zip", ".7z", ".rar"})
 MAX_TITLE_QUERIES = 4
 MAX_CODE_QUERIES = 2
