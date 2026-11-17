@@ -29,7 +29,7 @@ MAX_CANDIDATES = 3
 
 LABELS = {
     "confirmed_game": "DLsite 등록 게임 확인",
-    "registered_non_game": "DLsite 등록 비게임 작품",
+    "registered_non_game": "DLsite 등록 · 비게임으로 추정",
     "registered_type_unknown": "DLsite 등록 확인 · 게임 여부 미확인",
     "needs_review": "DLsite 후보 확인 필요",
     "unverified": "DLsite 등록 미확인",
@@ -221,7 +221,7 @@ def _result_for_product(query: str, item: Product, *, origin: str,
     exact_match = bool(local_title and official_title and local_title == official_title)
     if item.work_type in NON_GAME_TYPES:
         status = "registered_non_game"
-        reason = f"DLsite 품번은 확인됐지만 작품 형식 {item.work_type}은 게임이 아닙니다."
+        reason = f"DLsite 품번은 확인됐고 작품 형식 {item.work_type}은 비게임으로 추정됩니다."
     elif item.work_type not in GAME_TYPES:
         status = "registered_type_unknown"
         reason = f"DLsite 작품은 확인됐으나 작품 형식 {item.work_type or '미제공'}으로 게임 여부를 확정할 수 없습니다."
