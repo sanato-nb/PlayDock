@@ -240,8 +240,8 @@ def test_same_game_sequel_is_not_accepted_as_alias():
     assert result.status == "lookup_unavailable"
 
 
-def test_existing_archive_flow_uses_enhanced_lookup_without_reading_members(tmp_path, monkeypatch):
-    # 실행 명령에서 기본 검색기가 바뀌더라도 원본 파일 읽기는 1차 미확인 시뿐.
+def test_existing_archive_flow_uses_enhanced_lookup_and_checks_index(tmp_path, monkeypatch):
+    # 실행 명령에서 기본 검색기가 바뀌더라도 작품 정체 확정 전에 내부 목록을 확인.
     from experiments.dlsite_detector import archive_identity
     from experiments.dlsite_detector import enhanced_search
     assert archive_identity.identify_archive.__kwdefaults__["classifier"] is enhanced_search.enhanced_classify_game
@@ -254,9 +254,10 @@ def test_existing_archive_flow_uses_enhanced_lookup_without_reading_members(tmp_
             "platform_confirmed_game", "A Game", proposed_title="A Game",
             source_platform="steam", source_id="1621540",
         ),
-        inspector=lambda _: pytest.fail("직접 확인 성공 후 내부 분석 금지"),
     )
-    assert result.status == "confirmed_game" and result.stage == 1
+    assert result.status == "candidate_found" and result.stage == 1
+    assert result.inspection.member_count == 1
+    assert result.encryption_state == "clear"
 
 
 def test_review_db_keeps_original_name_and_does_not_rename(tmp_path):
