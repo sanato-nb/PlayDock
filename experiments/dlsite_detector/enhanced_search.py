@@ -20,7 +20,7 @@ from .steam_client import SteamProduct, fetch_steam_product, SteamLookupUnavaila
 STEAM_PAGE = re.compile(r"^/app/([1-9]\d{2,9})(?:/|$)")
 FILE_ONLY = frozenset({
     "patch_candidate", "dlc_candidate", "server_package_candidate",
-    "modpack_candidate", "bundle_candidate", "game_with_patch_candidate",
+    "modpack_candidate", "bundle_candidate",
 })
 
 
