@@ -215,7 +215,7 @@ def test_result_json_includes_individual_evidence_provenance(tmp_path):
         "Game/Game.ini": "Title=Star Chamber\n",
     })
     report = inspect_metadata(archive).to_dict()
-    assert report["evidence"] == [{
+    assert list(report["evidence"]) == [{
         "member": "Game/Game.ini",
         "field": "Title",
         "candidate_title": "Star Chamber",
