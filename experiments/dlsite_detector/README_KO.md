@@ -238,3 +238,43 @@ python -m experiments.dlsite_detector.filename_batch ".\\powershell-list.txt" `
 - 자동 검색 중 이미지·압축파일 원본·PlayDock 본체 DB를 변경하지 않습니다. 원본 압축파일 목록을 공개 저장소에 커밋하지 않습니다.
 - 파일명 정리 시 배포·번역·패치·버전 태그를 제거하되 알려지지 않은 대괄호는 부제일 수 있으므로 보존합니다.
 - **오프라인 전수 테스트**는 사용자가 공유한 목록에서 제외 파일을 제거한 129개를 대상으로 검증했습니다. **129건의 실제 온라인 검색 성공률**은 아직 측정하지 않았습니다.
+
+## 11. 내부 압축파일 근거 검사 (선택적, AI 미사용)
+
+**중요한 정정:** `[한글패치]`라는 파일명 표기만으로 별도 패치 ZIP이라고 분류하면 안 됩니다.
+이 표기는 한국어 적용본 게임일 수도 있으므로 `localized_release_unknown`으로 기록합니다.
+`[패치 전용]`처럼 *단독 파일*이라고 명시된 경우만 `patch_candidate`로 분류합니다.
+기존 게임 정체 판정과 파일 구성 판정은 반드시 별도로 표시합니다.
+
+기본 모드는 기존과 같이 **압축파일명 → 2차 내부 파일 *목록* 재검색**입니다.
+`--metadata`를 명시했을 때만 목록과 함께 아주 작은 메타데이터 파일을 읽습니다.
+검색 결과가 게임 *후보*인 경우에도 `--metadata`를 명시하면 내부 제목과 교차 확인하고,
+서로 다른 제목이 나타나면 `ambiguous`로 분류합니다.
+이미 원본 작품 정보를 확정한 경우에는 내부 읽기를 생략합니다.
+
+### 읽을 수 있는 근거
+
+- 내부 파일 목록: 비범용 게임 실행파일 `.exe`, Ren'Py의 `.rpa`, RPG Maker 데이터, `tl/korean/` 등 번역 폴더 경로의 **존재 여부만** 수집 (기존 목록 분석 기능)
+- 작은 파일 내용: `README.txt/md`, `Game.ini`, `RPG_RT.ini`, `project.godot`, `game.json`, `metadata.json`, `package.json`, `version.json`, `options.rpy`, `app.info`에서 *명시된 게임명 필드만* 추출
+- 설정파일과 README 전체 문장, 사용자 파일 경로·비밀번호·API 키 등은 외부 검색어 또는 결과로 저장하지 않음
+- 파일당 최대 32KiB, 총 128KiB, 최대 8개, 비정상 경로/심볼릭 링크/암호화/고압축 항목 제외
+- ZIP은 해당 항목을 메모리에서 읽고, RAR은 비-solid/비암호화 항목만 읽기 가능할 때 분석합니다.
+- **7z는 py7zr 1.1.4 이상에서 비-solid + 해제 크기 상한을 적용할 수 있는 경우에만 선택적 메모리 읽기.** 솔리드/암호화/검사 불가 파일은 안전을 위해 목록 단서만 사용합니다.
+- EXE 파일의 *제품 버전 리소스 본문*을 직접 해제하거나 실행하는 기능은 아직 구현하지 않았습니다. EXE 존재/파일명은 목록 단서로만 사용합니다.
+
+### 실행
+
+```powershell
+# 1: 완전 오프라인. ZIP/7z/RAR의 메타데이터 필드만 검사. 인터넷 요청 없음
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\NOR [한글패치].zip" --metadata --json
+
+# 2: 이름·파일 목록 검색이 실패하면 메타데이터로 3차 인터넷 검색
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\NOR [한글패치].zip" --online --metadata --json
+
+# 소형 테스트 압축파일로 기능과 보안 경계를 검증
+python -m pytest -q tests/test_internal_metadata_experiment.py
+```
+
+**실제 압축파일 확인 필요:** 지금까지 사용자가 제공한 자료는 PowerShell 파일명 목록이며
+NOR 아카이브 실제 바이트는 전달받지 않았습니다. 따라서 `NOR [한글패치].zip` 내부에
+실제로 `Night of Revenge`라는 제목이나 실행파일이 존재하는지는 아직 확인한 사실이 아닙니다.
