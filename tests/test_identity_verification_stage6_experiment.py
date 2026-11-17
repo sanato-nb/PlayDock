@@ -408,3 +408,43 @@ def test_cli_verify_rejects_offline_mode(tmp_path):
     with pytest.raises(SystemExit) as error:
         identify_cli.main([str(archive), "--verify"])
     assert error.value.code == 2
+
+
+def test_two_official_steam_products_cannot_merge_even_with_verified_alias():
+    from dataclasses import replace
+    report = fixture_report()
+    second = IdentityAttempt(
+        2, "internal_filename", "Alias Game",
+        SearchDecision(
+            "platform_confirmed_game", "Alias Game",
+            proposed_title="Alias Game", source_platform="steam",
+            source_id="999999",
+        ),
+    )
+    report = replace(report, attempts=report.attempts + (second,))
+    # Even though the alias mapping is explicit, two distinct official
+    # products must not be turned into the same installed game.
+    result = verify_identity(report, verified_aliases={
+        "Night of Revenge": ["Alias Game"]
+    })
+    assert result.verdict == "conflict"
+    assert "multiple_official_product_ids" in result.matched_rules
+    assert result.automatic_binding_allowed is False
+
+
+def test_distinct_dlsite_codes_from_two_official_matches_block_auto_merge():
+    from dataclasses import replace
+    report = fixture_report(external_status="confirmed_game", steam_id="",
+                            dlsite_code="RJ405582", metadata_steam="",
+                            metadata_dlsite="RJ405582")
+    second = IdentityAttempt(
+        2, "internal_product_code", "RJ405583",
+        SearchDecision(
+            "confirmed_game", "RJ405583", proposed_title="Night of Revenge",
+            dlsite_code="RJ405583",
+        ),
+    )
+    report = replace(report, attempts=report.attempts + (second,))
+    result = verify_identity(report)
+    assert result.verdict == "conflict"
+    assert "multiple_official_product_ids" in result.matched_rules
