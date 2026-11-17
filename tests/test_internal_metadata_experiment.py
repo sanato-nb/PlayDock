@@ -191,3 +191,29 @@ def test_no_metadata_does_not_run_when_list_gives_one_candidate(tmp_path):
         metadata_reader=lambda _: pytest.fail("already has index candidate"),
     )
     assert r.status == "candidate_found" and r.stage == 2
+
+
+def test_non_solid_7z_single_readme_is_inspected_in_memory(tmp_path):
+    py7zr = pytest.importorskip("py7zr")
+    path = tmp_path / "Unknown.7z"
+    with py7zr.SevenZipFile(path, mode="w") as archive:
+        archive.writestr("Game Title: A Small Story", "Game/README.txt")
+    with py7zr.SevenZipFile(path, mode="r") as archive:
+        assert not archive.archiveinfo().solid
+    before = path.read_bytes()
+    result = inspect_metadata(path)
+    assert result.state == "ok"
+    assert result.title_candidates == ("A Small Story",)
+    assert 0 < result.read_bytes < 32768
+    assert path.read_bytes() == before
+
+
+def test_non_solid_7z_skips_files_beyond_per_member_limit(tmp_path):
+    py7zr = pytest.importorskip("py7zr")
+    path = tmp_path / "big-metadata.7z"
+    with py7zr.SevenZipFile(path, mode="w") as archive:
+        archive.writestr("Title: Not the Game\\n" + "A" * (MAX_MEMBER_BYTES + 100),
+                          "Game/README.txt")
+    result = inspect_metadata(path)
+    assert result.title_candidates == ()
+    assert result.read_bytes == 0
