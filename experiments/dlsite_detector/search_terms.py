@@ -56,7 +56,9 @@ def search_title_variants(raw: str, *, limit: int = 2) -> tuple[str, ...]:
     """정리한 게임명 우선, 실패 시 원본 파일명 재검색. 중복과 빈 제목 제외."""
     original = unicodedata.normalize("NFKC", archive_basename(raw))
     clean = cleaned_search_title(raw)
-    candidates = (clean, original)
+    # RJ/VJ/BJ/EJ 코드가 섞인 원본 이름은 일반 웹 재검색에 불필요한
+    # 잡음을 보태므로, 정리한 제목이 있다면 원본 재시도를 생략한다.
+    candidates = (clean,) if clean and CODE.search(original) else (clean, original)
     found = []
     seen = set()
     for value in candidates:
