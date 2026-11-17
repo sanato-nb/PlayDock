@@ -262,3 +262,30 @@ def test_conflicting_search_title_and_internal_title_flagged_ambiguous(tmp_path)
     )
     assert first.status == "ambiguous"
     assert first.metadata.title_candidates == ("Different Game",)
+
+
+def test_metadata_reads_explicit_dlsite_code_from_ini_and_json(tmp_path):
+    path = make_zip(tmp_path, {
+        "Game/Game.ini": "[Game]\\nTitle=Sample Game\\nWork_No=RJ01234567\\n",
+        "Game/metadata.json": '{"title":"Sample Game","dlsite_code":"RJ01234567"}',
+    })
+    metadata = inspect_metadata(path)
+    assert metadata.title_candidates == ("Sample Game",)
+    assert metadata.product_codes == ("RJ01234567",)
+
+
+def test_stage3_uses_internal_code_field_for_search(tmp_path):
+    path = make_zip(tmp_path, {
+        "Game/Game.ini": "[Game]\\nWork_No=RJ01234567\\n",
+    })
+    queried = []
+    def classifier(query):
+        queried.append(query)
+        return (SearchDecision("confirmed_game", query, proposed_title="Discovered Game",
+                               dlsite_code="RJ01234567")
+                if query == "RJ01234567" else missing(query))
+    report = identify_archive(path, classifier=classifier, allow_metadata=True)
+    assert report.status == "candidate_found"
+    assert report.stage == 3
+    assert report.product_code == "RJ01234567"
+    assert queried[-1] == "RJ01234567"
