@@ -18,6 +18,7 @@ from .pipeline import SearchDecision
 from .enhanced_search import enhanced_classify_game
 from .identity_hints import extract_hints
 from .internal_metadata import MetadataInspection, inspect_metadata
+from .archive_encryption import probe_archive_encryption
 
 CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game", "platform_confirmed_game"})
 CANDIDATES = frozenset({"internet_candidate"})
@@ -55,6 +56,7 @@ class IdentityReport:
             "ambiguous": "여러 게임 정체 후보 · 수동 확인 필요",
             "lookup_unavailable": "정체 조회 불가 · 별도 보관",
             "invalid_archive": "지원하지 않거나 읽을 수 없는 압축파일",
+            "unclassifiable": "분류 불가 · 암호화된 압축파일",
         }[self.status]
 
     def to_dict(self) -> dict:
@@ -102,6 +104,14 @@ def identify_archive(
                               "DLsite 작품 유형에 따라 비게임으로 추정합니다.", None, tuple(attempts))
     if first.status in CANDIDATES:
         if allow_metadata:
+            probe = probe_archive_encryption(path)
+            if probe.state != "clear":
+                return IdentityReport(
+                    path.name, "candidate_found", 1,
+                    first.proposed_title, first.dlsite_code,
+                    "파일명으로 작품 후보는 찾았지만 내부 정보는 사용하지 않았습니다. "
+                    + probe.reason, None, tuple(attempts),
+                )
             # 사용자가 내용 검사를 명시한 경우에는 1차 웹 후보도 내부 단서와
             # 교차 확인한다. 상충된 제목은 자동 통합하지 않는다.
             inspection = inspector(path)
@@ -123,6 +133,26 @@ def identify_archive(
                               "압축파일명 검색에서 게임 작품 후보를 찾았습니다. "
                               "검색 결과만으로 동일 작품인지 확정하지 않고 사용자 확인을 기다립니다.",
                               None, tuple(attempts))
+
+    # 1차 검색 실패 후에는 암호 상태만 먼저 확인한다. 암호화된 아카이브는
+    # 설령 멤버명 목록이 노출돼도 단서 수집 및 2·3차 검색을 하지 않는다.
+    probe = probe_archive_encryption(path)
+    if probe.is_encrypted:
+        return IdentityReport(
+            path.name, "unclassifiable", 1, "", "",
+            "암호화된 압축파일은 파일명으로만 검색합니다. "
+            "파일명 검색으로 확인하지 못해 분류 불가로 남겼습니다.",
+            None, tuple(attempts),
+        )
+    if probe.state != "clear":
+        return IdentityReport(
+            path.name, "lookup_unavailable", 2, "", "",
+            "암호화 여부를 확인할 수 없어 내부 분석을 생략했습니다. " + probe.reason,
+            ArchiveInspection(
+                path.name, path.suffix.lstrip("."), "unavailable",
+                0, 0, None, False, (), (), (), (), probe.reason,
+            ), tuple(attempts),
+        )
 
     inspection = inspector(path)
     if inspection.state not in {"ok", "partial", "limit_exceeded"}:
