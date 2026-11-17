@@ -62,7 +62,7 @@ class IdentityReport:
             "suspected_non_game": "외부 비게임 추정 · 별도 검토",
             "candidate_found": "게임 후보 · 압축파일 동일성 검토 필요",
             "ambiguous": "외부 후보와 내부 근거 충돌 · 수동 검토",
-            "lookup_unavailable": "게임 정체 조회 불가 · 별도 보관",
+            "lookup_unavailable": "정체 조회 불가 · 별도 보관",
             "invalid_archive": "지원하지 않거나 읽을 수 없는 압축파일",
             "unclassifiable": "분류 불가 · 암호화된 압축파일",
         }[self.status]
@@ -142,9 +142,19 @@ def identify_archive(
              else "파일명 검색으로 정체를 찾지 못해 분류 불가입니다."),
         )
     if probe.state != "clear":
-        return _name_only_report(
+        report = _name_only_report(
             path, first, tuple(attempts), probe.state,
             "암호화 여부를 확인할 수 없어 내부 파일을 읽지 않았습니다. " + probe.reason,
+        )
+        # 이름 기반 외부 확인은 유지하되 내부 검사를 시도하지 않은 상태 표시.
+        unavailable = ArchiveInspection(
+            path.name, path.suffix.lstrip("."), "unavailable", 0, 0, None,
+            False, (), (), (), (), probe.reason,
+        )
+        return IdentityReport(
+            path.name, report.status, 1 if report.status != "lookup_unavailable" else 2,
+            report.proposed_title, report.product_code, report.reason,
+            unavailable, report.attempts, None, probe.state, (1, 2, 3),
         )
 
     # 4단계: 이름 검색이 성공한 게임도 내부 목록 전체를 검사한다.
@@ -246,7 +256,7 @@ def identify_archive(
             path.name, "candidate_found", selected.stage,
             selected.decision.proposed_title, selected.decision.dlsite_code,
             "작품 후보를 찾았지만 압축파일의 동일 게임 여부는 미확정입니다. "
-            + note, inspection, tuple(attempts), metadata, "clear", steps,
+            "수동 확인이 필요합니다. " + note, inspection, tuple(attempts), metadata, "clear", steps,
         )
     if first.status == "suspected_non_game":
         return IdentityReport(
