@@ -101,6 +101,23 @@ def identify_archive(
                               first.proposed_title, first.dlsite_code,
                               "DLsite 작품 유형에 따라 비게임으로 추정합니다.", None, tuple(attempts))
     if first.status in CANDIDATES:
+        if allow_metadata:
+            # 사용자가 내용 검사를 명시한 경우에는 1차 웹 후보도 내부 단서와
+            # 교차 확인한다. 상충된 제목은 자동 통합하지 않는다.
+            inspection = inspector(path)
+            metadata = metadata_reader(path)
+            candidate_key = normalized_title(first.proposed_title)
+            internal_keys = {normalized_title(t) for t in metadata.title_candidates}
+            differs = bool(candidate_key and internal_keys and
+                           candidate_key not in internal_keys)
+            return IdentityReport(
+                path.name, "ambiguous" if differs else "candidate_found", 3,
+                "" if differs else first.proposed_title, first.dlsite_code,
+                ("웹 검색 후보와 내부 제목 메타데이터가 달라 수동 검토가 필요합니다."
+                 if differs else "웹 검색 후보를 유지하며 내부 이름 단서도 확인했습니다. "
+                 "동일 게임 여부는 확정하지 않았습니다."),
+                inspection, tuple(attempts), metadata,
+            )
         return IdentityReport(path.name, "candidate_found", 1,
                               first.proposed_title, first.dlsite_code,
                               "압축파일명 검색에서 게임 작품 후보를 찾았습니다. "
