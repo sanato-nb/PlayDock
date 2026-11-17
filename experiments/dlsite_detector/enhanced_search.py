@@ -72,6 +72,7 @@ def enhanced_classify_game(
         )
 
     store_error = ""
+    explicit_steam_product = None
     if hints.steam_app_ids:
         sid = hints.steam_app_ids[0]
         try:
@@ -80,8 +81,12 @@ def enhanced_classify_game(
             store_error = type(exc).__name__
             item = None
         if item and item.app_id == sid:
+            explicit_steam_product = item
             match = _matches(item.title, request_name, hints.title_aliases)
-            if item.item_type == "game" and match and kind not in FILE_ONLY:
+            # 두 플랫폼의 ID가 함께 쓰였으면 DLsite도 조회하여
+            # 서로 다른 작품/유형이 연결된 오류를 발견한다.
+            if (item.item_type == "game" and match and kind not in FILE_ONLY
+                    and not hints.dlsite_codes):
                 return SearchDecision(
                     "platform_confirmed_game", title,
                     proposed_title=item.title, source_platform="steam",
@@ -104,6 +109,23 @@ def enhanced_classify_game(
 
     original = classifier(title, code=code)
     original = replace(original, archive_kind=kind)
+    if explicit_steam_product is not None:
+        steam = explicit_steam_product
+        steam_matches = _matches(steam.title, request_name, hints.title_aliases)
+        if original.status == "confirmed_game" and steam.item_type == "game" and steam_matches and kind not in FILE_ONLY:
+            return replace(
+                original, source_platform="dlsite+steam", source_id=steam.app_id,
+                source_url=steam.url, archive_kind=kind,
+                reason="DLsite 게임 등록과 Steam 상품 정보를 각각 확인했습니다. "
+                       "파일 자체가 본편인지는 확인하지 않았습니다.",
+            )
+        return replace(
+            original, status="internet_candidate", proposed_title=steam.title,
+            source_platform="steam", source_id=steam.app_id,
+            source_url=steam.url, archive_kind=kind,
+            reason="Steam·DLsite 식별자가 함께 기재돼 있지만 제목·상품 유형 또는 "
+                   "파일 구성의 일치 여부를 확정할 수 없습니다. 수동 검토가 필요합니다.",
+        )
     if original.status in {"confirmed_game", "suspected_non_game", "platform_confirmed_game", "input_error"}:
         if original.status == "confirmed_game" and kind in FILE_ONLY:
             return replace(
