@@ -72,7 +72,8 @@ def test_ambiguous_dlsite_results_go_to_general_internet(status):
         "테스트 게임", dlsite_lookup=dlsite(status),
         web_search=lambda q: searched.append(q) or [page("steam"), page("moby")])
     assert searched == ["테스트 게임"]
-    assert result.status == "internet_confirmed_game"
+    assert result.status == "internet_candidate"
+    assert "원문 검증" in result.reason
     assert result.web_checked
     assert len(result.evidence) == 2
 
