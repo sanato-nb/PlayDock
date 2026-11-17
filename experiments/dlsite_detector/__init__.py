@@ -10,3 +10,8 @@ __all__ = [
     "fetch_product", "parse_product", "extract_code", "normalized_title",
     "product_page_candidate",
 ]
+
+from .pipeline import SearchDecision, WebEvidence, classify_game, examine_web_results
+from .review_store import ReviewStore
+
+__all__ += ["SearchDecision", "WebEvidence", "classify_game", "examine_web_results", "ReviewStore"]
