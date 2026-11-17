@@ -39,6 +39,27 @@ DISTRIBUTION_TAG = re.compile(
     r"\s*\]",
     re.I,
 )
+# 번역/패치/출시 버전/리팩 등 명백한 배포 메모만 제거한다.
+# 게임 부제일 수 있는 임의의 [내용]은 제거하지 않는다.
+BRACKET_METADATA = re.compile(r"\[([^\]]{1,120})\]")
+META_TAG = re.compile(
+    r"(?i)(?:"
+    r"한국어|한글|번역|노모|모자이크|검수|기번|손번역|기계|이미지\s*번역"
+    r"|\b(?:fix|patch|beta|alpha|hotfix|update|dlc|mod|uncensor(?:ed)?)\b"
+    r"|공식\s*한국어|신버전|리텍|팅김\s*버그|최신\s*버전"
+    r"|\b(?:chap(?:ter)?|episode)\.?\s*\d+\b"
+    r")"
+)
+DATE_TAG = re.compile(r"^(?:\d{6,8}|\d{4}-\d{2}-\d{2})$")
+VERSION_NOTE = re.compile(r"(?i)^v\d+(?:[._]\d+)*\s*(?:fix|patch|hotfix)?$")
+
+def _drop_known_metadata(match: re.Match[str]) -> str:
+    note = match.group(1).strip()
+    if META_TAG.search(note) or DATE_TAG.fullmatch(note) or VERSION_NOTE.fullmatch(note):
+        return " "
+    return match.group(0)
+
+
 SPACES = re.compile(r"\s+")
 
 
@@ -55,6 +76,7 @@ def cleaned_search_title(raw: str) -> str:
     title = unicodedata.normalize("NFKC", archive_basename(raw))
     title = DROP_TAG.sub(" ", title)
     title = DISTRIBUTION_TAG.sub(" ", title)
+    title = BRACKET_METADATA.sub(_drop_known_metadata, title)
     title = CODE.sub(" ", title)
     title = VERSION_SUFFIX.sub("", title).strip()
     # _ 는 배포 파일명에서 흔한 단어 구분자. 마침표는 제목/시리즈 표기일 수 있어 유지.
