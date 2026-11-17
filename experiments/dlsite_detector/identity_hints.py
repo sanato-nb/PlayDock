@@ -17,6 +17,7 @@ STEAM_ID = re.compile(
 )
 BRACKET = re.compile(r"\[([^\]]{1,90})\]|\(([^)]{1,90})\)|【([^】]{1,90})】")
 PATCH = re.compile(r"(?i)(?:한글\s*패치|한국어\s*패치|번역\s*패치|patch(?:ed)?|translation\s*patch)")
+PATCH_ONLY = re.compile(r"(?i)(?:패치\s*(?:파일|전용|단독|만)|(?:translation\s*)?patch\s*only|standalone\s*patch)")
 SERVER = re.compile(r"(?i)(?:^|[\s\[\(])server(?:\s|\b)|서버\s*(?:팩|용|버전)")
 DLC = re.compile(r"(?i)\bdlc\b|추가\s*컨텐츠|추가\s*콘텐츠")
 MODPACK = re.compile(r"(?i)\bmodpack\b|모드팩")
@@ -61,9 +62,14 @@ def extract_hints(raw: str) -> ArchiveHints:
         kind, reason = "dlc_candidate", "DLC 표기가 포함됨. 본편 포함 여부는 미확인"
     elif PATCH.search(notes) or PATCH.search(basename):
         if INCLUDES_GAME.search(notes) or INCLUDES_GAME.search(basename):
-            kind, reason = "game_with_patch_candidate", "패치와 본편 포함 표기가 함께 있음"
+            kind, reason = "game_with_patch_candidate", "한국어 패치 적용 및 본편 포함이라는 파일명 표시"
+        elif PATCH_ONLY.search(notes) or PATCH_ONLY.search(basename):
+            kind, reason = "patch_candidate", "패치 단독/전용이라는 명시적 파일명 표시"
         else:
-            kind, reason = "patch_candidate", "패치·번역 자료를 나타내는 표기가 있음"
+            kind, reason = "localized_release_unknown", (
+                "'한글패치'는 한국어가 적용된 게임일 수도 있으므로 패치 파일로 분류하지 않음; "
+                "본편 포함 여부는 내부 파일 근거 확인 필요"
+            )
     elif re.search(r"(?i)본편|full\s*game", notes):
         kind, reason = "base_game_candidate", "본편 표기가 포함됨"
 
