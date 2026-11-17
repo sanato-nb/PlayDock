@@ -60,6 +60,8 @@ def extract_hints(raw: str) -> ArchiveHints:
         kind, reason = "modpack_candidate", "모드팩 표기가 포함됨"
     elif DLC.search(notes) or DLC.search(basename):
         kind, reason = "dlc_candidate", "DLC 표기가 포함됨. 본편 포함 여부는 미확인"
+    elif PATCH_ONLY.search(notes) or PATCH_ONLY.search(basename):
+        kind, reason = "patch_candidate", "패치만 포함된 별도 파일이라는 명시적 파일명 표시"
     elif PATCH.search(notes) or PATCH.search(basename):
         if INCLUDES_GAME.search(notes) or INCLUDES_GAME.search(basename):
             kind, reason = "game_with_patch_candidate", "한국어 패치 적용 및 본편 포함이라는 파일명 표시"
