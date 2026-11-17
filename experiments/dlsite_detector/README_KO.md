@@ -42,6 +42,15 @@ experiments/                               # 본체 이식 전 독립 실험 코
     ├── artwork_staging.py                 # 배너·아이콘 DB 먼저 기록 후 파일 적용·복구
     ├── pipeline_cli.py                    # 별도 검색/수동 변경/복구 명령행 도구
     ├── cli.py                             # 기존 DLsite 단일 판별기
+    ├── search_terms.py                    # 파일명에서 검색용 제목 추출
+    ├── identity_hints.py                  # DLsite/Steam 코드와 배포 유형 단서 분리
+    ├── steam_client.py                    # Steam 앱 원본 상품 데이터 검증
+    ├── enhanced_search.py                # 원본 교차검증·별칭 재검색
+    ├── archive_inspector.py              # ZIP/7z/RAR 내부 목록·실행파일·엔진 단서
+    ├── internal_metadata.py              # 작은 README/INI/JSON 내부 제목 선택적 읽기
+    ├── archive_identity.py               # 이름→내부 목록→선택적 메타 3단계 순서 제어
+    ├── identify_cli.py                   # 단일 압축파일 실험 명령행 실행기
+    ├── filename_batch.py                 # PowerShell 파일 목록 대량 실험 도구
     └── README_KO.md                       # 현재 실험 절차 안내
 
 tests/                                     # 프로젝트 전체 자동 검사
@@ -115,7 +124,7 @@ python -m experiments.dlsite_detector.archive_cli "D:\\games\\Unknown Game.zip" 
 
 **확인하지 않는 정보:** 게임 실행파일의 진짜 제품명이나 서명, 내부 텍스트 파일 내용, 압축을 실제로 풀어야만 알 수 있는 데이터. `Game.exe` 또는 `launcher.exe` 같은 일반 이름은 후보에서 제외합니다. 엔진 단서가 있어도 실제 게임의 정체를 확정하지 않습니다.
 
-**안전 원칙:** 원본 ZIP/7z/RAR은 읽기 전용으로 열고 내부 파일 목록 메타데이터만 확인합니다. 내부 파일 압축 해제·실행·내용 읽기·DB 쓰기·웹 전송을 하지 않습니다. 파일 수 제한과 위험한 경로 건너뛰기를 적용합니다. 암호화된 7z/RAR 헤더는 파일 목록을 볼 수 없을 수도 있습니다.
+**기본 모드의 안전 원칙:** 원본 ZIP/7z/RAR은 읽기 전용으로 열고 내부 파일 목록 메타데이터만 확인합니다. 기본 모드에서는 내부 파일 압축 해제·실행·내용 읽기·DB 쓰기·웹 전송을 하지 않습니다. `--metadata`를 사용하면 정해진 작은 텍스트 파일만 선택적으로 메모리에서 압축 해제해 게임명 필드를 읽습니다. 파일 수 제한과 위험한 경로 건너뛰기를 적용합니다. 암호화된 7z/RAR 헤더는 파일 목록을 볼 수 없을 수도 있습니다.
 
 ### 검색 흐름에 이식할 때의 위치
 
@@ -185,7 +194,7 @@ python -m pytest -q tests/test_search_quality_experiment.py
 2. **DLsite 품번:** RJ/VJ/BJ/EJ 작품 ID와 작품 종류를 기존 DLsite 검색기에서 검증합니다. DLsite와 Steam ID가 둘 다 있을 때는 두 출처가 다른 작품 또는 다른 유형을 가리키는지 확인하고, 불일치하면 후보 검토로 돌립니다.
 3. **일반 인터넷 검색:** 기존의 검색어 정리와 한국어·일본어·영어별 검색식 사용. 검색 결과에 실제 Steam 상품 링크가 있으면 해당 App ID를 공개 Store JSON으로 **다시 확인**합니다. 검색 결과 제목만 믿지 않습니다.
 4. **명시적인 작품 별칭:** `거인의 비보 (Giant Treasure)`처럼 원본 파일명에 직접 병기된 괄호 속 작품명만 추가 검색합니다. `[번역 수정]`처럼 배포 주석으로 보이는 대괄호 정보는 작품명 별칭으로 사용하지 않습니다. 자동 번역·AI 추측은 수행하지 않습니다.
-5. **최종 분류:** 게임 출처를 확인하지 못하면 조회 불가, 검색 결과만 일치하면 후보 확인 필요로 남깁니다. 파일 종류(본편 추정, 번역 패치 추정, DLC 추정, 서버 패키지 추정, 합본 추정)는 게임의 **작품 정체와 별도**로 기록합니다.
+5. **최종 분류:** 게임 출처를 확인하지 못하면 조회 불가, 검색 결과만 일치하면 후보 확인 필요로 남깁니다. 파일 종류(본편 추정, 한국어 적용 상태 미확인, 별도 패치 명시, DLC 추정, 서버 패키지 추정, 합본 추정)는 게임의 **작품 정체와 별도**로 기록합니다.
 
 ### 실제 예시
 
@@ -194,7 +203,7 @@ python -m pytest -q tests/test_search_quality_experiment.py
 | `Spooky Milk Life [Steam 1621540].7z` | 제목 `Spooky Milk Life`, Steam App ID `1621540` |
 | `Eliminator 카에데씨 [RJ209760·Steam 1122040].7z` | DLsite 작품 ID + Steam App ID 개별 검증 대상 |
 | `Craft to Exile 2 [Server v1.1.3].zip` | 제목 `Craft to Exile 2`, 서버용 자료 **추정**, Minecraft 모드팩인지 자동 단정하지 않음 |
-| `SummertimeSaga [한국어 패치 Fix2].zip` | 작품명 `SummertimeSaga`, 별도 패치 **추정** |
+| `SummertimeSaga [한국어 패치 Fix2].zip` | 작품명 `SummertimeSaga`, **한국어 적용본일 수 있음·구성 미확인** |
 | `Fate Empire of Dirt + Made in Heaven.7z` | 여러 작품이 포함됐을 가능성, 합본 **추정** |
 
 ### 실행/시험
