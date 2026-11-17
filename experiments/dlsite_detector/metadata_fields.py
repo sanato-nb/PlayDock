@@ -16,7 +16,7 @@ from pathlib import PurePosixPath
 class ExtractedField:
     field: str
     value: str
-    kind: str  # title / product_code / publisher / project_name
+    kind: str  # title / product_code / steam_app_id / publisher / project_name
     strength: str  # strong / supporting / weak
     parser: str
 
@@ -25,6 +25,8 @@ CODE_FIELD = re.compile(
     r"(?i)^(?:dlsite_?(?:code|id)?|work_?(?:no|id)|product_?id|품번)$"
 )
 CODE_PATTERN = re.compile(r"(?i)^(?:RJ|VJ|BJ|EJ)\d{6,8}$")
+STEAM_FIELD = re.compile(r"(?i)^(?:steam_?app_?id|steam\s*app\s*id|steamappid)$")
+STEAM_ID = re.compile(r"^\d{3,10}$")
 LABEL_LINE = re.compile(r"^\s*([^=:：]{1,42}?)\s*[:=：]\s*(.*?)\s*$")
 RENPY_NAME = re.compile(
     r"(?i)^\s*define\s+config\.name\s*=\s*(?:_\s*\(\s*)?(['\"])(.{2,140}?)\1"
@@ -60,6 +62,15 @@ def parse_metadata_fields(member: str, payload: bytes) -> list[ExtractedField]:
     if decoded is None:
         return []
     out: list[ExtractedField] = []
+
+    if basename == "steam_appid.txt":
+        steam_id = decoded.strip().lstrip("\\ufeff")
+        if STEAM_ID.fullmatch(steam_id):
+            return [ExtractedField(
+                "steam_appid", steam_id, "steam_app_id", "strong",
+                "steam_appid_file",
+            )]
+        return []
 
     def add(field: str, value, kind: str = "title",
             strength: str = "supporting", parser: str = "generic") -> None:
@@ -100,6 +111,12 @@ def parse_metadata_fields(member: str, payload: bytes) -> list[ExtractedField]:
             value = data.get(key)
             if isinstance(value, str) and CODE_PATTERN.fullmatch(value.strip()):
                 add(key, value, "product_code", "strong", basename)
+        for key in ("steam_appid", "steam_app_id", "steamAppId"):
+            value = data.get(key)
+            if isinstance(value, (str, int)) and not isinstance(value, bool):
+                steam_id = str(value).strip()
+                if STEAM_ID.fullmatch(steam_id):
+                    add(key, steam_id, "steam_app_id", "strong", basename)
         return out[:20]
 
     if basename == "app.info":
@@ -147,6 +164,11 @@ def parse_metadata_fields(member: str, payload: bytes) -> list[ExtractedField]:
         if CODE_FIELD.fullmatch(key):
             if CODE_PATTERN.fullmatch(value):
                 add(key, value, "product_code", "strong",
+                    "readme" if readme else "ini" if ini else "text")
+            continue
+        if STEAM_FIELD.fullmatch(key):
+            if STEAM_ID.fullmatch(value):
+                add(key, value, "steam_app_id", "strong",
                     "readme" if readme else "ini" if ini else "text")
             continue
         if readme:
