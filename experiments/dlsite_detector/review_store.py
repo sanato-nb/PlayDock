@@ -18,7 +18,7 @@ from .pipeline import SearchDecision
 GAME_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 CATEGORIES = frozenset({
     "confirmed_game", "suspected_non_game", "internet_confirmed_game",
-    "internet_candidate",
+    "internet_candidate", "platform_confirmed_game",
     "lookup_unavailable", "manual_game", "manual_non_game",
 })
 EDITABLE_FIELDS = {
