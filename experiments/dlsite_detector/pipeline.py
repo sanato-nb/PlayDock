@@ -34,6 +34,10 @@ class SearchDecision:
     reason: str = ""
     web_checked: bool = False
     evidence: tuple[WebEvidence, ...] = ()
+    source_platform: str = ""
+    source_id: str = ""
+    source_url: str = ""
+    archive_kind: str = "unknown"
 
     @property
     def label(self) -> str:
@@ -42,6 +46,7 @@ class SearchDecision:
             "suspected_non_game": "비게임으로 추정 · 별도 분류",
             "internet_confirmed_game": "인터넷 검색으로 게임 확인",
             "internet_candidate": "인터넷에서 게임 후보 발견 · 원본 확인 필요",
+            "platform_confirmed_game": "Steam 작품 코드·게임 유형 확인",
             "lookup_unavailable": "조회 불가 · 별도 보관",
             "input_error": "입력 오류",
         }[self.status]
