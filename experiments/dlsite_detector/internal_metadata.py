@@ -47,6 +47,10 @@ README_TITLE = re.compile(
     r"(?i)^\s*(?:게임명|게임 제목|작품명|game\s*title|game\s*name"
     r"|title|作品名|ゲームタイトル)\s*[:：=]\s*(.+?)\s*$"
 )
+CODE_KEY = re.compile(
+    r"(?i)^\s*(?:dlsite_?(?:code|id)?|work_?(?:no|id)|product_?id|품번)"
+    r"\s*[:：=]\s*((?:RJ|VJ|BJ|EJ)\d{6,8})\s*$"
+)
 RENPY_TITLE = re.compile(
     r"(?i)^\s*define\s+config\.name\s*=\s*(?:_\s*\(\s*)?(['\"])(.{2,140}?)\1"
 )
@@ -145,9 +149,16 @@ def _parse_metadata_text(basename: str, payload: bytes):
                         "title", "productName", "work_name", "name"):
                 if key in data:
                     values.append((key, data[key]))
+            for key in ("dlsite_code", "workno", "work_no", "product_id"):
+                if key in data:
+                    values.append(("product_code", data[key]))
         return values
     for line in decoded.splitlines()[:180]:
         if len(line) > 300:
+            continue
+        code = CODE_KEY.match(line)
+        if code:
+            values.append(("product_code", code.group(1)))
             continue
         if basename == "options.rpy":
             m = RENPY_TITLE.match(line)
@@ -253,6 +264,11 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
                     return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
                                               "7z 누적 읽기 제한 초과")
                 for field, raw in _parse_metadata_text(basename, contents):
+                    if field == "product_code":
+                        code = extract_code(str(raw))
+                        if code and code not in codes and len(codes) < MAX_CODES:
+                            codes.append(code)
+                        continue
                     title = _safe_title(raw)
                     if not title:
                         continue
@@ -334,6 +350,11 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                 if len(chunk) > cap:
                     continue
                 for field, raw_title in _parse_metadata_text(basename, chunk):
+                    if field == "product_code":
+                        code = extract_code(str(raw_title))
+                        if code and code not in codes and len(codes) < MAX_CODES:
+                            codes.append(code)
+                        continue
                     title = _safe_title(raw_title)
                     if not title:
                         continue
