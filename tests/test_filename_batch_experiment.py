@@ -86,7 +86,7 @@ def test_search_title_cleanup_handles_distribution_memos_not_subtitles():
 
 def test_code_only_with_distribution_notes_still_routes_to_direct_code_lookup():
     rows = batch.parse_powershell_listing(
-        "-a----      2026-11-17   오후 1:05      123456789 RJ01081508 [번역].zip\\n"
+        "-a----      2026-11-17   오후 1:05      123456789 RJ01081508 [번역].zip\n"
     )
     summary, records = batch.analyze_listing(rows)
     assert summary["analyzed_files"] == 1
