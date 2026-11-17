@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .archive_inspector import inspect_archive
 from .archive_identity import identify_archive
+from .identity_hints import extract_hints
 
 
 def main(argv=None) -> int:
@@ -26,7 +27,8 @@ def main(argv=None) -> int:
         exit_code = 0 if result.status in ("confirmed_game", "suspected_non_game", "candidate_found") else 1
     else:
         inspection = inspect_archive(args.archive)
-        output = {"mode": "offline_inventory", **inspection.to_dict()}
+        output = {"mode": "offline_inventory", **inspection.to_dict(),
+                  "filename_hints": extract_hints(args.archive.name).to_dict()}
         exit_code = 0 if inspection.state in ("ok", "partial", "limit_exceeded") else 1
 
     if args.json:
@@ -34,6 +36,10 @@ def main(argv=None) -> int:
     elif args.online:
         print(f"[{result.label}] {result.archive_name}")
         print(f"진행 단계: {result.stage} · 제안 작품명: {result.proposed_title or '미확인'}")
+        info = result.to_dict()
+        if info["source_id"]:
+            print(f"원본 출처: {info['source_platform']} / {info['source_id']}")
+        print(f"파일 종류 추정: {info['archive_kind']}")
         for attempt in result.attempts:
             print(f" {attempt.stage}단계: {attempt.query} ({attempt.basis}) → {attempt.decision.label}")
         print(result.reason)
