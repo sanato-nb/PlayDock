@@ -90,10 +90,24 @@ class ReviewStore:
                     web_checked INTEGER NOT NULL,
                     evidence_json TEXT NOT NULL,
                     reason TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    source_platform TEXT NOT NULL DEFAULT '',
+                    source_id TEXT NOT NULL DEFAULT '',
+                    source_url TEXT NOT NULL DEFAULT '',
+                    archive_kind TEXT NOT NULL DEFAULT 'unknown'
                 );
                 CREATE INDEX IF NOT EXISTS ix_search_game ON search_runs(game_id, id);
             """)
+            # 오래된 실험용 DB에 저장된 이력을 지우지 않고 컬럼만 추가한다.
+            old_columns = {row[1] for row in db.execute("PRAGMA table_info(search_runs)")}
+            for column, default in (
+                ("source_platform", "''"), ("source_id", "''"),
+                ("source_url", "''"), ("archive_kind", "'unknown'"),
+            ):
+                if column not in old_columns:
+                    db.execute(
+                        f"ALTER TABLE search_runs ADD COLUMN {column} TEXT NOT NULL DEFAULT {default}"
+                    )
 
     @contextmanager
     def connect(self):
@@ -161,12 +175,15 @@ class ReviewStore:
             """, (game_id, old_status, next_status, "automatic", result.reason, _stamp()))
             db.execute("""
                 INSERT INTO search_runs(game_id, status, proposed_title, dlsite_status,
-                        dlsite_code, web_checked, evidence_json, reason, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        dlsite_code, web_checked, evidence_json, reason, created_at,
+                        source_platform, source_id, source_url, archive_kind)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (game_id, result.status, result.proposed_title, result.dlsite_status,
                   result.dlsite_code, int(result.web_checked),
                   json.dumps([row.__dict__ for row in result.evidence],
-                             ensure_ascii=False), result.reason, _stamp()))
+                             ensure_ascii=False), result.reason, _stamp(),
+                  result.source_platform, result.source_id, result.source_url,
+                  result.archive_kind))
 
     def manual_classify(self, game_id: str, status: str, *, reason: str = "사용자 선택"):
         if status not in CATEGORIES:
