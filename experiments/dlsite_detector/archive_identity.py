@@ -17,6 +17,7 @@ from .detector import normalized_title
 from .pipeline import SearchDecision
 from .enhanced_search import enhanced_classify_game
 from .identity_hints import extract_hints
+from .internal_metadata import MetadataInspection, inspect_metadata
 
 CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game", "platform_confirmed_game"})
 CANDIDATES = frozenset({"internet_candidate"})
@@ -43,6 +44,7 @@ class IdentityReport:
     reason: str
     inspection: ArchiveInspection | None
     attempts: tuple[IdentityAttempt, ...] = ()
+    metadata: MetadataInspection | None = None
 
     @property
     def label(self) -> str:
@@ -72,6 +74,8 @@ def identify_archive(
     *,
     classifier: Callable[[str], SearchDecision] = enhanced_classify_game,
     inspector: Callable[[Path], ArchiveInspection] = inspect_archive,
+    allow_metadata: bool = False,
+    metadata_reader: Callable[[Path], MetadataInspection] = inspect_metadata,
 ) -> IdentityReport:
     """압축파일 1개를 검사. 외부 요청은 주입된 classifier만 수행.
 
@@ -148,6 +152,52 @@ def identify_archive(
             path.name, "ambiguous", 2, "", "",
             "내부 파일 단서로 서로 다른 작품이 발견되어 자동 선택하지 않았습니다.",
             inspection, tuple(attempts),
+        )
+    # 이 단계까지 작품이 발견되지 않았을 때만 사용자가 허용한 소형 메타데이터를 확인.
+    # 원문 전체나 파일 경로는 웹에 전달하지 않고, 제목 필드에서 얻은 후보만 사용.
+    if allow_metadata:
+        metadata = metadata_reader(path)
+        if metadata.state == "ok":
+            suggestions = [
+                ("internal_metadata_title", candidate)
+                for candidate in metadata.title_candidates[:3]
+            ] + [
+                ("internal_metadata_code", code)
+                for code in metadata.product_codes[:2]
+            ]
+            for basis, query in suggestions:
+                key = normalized_title(query) or query.casefold()
+                if not key or key in seen:
+                    continue
+                seen.add(key)
+                outcome = classifier(query)
+                attempt = IdentityAttempt(3, basis, query, outcome)
+                attempts.append(attempt)
+                if outcome.status in CONFIRMED | CANDIDATES and outcome.proposed_title.strip():
+                    title_key = normalized_title(outcome.proposed_title)
+                    if title_key:
+                        verified.setdefault(title_key, []).append(attempt)
+
+            if len(verified) == 1:
+                best = next(iter(verified.values()))[0]
+                return IdentityReport(
+                    path.name, "candidate_found", 3,
+                    best.decision.proposed_title, best.decision.dlsite_code,
+                    "내부 README·설정파일 제목 단서로 작품 후보를 찾았습니다. "
+                    "압축파일과 같은 게임인지는 아직 확정하지 않았습니다.",
+                    inspection, tuple(attempts), metadata,
+                )
+            if len(verified) > 1:
+                return IdentityReport(
+                    path.name, "ambiguous", 3, "", "",
+                    "내부 메타데이터에서 서로 다른 게임 후보를 찾아 수동 선택이 필요합니다.",
+                    inspection, tuple(attempts), metadata,
+                )
+        return IdentityReport(
+            path.name, "lookup_unavailable", 3, "", "",
+            "파일명·내부 목록·제한된 메타데이터로도 게임 정체를 확인하지 못했습니다. "
+            + metadata.reason,
+            inspection, tuple(attempts), metadata,
         )
     return IdentityReport(
         path.name, "lookup_unavailable", 2, "", "",
