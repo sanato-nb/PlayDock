@@ -170,7 +170,10 @@ def classify_game(
 
     # 로컬 원본 경로와 전체 압축파일 이름을 인터넷으로 전송하지 않는다.
     # 식별 가능한 작품명/품번만 전송. 등록된 작품명이 있으면 참고로 사용한다.
-    query = first.work_title or display
+    # DLsite가 '다른 제목의 게임'을 반환했더라도 그 작품명으로 검색하면
+    # 엉뚱한 게임을 확인 처리하게 된다. 로컬 제목이 있는 동안에는 로컬 우선.
+    is_code_only = bool(re.fullmatch(r"(?:RJ|VJ|BJ|EJ)\d{6,8}", display.strip(), re.I))
+    query = (first.work_title if is_code_only and first.work_title else display)
     query = re.sub(r"\[(?:RJ|VJ|BJ|EJ)\d{6,8}\]", "", query, flags=re.I).strip()
     if not normalized_title(query):
         query = first.code or code.strip()
