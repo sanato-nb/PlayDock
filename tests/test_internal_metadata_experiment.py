@@ -145,7 +145,8 @@ def test_metadata_stage_runs_only_when_opted_in_and_prior_search_fails(tmp_path)
 def test_metadata_does_not_run_on_confirmed_filename(tmp_path):
     path = make_zip(tmp_path, {"Game/Game.ini": "Title=Another Game"})
     report = identify_archive(
-        path, classifier=lambda _: verified("Existing Game"),
+        path, classifier=lambda _: SearchDecision("confirmed_game", "Existing Game",
+                                                  proposed_title="Existing Game"),
         inspector=lambda _: pytest.fail("list must not run"),
         metadata_reader=lambda _: pytest.fail("metadata must not run"),
         allow_metadata=True,
