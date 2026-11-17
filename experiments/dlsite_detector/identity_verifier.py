@@ -119,6 +119,13 @@ def verify_identity(
         blockers.append("내부 검사 불가")
         applied.append("unreadable_archive")
     else:
+        # 별칭이 동일하더라도 같은 플랫폼의 서로 다른 *공식* 상품 ID를
+        # 하나의 게임으로 자동 합쳐서는 안 된다.
+        conflicting_official_platforms = [
+            platform for platform in ("steam_app_id", "dlsite_code")
+            if len({e.value for e in records if e.kind == platform
+                    and e.origin == "official"}) > 1
+        ]
         if index_state != "ok":
             limitations.append(f"내부 목록 검사 완전성 부족: {index_state}")
         if meta_state not in {"ok", "no_metadata"}:
@@ -165,7 +172,13 @@ def verify_identity(
                     matching_title_groups.add(evidence.independence_group)
         id_and_title_same_root = bool(matching_id_groups & matching_title_groups)
 
-        if len(candidates) > 1:
+        if conflicting_official_platforms:
+            verdict = "conflict"
+            blockers.append("동일 플랫폼에서 서로 다른 공식 작품 ID가 조회되었습니다: "
+                            + ", ".join(conflicting_official_platforms))
+            applied.append("multiple_official_product_ids")
+            selected = ""
+        elif len(candidates) > 1:
             verdict = "needs_review"
             blockers.append("서로 다른 외부 작품 후보가 복수 발견되었습니다.")
             applied.append("multiple_external_candidates")
