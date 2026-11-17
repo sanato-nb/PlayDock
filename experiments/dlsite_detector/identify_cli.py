@@ -1,6 +1,7 @@
-"""압축파일 이름 검색 → 실패 시 내부 목록 재검색 실험 프로그램.
+"""PlayDock 1~5단계 독립 검색 실험 CLI.
 
---online 없이 호출하면 압축파일 목록만 확인하고 외부 네트워크에 연결하지 않는다.
+--online 시 비암호화 압축파일은 검색 성공 여부와 관계없이 목록/소형
+메타데이터를 확인한다. --online 없이는 외부 인터넷을 사용하지 않는다.
 """
 from __future__ import annotations
 
@@ -15,18 +16,21 @@ from .internal_metadata import inspect_metadata
 
 
 def main(argv=None) -> int:
-    parser = argparse.ArgumentParser(description="PlayDock 게임 정체 2단계 검색 실험 (본체 미연결)")
+    parser = argparse.ArgumentParser(description="PlayDock 게임 정체 1~5단계 검색 실험 (본체 미연결)")
     parser.add_argument("archive", type=Path, help="ZIP/7z/RAR 압축파일의 로컬 경로")
     parser.add_argument("--online", action="store_true",
                         help="1차 이름 검색 및 2차 재검색을 실제 인터넷에 요청")
     parser.add_argument("--json", action="store_true", help="JSON 결과 출력")
     parser.add_argument("--metadata", action="store_true",
-                        help="제한된 내부 README·INI·JSON 제목 메타데이터 선택적 조회")
+                        help="오프라인 검사에서도 작은 README·INI·JSON 제목 필드를 확인")
+    parser.add_argument("--no-metadata", action="store_true",
+                        help="온라인 분석에서 작은 파일 내용 읽기를 생략 (1~4단계만)")
     args = parser.parse_args(argv)
 
     if args.online:
-        result = (identify_archive(args.archive, allow_metadata=True)
-                  if args.metadata else identify_archive(args.archive))
+        result = (identify_archive(args.archive)
+                  if args.no_metadata else
+                  identify_archive(args.archive, allow_metadata=True))
         output = result.to_dict()
         exit_code = 0 if result.status in ("confirmed_game", "suspected_non_game", "candidate_found") else 1
     else:
@@ -41,11 +45,16 @@ def main(argv=None) -> int:
         print(json.dumps(output, ensure_ascii=False, indent=2))
     elif args.online:
         print(f"[{result.label}] {result.archive_name}")
-        print(f"진행 단계: {result.stage} · 제안 작품명: {result.proposed_title or '미확인'}")
+        print(f"수행한 단계: {', '.join(str(s) for s in result.completed_steps)}")
+        print(f"후보 근거 단계: {result.stage} · 제안 작품명: {result.proposed_title or '미확인'}")
+        print(f"암호화 상태: {result.encryption_state}")
         info = result.to_dict()
         if info["source_id"]:
             print(f"원본 출처: {info['source_platform']} / {info['source_id']}")
         print(f"파일 종류 추정: {info['archive_kind']}")
+        if result.inspection is not None:
+            print(f"내부 목록: {result.inspection.state} / "
+                  f"{result.inspection.member_count}개 항목 검사")
         for attempt in result.attempts:
             print(f" {attempt.stage}단계: {attempt.query} ({attempt.basis}) → {attempt.decision.label}")
         if result.metadata is not None:
