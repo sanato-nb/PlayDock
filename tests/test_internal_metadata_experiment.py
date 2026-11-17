@@ -152,7 +152,7 @@ def test_metadata_does_not_run_on_confirmed_filename(tmp_path):
         allow_metadata=True,
     )
     assert report.stage == 1
-    assert report.status == "candidate_found"
+    assert report.status == "confirmed_game"
 
 
 def test_metadata_fields_do_not_disclose_raw_readme_to_search(tmp_path):
