@@ -174,3 +174,42 @@ python -m pytest -q tests/test_search_quality_experiment.py
 ```
 
 검색 결과에 대한 **실제 작품 페이지 확인과 게임 제작사/발매일 교차검증, 다국어 별칭·오역 대응**은 후속 정확도 개선 과제입니다. 지금은 검색 엔진 자체의 성능과 오탐 방지에 집중하고 있으며, PlayDock 본체와는 여전히 분리되어 있습니다.
+
+## 9. 파일명 검색 기능 2차 보강 (Steam·DLsite 식별자 및 원본 검증)
+
+이 개선은 **AI를 사용하지 않습니다.** PlayDock 본체 `src/playdock/`에는 연결하지 않았으며, 압축파일 원본·이름·DB 사용자 설정도 자동 수정하지 않습니다.
+
+### 식별 근거의 우선순위
+
+1. **Steam App ID가 파일명에 명시됨:** `[Steam 1621540]` 표기를 찾으면 공개 Steam Store `appdetails` 원본 JSON을 조회합니다. 요청한 숫자 ID, 응답의 App ID, 상품명, `type=game`인지 확인합니다. 정식 이름이 같으면 `platform_confirmed_game`으로 기록합니다. 서버팩·패치·DLC·합본 표기는 원본 게임으로 자동 단정하지 않습니다.
+2. **DLsite 품번:** RJ/VJ/BJ/EJ 작품 ID와 작품 종류를 기존 DLsite 검색기에서 검증합니다. DLsite와 Steam ID가 둘 다 있을 때는 두 출처가 다른 작품 또는 다른 유형을 가리키는지 확인하고, 불일치하면 후보 검토로 돌립니다.
+3. **일반 인터넷 검색:** 기존의 검색어 정리와 한국어·일본어·영어별 검색식 사용. 검색 결과에 실제 Steam 상품 링크가 있으면 해당 App ID를 공개 Store JSON으로 **다시 확인**합니다. 검색 결과 제목만 믿지 않습니다.
+4. **명시적인 작품 별칭:** `거인의 비보 (Giant Treasure)`처럼 원본 파일명에 직접 병기된 괄호 속 작품명만 추가 검색합니다. `[번역 수정]`처럼 배포 주석으로 보이는 대괄호 정보는 작품명 별칭으로 사용하지 않습니다. 자동 번역·AI 추측은 수행하지 않습니다.
+5. **최종 분류:** 게임 출처를 확인하지 못하면 조회 불가, 검색 결과만 일치하면 후보 확인 필요로 남깁니다. 파일 종류(본편 추정, 번역 패치 추정, DLC 추정, 서버 패키지 추정, 합본 추정)는 게임의 **작품 정체와 별도**로 기록합니다.
+
+### 실제 예시
+
+| 파일명 | 분리해 얻는 정보 |
+|---|---|
+| `Spooky Milk Life [Steam 1621540].7z` | 제목 `Spooky Milk Life`, Steam App ID `1621540` |
+| `Eliminator 카에데씨 [RJ209760·Steam 1122040].7z` | DLsite 작품 ID + Steam App ID 개별 검증 대상 |
+| `Craft to Exile 2 [Server v1.1.3].zip` | 제목 `Craft to Exile 2`, 서버용 자료 **추정**, Minecraft 모드팩인지 자동 단정하지 않음 |
+| `SummertimeSaga [한국어 패치 Fix2].zip` | 작품명 `SummertimeSaga`, 별도 패치 **추정** |
+| `Fate Empire of Dirt + Made in Heaven.7z` | 여러 작품이 포함됐을 가능성, 합본 **추정** |
+
+### 실행/시험
+
+```powershell
+# 실제 ZIP/7z/RAR 파일 경로 하나를 선택해 실행합니다.
+python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Spooky Milk Life [Steam 1621540].7z" --online --json
+
+# 기존 독립 검증용 DB에서는 원본 파일명과 검색·수동 판정 이력을 보존합니다.
+python -m experiments.dlsite_detector.pipeline_cli --db ".\\identity-experiment.db" scan --id game01 --title "Spooky Milk Life [Steam 1621540]" --archive "Spooky Milk Life [Steam 1621540].7z" --online
+
+# 파일명 검색·원본 ID 검증·패치/서버팩 오분류 방지 테스트
+python -m pytest -q tests/test_platform_identity_enrichment_experiment.py
+```
+
+**제약사항:** Steam Store `appdetails`은 비공식 공개 엔드포인트이며 일시적 차단이나 응답 오류가 발생할 수 있습니다. 이때 오류는 비등록의 증거가 아니며 일반 검색으로 넘어갑니다. itch.io·GOG 등은 **아직 원본 페이지 내용을 직접 검증하는 어댑터가 없습니다.** 일부 원본이 제한되거나 Steam 페이지가 삭제됐을 수 있으므로 검색 결과를 곧바로 확정하지 않습니다. 130개 파일명 목록은 실험의 테스트 사례를 뽑는 근거로만 사용했으며, 사용자의 로컬 파일명 전체를 공개 저장소의 테스트 데이터로 올리지 않았습니다.
+
+추후 실제 인터넷 접속을 허용한 실험에서 **자동 검색 확인 비율·후보 비율·조회 불가 비율·오분류 비율**을 별도로 측정해야 합니다.
