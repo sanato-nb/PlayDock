@@ -68,7 +68,10 @@ def extract_hints(raw: str) -> ArchiveHints:
         kind, reason = "base_game_candidate", "본편 표기가 포함됨"
 
     aliases = []
-    for tag in tags:
+    for match in BRACKET.finditer(basename):
+        # 일반 대괄호 [AI 번역·기번 수정]은 작품 별칭이 아니라 배포
+        # 메타데이터일 가능성이 높다. 제목의 '(영문 원제)' 병기만 인정.
+        tag = (match.group(2) or "").strip()
         if (not tag or len(tag) < 3 or STEAM_TAG.fullmatch(tag)
                 or DL_CODE.fullmatch(tag) or VERSION_TAG.fullmatch(tag)
                 or IGNORED_TAG.fullmatch(tag) or PATCH.search(tag)
