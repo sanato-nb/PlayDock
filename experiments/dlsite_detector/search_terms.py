@@ -22,7 +22,7 @@ DROP_TAG = re.compile(
     r"(?:\[|\(|【)\s*(?:"
     r"(?:v(?:er(?:sion)?)?\.?\s*)?\d+(?:[._]\d+){1,5}\s*(?:patch|hotfix)?"
     r"|(?:v(?:er(?:sion)?)?\.?\s*)\d+(?:[._]\d+){0,5}"
-    r"|한글\\s*(?:패치|화)?|한국어\\s*(?:패치|번역)?|번역\\s*(?:패치|판)?"
+    r"|한글\s*(?:패치|화)?|한국어\s*(?:패치|번역)?|번역\s*(?:패치|판)?"
     r"|korean\s*(?:patch|translation)?|eng(?:lish)?\s*patch"
     r"|machine\s*translation|uncensored|patch(?:ed)?|dlsite"
     r"|(?:RJ|VJ|BJ|EJ)\d{6,8}"
