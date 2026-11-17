@@ -19,6 +19,7 @@ import zipfile
 
 from .archive_inspector import _safe_member_path
 from .detector import extract_code
+from .archive_encryption import probe_archive_encryption
 from .search_terms import cleaned_search_title
 
 
@@ -296,6 +297,16 @@ def inspect_metadata(path: Path) -> MetadataInspection:
     if archive.is_symlink() or not archive.is_file():
         return MetadataInspection(archive.name, "unavailable", 0, 0, (), (), (),
                                   "일반 로컬 압축파일이 아닙니다.")
+    # --metadata를 명시해도 암호화된 압축파일의 내용은 절대 읽지 않는다.
+    probe = probe_archive_encryption(archive)
+    if probe.state != "clear":
+        return MetadataInspection(
+            archive.name, "encrypted" if probe.is_encrypted else "unavailable",
+            0, 0, (), (), (),
+            ("암호화된 파일은 내부 메타데이터를 읽지 않습니다. " if probe.is_encrypted
+             else "암호 상태가 불명확해 메타데이터 검사를 생략했습니다. ")
+            + probe.reason,
+        )
     suffix = archive.suffix.lower()
     if suffix == ".7z":
         return _inspect_non_solid_7z(archive)
