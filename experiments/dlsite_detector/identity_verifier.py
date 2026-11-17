@@ -142,6 +142,28 @@ def verify_identity(
                     if title_key(name) == primary:
                         known_aliases.update(title_key(v) for v in values)
         distinct_internal = strong_titles - known_aliases
+        # 같은 이름이 내부에서만 발견되어도 외부 작품 검증을 대체할 수 없다.
+        external_candidate_present = any(
+            e.kind == "title" and e.origin in {"official", "web_candidate"}
+            and title_key(e.value) in known_aliases
+            for e in records
+        )
+        # ID와 제목이 서로 다른 루트 게임 폴더에 있을 때는 독립적으로
+        # 한 게임의 동일성 증명에 사용하지 않는다.
+        matching_id_groups = set()
+        matching_title_groups = set()
+        if len(comparisons) == 1:
+            matching_ids = set(comparisons[0].id_matches)
+            matched_titles = {title_key(v) for v in comparisons[0].strong_title_matches}
+            for evidence in records:
+                if evidence.origin != "internal_metadata" or evidence.strength != "strong":
+                    continue
+                if (evidence.kind in {"dlsite_code", "steam_app_id"}
+                        and f"{evidence.kind}:{evidence.value}" in matching_ids):
+                    matching_id_groups.add(evidence.independence_group)
+                if evidence.kind == "title" and title_key(evidence.value) in matched_titles:
+                    matching_title_groups.add(evidence.independence_group)
+        id_and_title_same_root = bool(matching_id_groups & matching_title_groups)
 
         if len(candidates) > 1:
             verdict = "needs_review"
@@ -182,6 +204,7 @@ def verify_identity(
                 verdict = "needs_review"
                 applied.append("file_type_blocks_game_confirmation")
             elif (item.official and item.id_matches and item.has_exact_strong_title
+                  and id_and_title_same_root
                   and package == "game_payload_candidate"
                   and index_state == "ok" and meta_state == "ok"):
                 verdict = "matched"
@@ -191,7 +214,7 @@ def verify_identity(
                     "game_executable_and_engine_payload_present",
                     "complete_internal_index",
                 ))
-            elif (item.has_exact_strong_title and
+            elif (external_candidate_present and item.has_exact_strong_title and
                   package == "game_payload_candidate" and index_state == "ok"):
                 verdict = "likely_candidate"
                 applied.append("title_and_game_payload_correlate")
