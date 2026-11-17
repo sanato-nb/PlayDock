@@ -164,7 +164,9 @@ def test_encrypted_header_is_reported_as_password_required(tmp_path, monkeypatch
             raise RuntimeError("password required")
     monkeypatch.setitem(sys.modules, "py7zr", types.SimpleNamespace(SevenZipFile=Seven))
     result = inspector.inspect_archive(archive)
-    assert result.state == "needs_password"
+    assert result.state == "encrypted"
+    assert result.encrypted is True
+    assert result.evidence == ()
 
 
 def test_no_internet_no_database_no_content_extraction():
