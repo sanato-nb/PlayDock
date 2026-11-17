@@ -53,6 +53,8 @@ class ArchiveInspection:
     product_codes: tuple[str, ...]
     evidence: tuple[FileEvidence, ...]
     reason: str
+    package_signals: tuple[str, ...] = ()
+    localization_signals: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -148,6 +150,8 @@ def inspect_archive(path: Path) -> ArchiveInspection:
     titles: dict[str, int] = {}
     codes: list[str] = []
     engines: set[str] = set()
+    package: set[str] = set()
+    localization: set[str] = set()
     seen_paths: set[str] = set()
 
     try:
@@ -184,6 +188,18 @@ def inspect_archive(path: Path) -> ArchiveInspection:
             if is_dir:
                 continue
             stem, extension = Path(basename).stem, Path(basename).suffix.casefold()
+            if extension == ".exe":
+                if basename.casefold() not in {"uninstall.exe", "setup.exe", "unins000.exe"}:
+                    package.add("Windows 실행파일 존재")
+            if extension == ".rpa":
+                package.add("Ren'Py 게임 데이터 파일 존재")
+            if extension in {".rgssad", ".rgss2a", ".rgss3a"}:
+                package.add("RPG Maker 게임 데이터 파일 존재")
+            if extension == ".pck":
+                package.add("Godot 게임 데이터 파일 후보")
+            if "/tl/korean/" in "/" + lowered or re.search(
+                    r"(?:^|/)(?:korean|ko-kr|ko_kr|한국어)(?:/|$)", lowered):
+                localization.add("한국어 번역 파일/폴더 경로 단서")
             if extension == ".exe":
                 exe_title = _interesting_title(stem)
                 if exe_title and len(titles) < 64:
@@ -228,4 +244,5 @@ def inspect_archive(path: Path) -> ArchiveInspection:
         archive.name, fmt, state, count, listed, total, encrypted,
         tuple(sorted(engines)), tuple(ordered_titles[:MAX_CANDIDATES]),
         tuple(codes), tuple(evidence), note,
+        tuple(sorted(package)), tuple(sorted(localization)),
     )
