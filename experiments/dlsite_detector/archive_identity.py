@@ -14,9 +14,10 @@ from typing import Callable
 
 from .archive_inspector import ArchiveInspection, inspect_archive
 from .detector import normalized_title
-from .pipeline import SearchDecision, classify_game
+from .pipeline import SearchDecision
+from .enhanced_search import enhanced_classify_game
 
-CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game"})
+CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game", "platform_confirmed_game"})
 CANDIDATES = frozenset({"internet_candidate"})
 ARCHIVE_EXTS = frozenset({".zip", ".7z", ".rar"})
 MAX_TITLE_QUERIES = 4
@@ -62,7 +63,7 @@ class IdentityReport:
 def identify_archive(
     archive_path: Path,
     *,
-    classifier: Callable[[str], SearchDecision] = classify_game,
+    classifier: Callable[[str], SearchDecision] = enhanced_classify_game,
     inspector: Callable[[Path], ArchiveInspection] = inspect_archive,
 ) -> IdentityReport:
     """압축파일 1개를 검사. 외부 요청은 주입된 classifier만 수행.
