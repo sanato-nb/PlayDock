@@ -250,7 +250,8 @@ def test_web_title_candidate_can_be_checked_against_metadata_when_requested(tmp_
     deeper = identify_archive(path, classifier=found, allow_metadata=True)
     assert deeper.status == "candidate_found"
     assert deeper.metadata.title_candidates == ("Night of Revenge",)
-    assert deeper.stage == 3
+    assert deeper.stage == 1  # 후보 출처는 파일명. 실제 처리 단계는 5까지 완료
+    assert deeper.completed_steps == (1, 2, 3, 4, 5)
 
 
 def test_conflicting_search_title_and_internal_title_flagged_ambiguous(tmp_path):
