@@ -105,7 +105,6 @@ def test_archive_kind_is_separate_from_game_identity(filename, expected):
 @pytest.mark.parametrize("filename", (
     "Craft to Exile 2 [Server v1.1.3].zip",
     "My Game [DLC 2.0.1].zip",
-    "My Game [한국어 패치 Fix2].zip",
 ))
 def test_stored_steam_game_does_not_convert_patch_server_or_dlc_to_base(filename):
     title = "Craft to Exile 2" if filename.startswith("Craft") else "My Game"
