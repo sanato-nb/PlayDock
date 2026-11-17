@@ -29,6 +29,16 @@ DROP_TAG = re.compile(
     r")\s*(?:\]|\)|】)",
     re.I,
 )
+# 플랫폼 식별자·배포 속성은 검색어에서 제거하되, 실제 분류는 별도 저장한다.
+DISTRIBUTION_TAG = re.compile(
+    r"\[\s*(?:Steam\s*(?:app\s*(?:id)?|id)?\s*[:#=-]?\s*\d{3,10}"
+    r"|(?:RJ|VJ|BJ|EJ)\d{6,8}\s*[·,;/]\s*Steam\s*\d{3,10}"
+    r"|Server(?:\s+v[\d.]+)?|PC|PC\s*본편|itch\.io\s*Windows"
+    r"|DLC\s*[\d._\s]+|한국어\s*패치(?:\s*Fix\d+)?"
+    r"|Update\s*\d+)"
+    r"\s*\]",
+    re.I,
+)
 SPACES = re.compile(r"\s+")
 
 
@@ -44,6 +54,7 @@ def cleaned_search_title(raw: str) -> str:
     """검색 전용 이름. 원본 파일/DB에는 손대지 않는다."""
     title = unicodedata.normalize("NFKC", archive_basename(raw))
     title = DROP_TAG.sub(" ", title)
+    title = DISTRIBUTION_TAG.sub(" ", title)
     title = CODE.sub(" ", title)
     title = VERSION_SUFFIX.sub("", title).strip()
     # _ 는 배포 파일명에서 흔한 단어 구분자. 마침표는 제목/시리즈 표기일 수 있어 유지.
