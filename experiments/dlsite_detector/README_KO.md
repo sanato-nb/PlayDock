@@ -213,3 +213,28 @@ python -m pytest -q tests/test_platform_identity_enrichment_experiment.py
 **제약사항:** Steam Store `appdetails`은 비공식 공개 엔드포인트이며 일시적 차단이나 응답 오류가 발생할 수 있습니다. 이때 오류는 비등록의 증거가 아니며 일반 검색으로 넘어갑니다. itch.io·GOG 등은 **아직 원본 페이지 내용을 직접 검증하는 어댑터가 없습니다.** 일부 원본이 제한되거나 Steam 페이지가 삭제됐을 수 있으므로 검색 결과를 곧바로 확정하지 않습니다. 130개 파일명 목록은 실험의 테스트 사례를 뽑는 근거로만 사용했으며, 사용자의 로컬 파일명 전체를 공개 저장소의 테스트 데이터로 올리지 않았습니다.
 
 추후 실제 인터넷 접속을 허용한 실험에서 **자동 검색 확인 비율·후보 비율·조회 불가 비율·오분류 비율**을 별도로 측정해야 합니다.
+
+## 10. PowerShell 파일 목록 129개 배치 재검사
+
+Windows PowerShell `ls` 출력(긴 파일명이 자동 줄바꿈된 경우 포함)을 읽어 **압축파일을 열지 않고 파일명만 전수 검사**하는 CLI를 제공합니다.
+
+```powershell
+# 파일명만 오프라인 검사. 기본 설정에서는 인터넷 사용 안 함.
+python -m experiments.dlsite_detector.filename_batch ".\\powershell-list.txt" `
+  --exclude "Craft to Exile 2 [Server v1.1.3].zip" `
+  --csv ".\\offline-name-results.csv" `
+  --json-output ".\\offline-name-results.json"
+
+# 실제 게임 정체 온라인 조회 (명시적인 --online 필요)
+# 처음에는 5건으로 제한해 서버 접속과 판정을 확인하세요.
+python -m experiments.dlsite_detector.filename_batch ".\\powershell-list.txt" `
+  --exclude "Craft to Exile 2 [Server v1.1.3].zip" `
+  --online --max-online 5 --delay 2 `
+  --json-output ".\\online-smoke-results.json"
+```
+
+- 오프라인 보고서의 `title_search`/`title_and_id_lookup`/`direct_id_lookup`는 **어떤 검색 경로로 보내야 하는지의 규칙 분석 결과**이며 실제 온라인 게임 확인 성공률이 아닙니다.
+- 온라인 결과에는 `online_status`, `online_proposed_title`, 외부 플랫폼·작품 코드·사유를 분리해 기록합니다.
+- 자동 검색 중 이미지·압축파일 원본·PlayDock 본체 DB를 변경하지 않습니다. 원본 압축파일 목록을 공개 저장소에 커밋하지 않습니다.
+- 파일명 정리 시 배포·번역·패치·버전 태그를 제거하되 알려지지 않은 대괄호는 부제일 수 있으므로 보존합니다.
+- **오프라인 전수 테스트**는 사용자가 공유한 목록에서 제외 파일을 제거한 129개를 대상으로 검증했습니다. **129건의 실제 온라인 검색 성공률**은 아직 측정하지 않았습니다.
