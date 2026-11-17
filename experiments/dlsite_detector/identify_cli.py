@@ -13,6 +13,7 @@ from .archive_inspector import inspect_archive
 from .archive_identity import identify_archive
 from .identity_hints import extract_hints
 from .internal_metadata import inspect_metadata
+from .identity_verifier import verify_identity
 
 
 def main(argv=None) -> int:
@@ -25,14 +26,28 @@ def main(argv=None) -> int:
                         help="오프라인 검사에서도 작은 README·INI·JSON 제목 필드를 확인")
     parser.add_argument("--no-metadata", action="store_true",
                         help="온라인 분석에서 작은 파일 내용 읽기를 생략 (1~4단계만)")
+    parser.add_argument("--verify", action="store_true",
+                        help="--online 1~5단계 결과로 6단계 읽기 전용 근거 교차검증 실행")
     args = parser.parse_args(argv)
+    if args.verify and not args.online:
+        parser.error("--verify는 --online과 함께 사용해야 합니다.")
 
     if args.online:
         result = (identify_archive(args.archive)
                   if args.no_metadata else
                   identify_archive(args.archive, allow_metadata=True))
         output = result.to_dict()
-        exit_code = 0 if result.status in ("confirmed_game", "suspected_non_game", "candidate_found") else 1
+        if args.verify:
+            verification = verify_identity(result)
+            output = {
+                "stages_1_to_5": result.to_dict(),
+                "verification": verification.to_dict(),
+            }
+            exit_code = 0 if verification.verdict in (
+                "matched", "likely_candidate",
+            ) else 1
+        else:
+            exit_code = 0 if result.status in ("confirmed_game", "suspected_non_game", "candidate_found") else 1
     else:
         inspection = inspect_archive(args.archive)
         output = {"mode": "offline_inventory", **inspection.to_dict(),
@@ -62,6 +77,10 @@ def main(argv=None) -> int:
                   f"{result.metadata.inspected_files}개 항목에서 제목 단서 "
                   f"{len(result.metadata.title_candidates)}개")
         print(result.reason)
+        if args.verify:
+            print(f"6단계 판정: {verification.label}")
+            print("6단계 적용 규칙:", ", ".join(verification.matched_rules) or "없음")
+            print("검토 사유:", " / ".join(verification.blockers) or "없음")
     else:
         print(f"[오프라인 내부 목록] {inspection.archive_name}")
         print(f"상태: {inspection.state}, 파일 항목: {inspection.member_count}")
