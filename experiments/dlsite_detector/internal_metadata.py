@@ -184,6 +184,92 @@ def _rar_index(path: Path):
                    bool(info.needs_password()) or solid, info.isdir(), False)
 
 
+
+def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
+    """py7zr >= 1.1.4 해제 상한을 사용하여 비-solid 소형 항목만 메모리에서 읽기."""
+    try:
+        import py7zr
+        from importlib.metadata import version
+        from io import BytesIO
+        ver = tuple(int(part) for part in version("py7zr").split(".")[:3])
+        if ver < (1, 1, 4):
+            raise RuntimeError("보안 상한을 지원하는 py7zr 1.1.4 이상이 필요")
+    except (ImportError, ValueError, RuntimeError) as exc:
+        return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
+                                  f"7z 내용 분석 생략: {type(exc).__name__}")
+
+    class BoundedMemory(py7zr.Py7zIO):
+        def __init__(self):
+            self.output = BytesIO()
+        def write(self, chunk):
+            if self.output.tell() + len(chunk) > MAX_MEMBER_BYTES:
+                raise ValueError("7z 멤버 읽기 한도 초과")
+            return self.output.write(chunk)
+        def read(self, size=None):
+            return self.output.read(size)
+        def seek(self, offset, whence=0):
+            return self.output.seek(offset, whence)
+        def flush(self):
+            return None
+        def size(self):
+            return self.output.getbuffer().nbytes
+
+    class MemoryFactory(py7zr.WriterFactory):
+        def __init__(self):
+            self.members = {}
+        def create(self, name):
+            writer = BoundedMemory()
+            self.members[name] = writer
+            return writer
+
+    try:
+        with py7zr.SevenZipFile(archive, mode="r", max_extract_size=MAX_TOTAL_BYTES) as zf:
+            if zf.needs_password():
+                return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
+                                          "암호화된 7z는 목록 단서만 확인")
+            if zf.archiveinfo().solid:
+                return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
+                                          "7z 솔리드 압축은 대용량 블록 해제 위험으로 내용 읽기 생략")
+            files = zf.list()[:MAX_MEMBERS]
+            rows = [(item.filename, int(item.uncompressed or 0),
+                     int(item.compressed) if item.compressed is not None else None,
+                     False, bool(item.is_directory), bool(item.is_symlink))
+                    for item in files]
+            selected = _pick_members(rows)
+            if not selected:
+                return MetadataInspection(archive.name, "no_metadata", 0, 0, (), (), (),
+                                          "제한된 메타데이터 후보 파일 없음")
+            factory = MemoryFactory()
+            zf.extract(targets=[p for p, _ in selected], recursive=False, factory=factory)
+            titles, codes, evidence = [], [], []
+            size = 0
+            for member, basename in selected:
+                writer = factory.members.get(member)
+                if writer is None:
+                    continue
+                contents = writer.output.getvalue()
+                size += len(contents)
+                if size > MAX_TOTAL_BYTES:
+                    return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
+                                              "7z 누적 읽기 제한 초과")
+                for field, raw in _parse_metadata_text(basename, contents):
+                    title = _safe_title(raw)
+                    if not title:
+                        continue
+                    if title not in titles and len(titles) < MAX_TITLES:
+                        titles.append(title)
+                        evidence.append(MetadataEvidence(member, field, title))
+                    code = extract_code(str(raw))
+                    if code and code not in codes and len(codes) < MAX_CODES:
+                        codes.append(code)
+            return MetadataInspection(archive.name, "ok" if titles or codes else "no_metadata",
+                                      len(factory.members), size, tuple(titles), tuple(codes),
+                                      tuple(evidence), "안전 상한을 적용한 비-solid 7z 소형 항목만 조회")
+    except Exception as exc:
+        return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
+                                  f"7z 부분 읽기를 완료하지 못해 목록 정보만 사용: {type(exc).__name__}")
+
+
 def inspect_metadata(path: Path) -> MetadataInspection:
     """압축파일을 풀지 않고 소수의 작은 지정 파일에서 제목만 추출한다.
 
@@ -196,8 +282,7 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                                   "일반 로컬 압축파일이 아닙니다.")
     suffix = archive.suffix.lower()
     if suffix == ".7z":
-        return MetadataInspection(archive.name, "index_only", 0, 0, (), (), (),
-                                  "7z는 솔리드 압축의 대량 해제 위험 때문에 현재 목록 단서만 지원합니다.")
+        return _inspect_non_solid_7z(archive)
     if suffix not in {".zip", ".rar"}:
         return MetadataInspection(archive.name, "unsupported", 0, 0, (), (), (),
                                   "선택적 메타데이터 읽기 미지원 형식입니다.")
