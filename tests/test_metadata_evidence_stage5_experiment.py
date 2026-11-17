@@ -223,3 +223,39 @@ def test_result_json_includes_individual_evidence_provenance(tmp_path):
         "strength": "strong",
         "parser": "game_ini",
     }]
+
+
+def test_steam_appid_file_is_product_identifier_not_game_title(tmp_path):
+    archive = create_zip(tmp_path, {
+        "Game/steam_appid.txt": "1621540\\n",
+        "Game/Game.exe": b"binary",
+    })
+    evidence = inspect_metadata(archive)
+    assert evidence.title_candidates == ()
+    assert evidence.steam_app_ids == ("1621540",)
+    assert evidence.product_codes == ()
+    items = [e for e in evidence.evidence if e.kind == "steam_app_id"]
+    assert len(items) == 1
+    assert items[0].field == "steam_appid"
+    assert items[0].parser == "steam_appid_file"
+    assert items[0].strength == "strong"
+
+
+def test_steam_id_in_explicit_ini_and_json_fields_is_distinct(tmp_path):
+    archive = create_zip(tmp_path, {
+        "Game/Game.ini": "Title=Ocean Story\\nSteam App ID: 1621540\\n",
+        "Game/metadata.json": '{"steam_app_id": 1621540, "title":"Ocean Story"}',
+    })
+    evidence = inspect_metadata(archive)
+    assert evidence.steam_app_ids == ("1621540",)
+    assert evidence.title_candidates == ("Ocean Story",)
+    assert len([e for e in evidence.evidence if e.kind == "steam_app_id"]) == 2
+
+
+def test_unmarked_steam_number_or_fake_long_id_is_ignored(tmp_path):
+    archive = create_zip(tmp_path, {
+        "Game/steam_appid.txt": "12345 and some other text",
+        "Game/metadata.json": '{"app_id": 1621540, "steam_app_id": 123456789012345}',
+    })
+    evidence = inspect_metadata(archive)
+    assert evidence.steam_app_ids == ()
