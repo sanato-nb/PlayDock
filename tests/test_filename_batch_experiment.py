@@ -64,3 +64,32 @@ def test_cli_offline_mode_never_calls_online_and_csv_json_explicit(tmp_path, mon
     assert json.loads(capsys.readouterr().out)["analyzed_files"] == 5
     assert json.loads(json_path.read_text(encoding="utf-8"))["summary"]["analyzed_files"] == 5
     assert "original_filename" in csv_path.read_text(encoding="utf-8-sig")
+
+
+def test_search_title_cleanup_handles_distribution_memos_not_subtitles():
+    from experiments.dlsite_detector.search_terms import cleaned_search_title
+    examples = {
+        "Demo [번역 수정1] [RJ01081508].zip": "Demo",
+        "Demo [손번역 수정2·노모] [RJ01081508].zip": "Demo",
+        "Demo [beta 1.0.1].zip": "Demo",
+        "Demo [v2 Fix].zip": "Demo",
+        "Demo [2025-11-20].zip": "Demo",
+        "Demo [한국어 패치 Fix2].zip": "Demo",
+        "RJ01081508 [250418].zip": "",
+        "RJ01081508 [공식 한국어 v1.3.1].zip": "",
+        "Demo [Rebirth].zip": "Demo [Rebirth]",
+        "Game 2 [Rebirth].zip": "Game 2 [Rebirth]",
+    }
+    for filename, expected in examples.items():
+        assert cleaned_search_title(filename) == expected, filename
+
+
+def test_code_only_with_distribution_notes_still_routes_to_direct_code_lookup():
+    rows = batch.parse_powershell_listing(
+        "-a----      2026-11-17   오후 1:05      123456789 RJ01081508 [번역].zip\\n"
+    )
+    summary, records = batch.analyze_listing(rows)
+    assert summary["analyzed_files"] == 1
+    assert records[0]["search_title"] == ""
+    assert records[0]["dlsite_codes"] == ["RJ01081508"]
+    assert records[0]["offline_status"] == "direct_id_lookup"
