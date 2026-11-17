@@ -142,17 +142,18 @@ def test_metadata_stage_runs_only_when_opted_in_and_prior_search_fails(tmp_path)
     assert with_metadata.to_dict()["metadata"]["state"] == "ok"
 
 
-def test_metadata_does_not_run_on_confirmed_filename(tmp_path):
+def test_confirmed_filename_must_be_checked_against_internal_metadata(tmp_path):
     path = make_zip(tmp_path, {"Game/Game.ini": "Title=Another Game"})
     report = identify_archive(
         path, classifier=lambda _: SearchDecision("confirmed_game", "Existing Game",
                                                   proposed_title="Existing Game"),
-        inspector=lambda _: pytest.fail("list must not run"),
-        metadata_reader=lambda _: pytest.fail("metadata must not run"),
         allow_metadata=True,
     )
-    assert report.stage == 1
-    assert report.status == "confirmed_game"
+    assert report.stage == 3
+    assert report.status == "ambiguous"
+    assert report.evidence_conflict is True
+    assert report.metadata.title_candidates == ("Another Game",)
+    assert report.completed_steps == (1, 2, 3, 4, 5)
 
 
 def test_metadata_fields_do_not_disclose_raw_readme_to_search(tmp_path):
@@ -180,18 +181,17 @@ def test_cli_metadata_optin_offline_does_not_call_search(tmp_path, monkeypatch, 
     assert payload["metadata"]["state"] == "ok"
 
 
-def test_no_metadata_does_not_run_when_list_gives_one_candidate(tmp_path):
+def test_index_candidate_also_collects_selected_metadata(tmp_path):
     path = make_zip(tmp_path, {
         "Real Story/Real Story.exe": b"fake",
         "Real Story/Game.ini": "Title=Another Story",
     })
     def classify(query):
         return verified(query) if query == "Real Story" else missing(query)
-    r = identify_archive(
-        path, classifier=classify, allow_metadata=True,
-        metadata_reader=lambda _: pytest.fail("already has index candidate"),
-    )
+    r = identify_archive(path, classifier=classify, allow_metadata=True)
     assert r.status == "candidate_found" and r.stage == 2
+    assert r.metadata.title_candidates == ("Another Story",)
+    assert r.completed_steps == (1, 2, 3, 4, 5)
 
 
 def test_non_solid_7z_single_readme_is_inspected_in_memory(tmp_path):
