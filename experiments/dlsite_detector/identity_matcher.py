@@ -53,8 +53,11 @@ def _explicit_alias_keys(title: str,
         return keys
     # 키가 정규화된 정식 제목에 정확히 대응하는 경우만 신뢰.
     for primary, synonyms in verified_aliases.items():
-        if title_key(primary) == title_key(title):
-            keys.update(title_key(v) for v in synonyms if isinstance(v, str))
+        group = {title_key(primary)} | {
+            title_key(v) for v in synonyms if isinstance(v, str)
+        }
+        if title_key(title) in group:
+            keys.update(group)
     return {key for key in keys if key}
 
 
