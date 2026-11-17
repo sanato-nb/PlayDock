@@ -47,7 +47,8 @@ experiments/                               # 본체 이식 전 독립 실험 코
     ├── steam_client.py                    # Steam 앱 원본 상품 데이터 검증
     ├── enhanced_search.py                # 원본 교차검증·별칭 재검색
     ├── archive_inspector.py              # ZIP/7z/RAR 내부 목록·실행파일·엔진 단서
-    ├── internal_metadata.py              # 작은 README/INI/JSON 내부 제목 선택적 읽기
+    ├── internal_metadata.py              # 작은 README/INI/JSON 내용 읽기·근거 출처 보존
+    ├── metadata_fields.py                # 엔진별 메타데이터 허용 필드·근거 등급 정의
     ├── archive_identity.py               # 이름→내부 목록→선택적 메타 3단계 순서 제어
     ├── identify_cli.py                   # 단일 압축파일 실험 명령행 실행기
     ├── filename_batch.py                 # PowerShell 파일 목록 대량 실험 도구
@@ -337,4 +338,76 @@ python -m experiments.dlsite_detector.identify_cli "D:\\Games\\Unknown Game.zip"
 
 # 자동 회귀 검사
 python -m pytest -q tests/test_full_five_stage_archive_experiment.py
+```
+
+## 14. 5단계 메타데이터 근거 품질 개선
+
+이전처럼 모든 JSON의 `name` 값이나 README 문자열을 게임명으로 취급하지 않습니다.
+`metadata_fields.py`가 파일/엔진 종류를 구분해 **명시된 필드만 파싱**하고,
+`internal_metadata.py`가 게임명·식별자·제작사/프로젝트 정보로 분리합니다.
+
+### 엔진별 허용된 제목 단서
+
+| 근거 파일 | 사용 필드 | 근거 등급 |
+|---|---|---|
+| `Game.ini`, `RPG_RT.ini` | 명시적 `Title`/`GameTitle` 등 | `strong` |
+| Ren'Py `game/options.rpy` | `define config.name` | `strong` |
+| RPG Maker MV/MZ `data/System.json` | `gameTitle` | `strong` |
+| Godot `project.godot` | `[application]` 내부 `config/name`만 | `strong` |
+| Unity `app.info` | 제품명(2행), 회사명(1행)은 별도 제작사 근거 | 게임명 `strong`, 제작사 `supporting` |
+| `game.json`, `metadata.json`, `version.json` | 명시적 제목/제품명 필드 | 조건에 따라 `strong` 또는 `supporting` |
+| NW.js `package.json` | `window.title` | `supporting` |
+| README | `Game Title:`, `게임명:`, `作品名:` 등 명시적 라벨 | `supporting` |
+| `package.json` | `name`은 게임명이 아니라 프로젝트 식별값으로 별도 보관 | `weak` |
+
+**근거 등급은 외부 게임과 동일한지에 대한 확률이 아닙니다.**
+`strong`은 해당 파일 형식에서 명시한 필드라는 뜻이며 게임의 실제
+동일성이나 파일 변조 여부를 보장하지 않습니다.
+`supporting`인 README/일반 설정의 제목 하나가 외부 후보와 다르다는 이유만으로
+`ambiguous` 충돌을 발생시키지 않습니다.
+동일 제목이 여러 파일에 있더라도 **각 파일 경로와 필드 출처를 모두 기록**합니다.
+
+### 내부 작품 식별자
+
+- `dlsite_code`, `work_no`, `품번` 등 명시적 RJ/VJ/BJ/EJ 코드는 `product_codes`로 수집
+- `steam_appid.txt`, `Steam App ID`, JSON의 `steam_app_id` 등 명시적 숫자 ID는 **별도 `steam_app_ids` 필드**로 수집
+- 임의의 숫자나 `name` 필드의 프로젝트 이름은 게임 식별자로 오인하지 않습니다.
+- 작품 코드/Steam ID는 **조회 후보**이지 압축파일 내부가 해당 공식 작품이라는 증명은 아닙니다.
+
+### JSON 출력 예시
+
+```json
+{
+  "title_candidates": ["Night of Revenge"],
+  "product_codes": [],
+  "steam_app_ids": [],
+  "evidence": [
+    {
+      "member": "Game/Game.ini",
+      "field": "Title",
+      "candidate_title": "Night of Revenge",
+      "kind": "title",
+      "strength": "strong",
+      "parser": "game_ini"
+    }
+  ]
+}
+```
+
+이 JSON은 **사용자 원본 자료가 아닌 가상 예시**입니다.
+목록의 `member`에는 압축파일 내 상대 경로만 포함되며, 외부 검색으로는
+선별된 작품명/ID만 보냅니다. EXE 자체나 스크립트를 실행하지 않습니다.
+ZIP·비솔리드 RAR/7z에 대한 이전 읽기 상한과 암호화 파일 차단도 유지합니다.
+
+### 이번 범위에서 제외된 부분
+
+- Windows EXE의 PE 버전 리소스(ProductName/CompanyName)는 아직
+  *내용 분석 미구현*입니다. 안전한 부분 추출 정책을 확립한 후 별도 개발합니다.
+- 5단계에서는 근거를 추출·분류하고, 작품 일치 신뢰도 산출·최종 자동 확정은
+  **6단계에서 구현**합니다.
+- 실제 사용자 게임 압축파일의 바이트를 제공받지 않았으므로, 현재 결과는
+  모의 ZIP/7z 기반 회귀 검증이며 129개 실제 게임 정확도를 실측한 것은 아닙니다.
+
+```powershell
+python -m pytest -q tests/test_metadata_evidence_stage5_experiment.py
 ```
