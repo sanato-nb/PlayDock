@@ -88,6 +88,12 @@ def identify_archive(
         return IdentityReport(path.name, "suspected_non_game", 1,
                               first.proposed_title, first.dlsite_code,
                               "DLsite 작품 유형에 따라 비게임으로 추정합니다.", None, tuple(attempts))
+    if first.status in CANDIDATES:
+        return IdentityReport(path.name, "candidate_found", 1,
+                              first.proposed_title, first.dlsite_code,
+                              "압축파일명 검색에서 게임 작품 후보를 찾았습니다. "
+                              "검색 결과만으로 동일 작품인지 확정하지 않고 사용자 확인을 기다립니다.",
+                              None, tuple(attempts))
 
     inspection = inspector(path)
     if inspection.state not in {"ok", "partial", "limit_exceeded"}:
@@ -115,7 +121,7 @@ def identify_archive(
         outcome = classifier(query)
         attempt = IdentityAttempt(2, basis, query, outcome)
         attempts.append(attempt)
-        if outcome.status in CONFIRMED and outcome.proposed_title.strip():
+        if outcome.status in CONFIRMED | CANDIDATES and outcome.proposed_title.strip():
             title_key = normalized_title(outcome.proposed_title)
             if title_key:
                 verified.setdefault(title_key, []).append(attempt)
