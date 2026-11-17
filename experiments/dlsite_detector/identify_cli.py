@@ -25,7 +25,8 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
 
     if args.online:
-        result = identify_archive(args.archive, allow_metadata=args.metadata)
+        result = (identify_archive(args.archive, allow_metadata=True)
+                  if args.metadata else identify_archive(args.archive))
         output = result.to_dict()
         exit_code = 0 if result.status in ("confirmed_game", "suspected_non_game", "candidate_found") else 1
     else:
