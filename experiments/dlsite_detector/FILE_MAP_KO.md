@@ -28,7 +28,7 @@ PlayDock/
 └── .github/workflows/                    — CI 테스트 및 필요 시 수동 Windows 빌드
 ```
 
-## 게임 정체 판독기 26개 주요 파일
+## 게임 정체 판독기 주요 파일별 역할
 
 ```text
 experiments/dlsite_detector/
