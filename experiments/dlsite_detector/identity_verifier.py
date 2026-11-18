@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Mapping, Sequence
 
 from .archive_identity import IdentityReport
@@ -20,6 +21,21 @@ FILE_ONLY = frozenset({
     "patch_candidate", "dlc_candidate", "server_package_candidate",
     "modpack_candidate", "bundle_candidate",
 })
+
+TRANSLATION_PRODUCT = re.compile(
+    r"(?i)(?:【\s*(?:AI\s*)?(?:번역|翻訳)\s*패치|翻訳パッチ"
+    r"|\[\s*translation\s*patch\s*\])"
+)
+DLC_PRODUCT = re.compile(r"(?i)(?:\bDLC\b|ダウンロードコンテンツ|추가\s*콘텐츠)")
+
+
+def _catalog_release_type(title: str) -> str:
+    if TRANSLATION_PRODUCT.search(title):
+        return "translation_patch"
+    if DLC_PRODUCT.search(title):
+        return "dlc"
+    return "unspecified"
+
 GAME_DATA_SIGNALS = frozenset({
     "Ren'Py 게임 데이터 파일 존재",
     "RPG Maker 게임 데이터 파일 존재",
@@ -258,6 +274,59 @@ def verify_identity(
             verdict = "needs_review"
             blockers.append("내부 메타데이터 검사가 완료되지 않았습니다.")
 
+    # '공식 작품을 찾음'은 '내 압축파일이 그 작품임'과 별개의 판단.
+    catalog_ids = tuple(sorted({
+        f"{e.kind}:{e.value}"
+        for e in records if e.origin == "official"
+        and e.kind in {"steam_app_id", "dlsite_code"}
+    }))
+    official_titles = tuple(
+        a.decision.proposed_title
+        for a in report.attempts
+        if a.decision.status in {
+            "confirmed_game", "platform_confirmed_game", "internet_confirmed_game"
+        } and a.decision.proposed_title
+    )
+    web_found = any(
+        a.decision.status == "internet_candidate" for a in report.attempts
+    )
+    search_failure = any(
+        any(term in a.decision.reason for term in (
+            "검색 오류", "조회 실패", "RuntimeError", "TimeoutError",
+            "연속 장애", "ConnectionError",
+        )) for a in report.attempts
+    )
+    official_id_conflict = any(
+        len({e.value for e in records if e.origin == "official"
+             and e.kind == platform}) > 1
+        for platform in ("dlsite_code", "steam_app_id")
+    )
+    if official_id_conflict:
+        catalog_status = "conflicting_official_ids"
+    elif len(candidates) > 1:
+        catalog_status = "multiple_candidates"
+    elif official_titles:
+        catalog_status = "official_game_found"
+    elif web_found:
+        catalog_status = "web_candidate"
+    elif search_failure:
+        catalog_status = "lookup_error"
+    else:
+        catalog_status = "not_found"
+    catalog_title = candidates[0] if len(candidates) == 1 and (
+        official_titles or web_found) else ""
+    catalog_release_type = _catalog_release_type(
+        official_titles[0] if len(official_titles) == 1 else catalog_title
+    )
+    if catalog_release_type in {"translation_patch", "dlc"}:
+        blockers.append(
+            "외부 조회 작품이 본편과 별도 등록된 번역 패치/DLC일 수 있습니다. "
+            "원작과 동일한 상품으로 자동 연결하지 않습니다."
+        )
+        if verdict in {"matched", "likely_candidate"}:
+            verdict = "needs_review"
+            applied.append("non_base_catalog_product_guard")
+
     # 독립적인 파일 쓰기·DB 수정 기능은 제공하지 않음. matched도 사용자
     # 확인이 필요한 '근거 일치'라는 의미일 뿐 자동 연결 권한이 아니다.
     return VerificationReport(
@@ -276,4 +345,9 @@ def verify_identity(
         matched_rules=tuple(dict.fromkeys(applied)),
         blockers=tuple(dict.fromkeys(blockers)),
         limitations=tuple(dict.fromkeys(limitations)),
+        catalog_status=catalog_status,
+        catalog_title=catalog_title,
+        catalog_product_ids=catalog_ids,
+        catalog_release_type=catalog_release_type,
+        local_identity_status=verdict,
     )
