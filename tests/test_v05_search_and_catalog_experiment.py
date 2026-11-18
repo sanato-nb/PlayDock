@@ -200,7 +200,7 @@ def test_catalog_and_local_identity_are_separate(tmp_path):
     output = verification.to_dict()
     assert output["catalog_status"] == "official_game_found"
     assert output["catalog_title"] == "Moonlight Story"
-    assert output["catalog_product_ids"] == ["dlsite_code:RJ01000111"]
+    assert output["catalog_product_ids"] == ("dlsite_code:RJ01000111",)
     assert output["local_identity_status"] == "needs_review"
     assert output["automatic_binding_allowed"] is False
 
