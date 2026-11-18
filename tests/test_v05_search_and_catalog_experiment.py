@@ -344,3 +344,117 @@ def test_circuit_breaker_eventually_probes_to_recover(monkeypatch):
     assert session("Story Five").status == "internet_candidate"
     assert calls == ["Story One", "Story Two", "Story Four", "Story Five"]
     assert session.metrics.avoided_requests == 1
+
+
+def test_web_code_in_third_party_title_is_retained_without_official_claim():
+    from experiments.dlsite_detector.enhanced_search import enhanced_classify_game
+    from experiments.dlsite_detector.detector import Detection
+    from experiments.dlsite_detector.pipeline import classify_game
+
+    def no_dlsite(title, **kwargs):
+        return Detection("unverified", title)
+
+    original = classify_game(
+        "별하늘 여행", dlsite_lookup=no_dlsite,
+        web_search=lambda q: [{
+            "title": "별하늘 여행 RJ09999999 - 커뮤니티 정보",
+            "href": "https://third-party.example/games/rj09999999",
+            "body": "정보",
+        }], max_variants=1,
+    )
+    assert original.status == "lookup_unavailable"
+    result = enhanced_classify_game(
+        "별하늘 여행", classifier=lambda *args, **kwargs: original,
+        web_recovery_lookup=lambda *args, **kwargs:
+            Detection("unverified", "RJ09999999"),
+        steam_fetcher=lambda *_: None,
+    )
+    assert result.status == "internet_candidate"
+    assert result.web_code_hints == ("RJ09999999",)
+    assert not result.official_code_verified
+    assert not result.dlsite_code
+
+
+def test_web_code_official_relookup_is_still_local_unverified(tmp_path):
+    from experiments.dlsite_detector.enhanced_search import enhanced_classify_game
+    from experiments.dlsite_detector.detector import Detection
+    from experiments.dlsite_detector.pipeline import classify_game
+    from dataclasses import replace
+
+    initial = classify_game(
+        "가상 은하 산책",
+        dlsite_lookup=lambda t, **kw: Detection("unverified", t),
+        web_search=lambda q: [{
+            "title": "RJ09999998 가상 은하 산책 - 제3자 목록",
+            "href": "https://third-party.example/item/RJ09999998",
+            "body": "게임 추정",
+        }], max_variants=1,
+    )
+    result = enhanced_classify_game(
+        "가상 은하 산책", classifier=lambda *args, **kwargs: initial,
+        web_recovery_lookup=lambda code, **kw: Detection(
+            "needs_review", code, code=code,
+            work_title="Galaxy Walk Official", work_type="RPG",
+        ),
+        steam_fetcher=lambda *_: None,
+    )
+    assert result.status == "internet_candidate"
+    assert result.official_code_verified
+    assert result.dlsite_code == "RJ09999998"
+    archive = make_zip(tmp_path, "가상 은하 산책.zip", {
+        "가상 은하 산책/게임.exe": b"x",
+    })
+    stages = identify_archive(archive, classifier=lambda q: result,
+                              allow_metadata=True)
+    report = verify_identity(stages)
+    assert report.catalog_status == "official_game_found"
+    assert report.local_identity_status == "needs_review"
+    assert not report.automatic_binding_allowed
+
+
+def test_network_failure_and_true_empty_search_are_separated():
+    from experiments.dlsite_detector.pipeline import classify_game
+    from experiments.dlsite_detector.detector import Detection
+
+    no_dlsite = lambda title, **kw: Detection("unverified", title)
+    empty = classify_game("Empty Galaxy", dlsite_lookup=no_dlsite,
+                          web_search=lambda q: [], max_variants=1)
+    assert empty.search_state == "not_found"
+    def unavailable(_):
+        raise RuntimeError("network down")
+    failed = classify_game("Empty Galaxy", dlsite_lookup=no_dlsite,
+                           web_search=unavailable, max_variants=1)
+    assert failed.search_state == "network_error"
+
+
+def test_cooldown_deferred_queries_are_retryable_without_reopening_zip(monkeypatch):
+    from experiments.dlsite_detector import search_session
+    clock = {"now": 10.0}
+    monkeypatch.setattr(search_session.time, "monotonic", lambda: clock["now"])
+    calls = []
+    def intermittent(query):
+        calls.append(query)
+        if len(calls) <= 2:
+            raise RuntimeError("offline")
+        return SearchDecision("internet_candidate", query, proposed_title=query)
+
+    session = SearchSession(intermittent, max_failures=2, cooldown_seconds=20)
+    session("First Query")
+    session("Second Query")
+    skipped = session("Third Query")
+    assert skipped.search_state == "cooldown_skipped"
+    assert set(session.pending_queries) == {"First Query", "Second Query", "Third Query"}
+    assert session.retry_pending(max_queries=2) == {}
+    clock["now"] = 31.0
+    refreshed = session.retry_pending(max_queries=3)
+    assert len(refreshed) == 3
+    assert not session.pending_queries
+    assert len(calls) == 5
+
+
+def test_same_title_across_unlinked_platforms_does_not_merge():
+    entries = (
+        attempt("Star Trek", code="RJ09999997", status="confirmed_game"),
+        attempt("Star Trek", steam="123456", status="platform_confirmed_game"),
+    )
+    assert len(group_external_attempts(entries)) == 2

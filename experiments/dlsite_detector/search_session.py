@@ -62,6 +62,7 @@ class SearchSession:
         self._hits = 0
         self._avoided = 0
         self._errors = 0
+        self._pending: OrderedDict[str, str] = OrderedDict()
 
     def __call__(self, query: str) -> SearchDecision:
         key = normalized_title(query) or query.strip().casefold()
@@ -75,8 +76,10 @@ class SearchSession:
                 and time.monotonic() < self._retry_after
                 and not CODE.fullmatch(query.strip())):
             self._avoided += 1
+            self._remember_pending(key, query)
             return SearchDecision(
                 "lookup_unavailable", query, web_checked=False,
+                search_state="cooldown_skipped",
                 reason="검색 서비스 연속 장애로 일반 제목의 추가 인터넷 요청을 생략했습니다. "
                        "게임이 없는 것은 아니며 정밀 재검사가 필요합니다.",
             )
@@ -86,14 +89,17 @@ class SearchSession:
         except Exception as exc:
             result = SearchDecision(
                 "lookup_unavailable", query, web_checked=True,
+                search_state="network_error",
                 reason=f"인터넷 조회 실패: {type(exc).__name__}",
             )
         is_error = (
             result.status == "lookup_unavailable" and
-            any(marker in result.reason for marker in ERROR_MARKERS)
+            (result.search_state == "network_error" or
+             any(marker in result.reason for marker in ERROR_MARKERS))
         )
         if is_error:
             self._errors += 1
+            self._remember_pending(key, query)
             self._failures += 1
             if self._failures >= self.max_failures:
                 self._retry_after = time.monotonic() + self.cooldown_seconds
@@ -102,11 +108,38 @@ class SearchSession:
         else:
             self._failures = 0
             self._retry_after = 0.0
+            self._pending.pop(key, None)
             self._cache[key] = result
             self._cache.move_to_end(key)
             while len(self._cache) > self.cache_size:
                 self._cache.popitem(last=False)
         return result
+
+    def _remember_pending(self, key: str, query: str) -> None:
+        self._pending[key] = query
+        self._pending.move_to_end(key)
+        while len(self._pending) > self.cache_size:
+            self._pending.popitem(last=False)
+
+    @property
+    def pending_queries(self) -> tuple[str, ...]:
+        """오류/쿨다운 생략 검색어. 파일 경로나 압축 내용은 보관하지 않는다."""
+        return tuple(self._pending.values())
+
+    def retry_pending(self, *, max_queries: int = 2) -> dict[str, SearchDecision]:
+        """쿨다운 이후 요청한 경우에만 제한적으로 재검색. 원본 ZIP 재스캔 없음.
+
+        재시도 결과는 호출자에게 반환하고 성공한 검색만 기존 캐시에 남긴다.
+        """
+        if time.monotonic() < self._retry_after:
+            return {}
+        out: dict[str, SearchDecision] = {}
+        for query in self.pending_queries[:max(0, max_queries)]:
+            result = self(query)
+            out[query] = result
+            if result.search_state in {"network_error", "cooldown_skipped"}:
+                break
+        return out
 
     @property
     def metrics(self) -> SessionMetrics:
@@ -114,5 +147,6 @@ class SearchSession:
 
     def clear(self) -> None:
         self._cache.clear()
+        self._pending.clear()
         self._failures = 0
         self._retry_after = 0.0

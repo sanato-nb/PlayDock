@@ -52,7 +52,7 @@ def normalize_evidence(report: IdentityReport) -> tuple[EvidenceRecord, ...]:
             continue
         official = decision.status in {
             "confirmed_game", "platform_confirmed_game"
-        }
+        } or decision.official_code_verified
         # 인터넷 검색만으로 찾은 '공식 사이트 추정'은 공식 API 검증과 동일시하지 않음.
         evidence.append(EvidenceRecord(
             "title", decision.proposed_title.strip(),
@@ -61,7 +61,8 @@ def normalize_evidence(report: IdentityReport) -> tuple[EvidenceRecord, ...]:
             field=attempt.basis, parser=decision.source_platform or "external_search",
             independence_group=f"external:{idx}",
         ))
-        if official and decision.status == "confirmed_game" and decision.dlsite_code:
+        if official and (decision.status == "confirmed_game"
+                         or decision.official_code_verified) and decision.dlsite_code:
             evidence.append(EvidenceRecord(
                 "dlsite_code", decision.dlsite_code.upper(), "official", "official",
                 field="dlsite_code", parser="dlsite",
@@ -73,6 +74,15 @@ def normalize_evidence(report: IdentityReport) -> tuple[EvidenceRecord, ...]:
                 "steam_app_id", decision.source_id, "official", "official",
                 field="source_id", parser="steam",
                 independence_group=f"external:{idx}",
+            ))
+
+    # 웹 페이지의 코드 힌트는 공식 조회 성공 여부와 무관하게 약한 근거.
+    for attempt in report.attempts:
+        for code in attempt.decision.web_code_hints:
+            evidence.append(EvidenceRecord(
+                "dlsite_code", code, "web_candidate", "weak",
+                field="web_code_hints", parser="web_search",
+                independence_group="web_code_hints",
             ))
 
     # 암호화 파일의 어떤 내부 근거도 받아들이지 않는다. 가짜 보고서에

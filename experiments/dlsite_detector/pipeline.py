@@ -38,6 +38,11 @@ class SearchDecision:
     source_id: str = ""
     source_url: str = ""
     archive_kind: str = "unknown"
+    # 웹 출처의 코드 힌트는 공식 식별자와 반드시 분리한다.
+    web_code_hints: tuple[str, ...] = ()
+    official_code_verified: bool = False
+    # network_error / cooldown_skipped / not_found / unverified_evidence
+    search_state: str = ""
 
     @property
     def label(self) -> str:
@@ -290,10 +295,16 @@ def classify_game(
                 web_checked=True, evidence=tuple(all_evidence),
                 source_platform=platform, source_url=url,
             )
+    lookup_failed = bool(errors or first.status == "lookup_unavailable")
+    search_state = ("network_error" if lookup_failed else
+                    "unverified_evidence" if all_evidence else "not_found")
     return SearchDecision(
         "lookup_unavailable", display, dlsite_status=first.status,
         dlsite_code=first.code, web_checked=True, evidence=tuple(all_evidence),
+        search_state=search_state,
         reason=("일반 인터넷 검색 오류: " + ", ".join(errors) + ". " if errors else "")
+               + ("DLsite 조회 실패: " + first.reason[:140] + ". "
+                  if first.status == "lookup_unavailable" else "")
                + "검색 후에도 게임 정체를 확정할 근거가 부족하여 조회 불가로 보관. 수동 분류 가능",
     )
 

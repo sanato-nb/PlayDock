@@ -10,7 +10,9 @@ from typing import Callable
 from urllib.parse import urlsplit
 import re
 
-from .detector import normalized_title
+from .detector import (
+    CODE_PATTERN, GAME_TYPES, Detection, detect_dlsite_game, normalized_title,
+)
 from .identity_hints import extract_hints
 from .pipeline import SearchDecision, classify_game, fast_classify_game
 from .search_terms import cleaned_search_title
@@ -47,6 +49,61 @@ def _matches(product_title: str, requested_name: str, aliases: tuple[str, ...]) 
     }))
 
 
+def recover_web_product_codes(
+    decision: SearchDecision, *,
+    lookup: Callable[..., Detection] = detect_dlsite_game,
+    limit: int = 2,
+) -> SearchDecision:
+    """검색 제목/HTTPS URL의 DLsite 번호를 공식 카탈로그에 제한적으로 재조회.
+
+    검색 결과의 품번은 미검증 힌트로 별도 저장한다. 공식 API가 같은
+    번호와 게임 유형을 반환해도 *로컬 압축파일의 정체*는 확인하지 않는다.
+    """
+    if decision.status != "lookup_unavailable" or not decision.evidence:
+        return decision
+    codes = tuple(dict.fromkeys(
+        match.group(1).upper()
+        for row in decision.evidence
+        for value in (row.title, row.url)
+        for match in CODE_PATTERN.finditer(value)
+    ))[:max(0, limit)]
+    if not codes:
+        return decision
+    verified = []
+    for code in codes:
+        try:
+            found = lookup(code, code=code, allow_title_search=False)
+        except (Exception,):
+            continue
+        if (found.code.upper() == code and found.work_type in GAME_TYPES
+                and found.work_title and found.status in {"confirmed_game", "needs_review"}):
+            verified.append(found)
+    # 여러 별도 작품번호가 검색되면 한 작품으로 축약하지 않는다.
+    if len(codes) == 1 and len(verified) == 1:
+        item = verified[0]
+        return replace(
+            decision, status="internet_candidate",
+            proposed_title=item.work_title, dlsite_code=item.code,
+            official_code_verified=True, web_code_hints=codes,
+            search_state="",
+            reason="웹 검색에서 발견된 작품번호를 DLsite 공식 데이터와 대조해 "
+                   "게임 등록을 확인했습니다. 다만 검색 결과가 해당 로컬 압축파일을 "
+                   "가리키는지는 확인되지 않아 후보로 보존합니다.",
+        )
+    return replace(
+        decision, status="internet_candidate",
+        proposed_title=cleaned_search_title(decision.original_query)
+                       or decision.original_query[:80],
+        # 공식 조회 실패/서로 다른 번호는 절대 공식 코드로 승격하지 않는다.
+        dlsite_code="", official_code_verified=False,
+        web_code_hints=codes, search_state="unverified_evidence",
+        reason="웹 검색 제목·URL에서 작품번호 후보 "
+               + ", ".join(codes)
+               + "을 발견했지만 단일 공식 게임 상품과 연결하지 못했습니다. "
+                 "원본 확인 전까지 제3자 미확인 후보로 보존합니다.",
+    )
+
+
 def enhanced_classify_game(
     title: str,
     *,
@@ -55,6 +112,8 @@ def enhanced_classify_game(
     steam_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_product,
     alias_retry_limit: int = 2,
     steam_candidate_limit: int = 4,
+    web_recovery_lookup: Callable[..., Detection] = detect_dlsite_game,
+    web_recovery_limit: int = 2,
 ) -> SearchDecision:
     """압축파일명 1차 검색의 고도화 판별 결과.
 
@@ -164,6 +223,13 @@ def enhanced_classify_game(
             reason="Steam 상품 원본에서 제목·게임 유형을 확인했습니다. "
                    "로컬 압축파일과 동일한지는 사용자 검증이 필요합니다.",
         )
+
+    # 공식 재조회에 실패하더라도 제3자 결과의 품번은 미확인 후보로 잃지 않는다.
+    original = recover_web_product_codes(
+        original, lookup=web_recovery_lookup, limit=web_recovery_limit,
+    )
+    if original.web_code_hints:
+        return original
 
     # 파일명에 사용자가 직접 병기한 공식 후보 별칭만 활용한다.
     # 번역/음역은 AI로 만들어내지 않으며 아무 영문 단어를 다른 언어로 바꾸지 않는다.

@@ -283,19 +283,24 @@ def verify_identity(
     official_titles = tuple(
         a.decision.proposed_title
         for a in report.attempts
-        if a.decision.status in {
+        if (a.decision.status in {
             "confirmed_game", "platform_confirmed_game", "internet_confirmed_game"
-        } and a.decision.proposed_title
+        } or a.decision.official_code_verified) and a.decision.proposed_title
     )
     web_found = any(
         a.decision.status == "internet_candidate" for a in report.attempts
     )
+    skipped = any(a.decision.search_state == "cooldown_skipped"
+                  for a in report.attempts)
     search_failure = any(
+        a.decision.search_state == "network_error" or
         any(term in a.decision.reason for term in (
             "검색 오류", "조회 실패", "RuntimeError", "TimeoutError",
             "연속 장애", "ConnectionError",
         )) for a in report.attempts
     )
+    unverified_web = any(a.decision.search_state == "unverified_evidence"
+                         for a in report.attempts)
     official_id_conflict = any(
         len({e.value for e in records if e.origin == "official"
              and e.kind == platform}) > 1
@@ -309,8 +314,12 @@ def verify_identity(
         catalog_status = "official_game_found"
     elif web_found:
         catalog_status = "web_candidate"
+    elif skipped:
+        catalog_status = "skipped_due_to_cooldown"
     elif search_failure:
         catalog_status = "lookup_error"
+    elif unverified_web:
+        catalog_status = "unverified_evidence"
     else:
         catalog_status = "not_found"
     catalog_title = candidates[0] if len(candidates) == 1 and (
@@ -326,6 +335,15 @@ def verify_identity(
         if verdict in {"matched", "likely_candidate"}:
             verdict = "needs_review"
             applied.append("non_base_catalog_product_guard")
+
+    if any(a.decision.official_code_verified for a in report.attempts):
+        limitations.append(
+            "웹 검색의 작품번호를 통해 공식 등록을 확인했으나 "
+            "로컬 배포 파일과 같은 작품이라는 증거는 아닙니다."
+        )
+        if verdict in {"matched", "likely_candidate"}:
+            verdict = "needs_review"
+            blockers.append("웹 검색 유래 작품번호만으로 로컬 정체를 확정할 수 없습니다.")
 
     # 독립적인 파일 쓰기·DB 수정 기능은 제공하지 않음. matched도 사용자
     # 확인이 필요한 '근거 일치'라는 의미일 뿐 자동 연결 권한이 아니다.

@@ -56,6 +56,9 @@ def _can_merge(first, second) -> bool:
         return True
     if a[1] and a[1] == b[1]:
         return True
+    # DLsite↔Steam은 같은 제목이어도 공식 교차 링크 없이는 독립 상품이다.
+    if (a[0] and b[1]) or (a[1] and b[0]):
+        return False
     name_a = (getattr(first, "proposed_title", "") or "").strip()
     name_b = (getattr(second, "proposed_title", "") or "").strip()
     # 서로 다른 발매 작품을 패치/원작으로 잘못 합치지 않는다.
