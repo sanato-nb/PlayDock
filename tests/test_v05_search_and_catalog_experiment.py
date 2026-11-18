@@ -286,7 +286,7 @@ def test_itch_developer_profile_is_not_assumed_to_be_a_game():
     assert result.status == "lookup_unavailable"
 
 
-def test_itch_official_devlog_and_possessive_title_are_only_web_candidate():
+def test_itch_devlog_is_not_mistaken_for_individual_store_page():
     from experiments.dlsite_detector import pipeline
     from experiments.dlsite_detector.detector import Detection
 
@@ -300,9 +300,10 @@ def test_itch_official_devlog_and_possessive_title_are_only_web_candidate():
         }],
         max_variants=1, allow_single_store_candidate=True,
     )
-    assert result.status == "internet_candidate"
-    assert result.proposed_title == "Elena's Story"
-    assert result.source_platform == "itch.io"
+    assert result.status == "lookup_unavailable"
+    assert result.proposed_title == ""
+    assert result.source_platform == ""
+    assert result.evidence and "/devlog/" in result.evidence[0].url
 
 
 def test_unrelated_store_game_is_not_linked_by_developer_name():
@@ -369,7 +370,7 @@ def test_web_code_in_third_party_title_is_retained_without_official_claim():
             Detection("unverified", "RJ09999999"),
         steam_fetcher=lambda *_: None,
     )
-    assert result.status == "internet_candidate"
+    assert result.status == "lookup_unavailable"
     assert result.web_code_hints == ("RJ09999999",)
     assert not result.official_code_verified
     assert not result.dlsite_code
@@ -394,7 +395,7 @@ def test_web_code_official_relookup_is_still_local_unverified(tmp_path):
         "가상 은하 산책", classifier=lambda *args, **kwargs: initial,
         web_recovery_lookup=lambda title, **kw: Detection(
             "needs_review", title, code=kw["code"],
-            work_title="Galaxy Walk Official", work_type="RPG",
+            work_title="가상 은하 산책", work_type="RPG",
         ),
         steam_fetcher=lambda *_: None,
     )
@@ -611,7 +612,7 @@ def test_official_relookup_network_error_is_retryable_and_not_cached():
     session = SearchSession(classify, max_failures=2)
     a = session("Fiction Galaxy")
     b = session("Fiction Galaxy")
-    assert a.status == "internet_candidate"
+    assert a.status == "lookup_unavailable"
     assert a.search_state == "network_error"
     assert a.web_code_hints == ("RJ09999992",)
     assert a.dlsite_code == ""
@@ -619,3 +620,77 @@ def test_official_relookup_network_error_is_retryable_and_not_cached():
     assert calls == ["RJ09999992", "RJ09999992"]
     assert session.metrics.cache_hits == 0
     assert session.metrics.network_errors == 2
+
+
+
+def test_store_comments_not_promoted_to_official_product_page():
+    from experiments.dlsite_detector.storefront_candidate import single_store_candidate
+    from experiments.dlsite_detector.pipeline import WebEvidence
+    for url in (
+        "https://studio.itch.io/moon-valley/comments",
+        "https://studio.itch.io/moon-valley/devlog/15/update",
+        "http://studio.itch.io/moon-valley",
+        "https://studio.itch.io:444/moon-valley",
+    ):
+        row = WebEvidence("Moon Valley - itch.io", url, "itch.io", True, True, True)
+        assert single_store_candidate("Moon Valley", (row,)) is None
+    good = WebEvidence(
+        "Moon Valley - itch.io", "https://studio.itch.io/moon-valley",
+        "itch.io", True, True, True,
+    )
+    assert single_store_candidate("Moon Valley", (good,))[1] == "itch.io"
+
+
+def test_unrelated_web_id_does_not_become_official_local_candidate():
+    from experiments.dlsite_detector.enhanced_search import recover_web_product_codes
+    from experiments.dlsite_detector.pipeline import WebEvidence
+    from experiments.dlsite_detector.detector import Detection
+    weak = SearchDecision(
+        "lookup_unavailable", "Moon Valley",
+        evidence=(WebEvidence(
+            "Unrelated Solar Game RJ09999988",
+            "https://thirdparty.example/unrelated/RJ09999988",
+            "thirdparty.example", False, True, False,
+        ),),
+    )
+    answer = recover_web_product_codes(
+        weak, lookup=lambda title, **kw: Detection(
+            "confirmed_game", title, code="RJ09999988",
+            work_title="Solar Game", work_type="RPG",
+        ),
+    )
+    assert answer.status == "lookup_unavailable"
+    assert answer.dlsite_code == ""
+    assert not answer.official_code_verified
+    assert answer.web_code_hints == ("RJ09999988",)
+
+
+def test_per_candidate_official_product_ids_do_not_leak_across_stores(tmp_path):
+    from experiments.dlsite_detector.archive_identity import IdentityAttempt
+    from experiments.dlsite_detector.pipeline import SearchDecision
+    archive = make_zip(tmp_path, "Moon Valley [RJ09999987].zip", {
+        "MoonValley/Game.exe": b"game",
+    })
+    found = identify_archive(
+        archive, classifier=lambda title: SearchDecision(
+            "lookup_unavailable", title,
+        ), allow_metadata=False,
+    )
+    attempts = (
+        IdentityAttempt(1, "archive_filename_code", "RJ09999987",
+                        SearchDecision("confirmed_game", "RJ09999987",
+                                       proposed_title="月の谷",
+                                       dlsite_code="RJ09999987")),
+        IdentityAttempt(1, "archive_filename", "Moon Valley",
+                        SearchDecision("internet_candidate", "Moon Valley",
+                                       proposed_title="Moon Valley",
+                                       source_platform="steam", source_id="1234567")),
+    )
+    from dataclasses import replace
+    out = verify_identity(replace(found, attempts=attempts))
+    assert out.catalog_status == "multiple_candidates"
+    assert len(out.comparison) == 2
+    id_sets = {c.title: c.official_ids for c in out.comparison}
+    assert id_sets["月の谷"] == ("dlsite_code:RJ09999987",)
+    assert id_sets["Moon Valley"] == ()
+    assert not out.automatic_binding_allowed

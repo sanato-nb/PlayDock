@@ -14,6 +14,7 @@ from .detector import (
     CODE_PATTERN, GAME_TYPES, Detection, detect_dlsite_game, normalized_title,
 )
 from .identity_hints import extract_hints
+from .catalog_aliases import explicit_title_keys
 from .pipeline import SearchDecision, classify_game, fast_classify_game
 from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product, SteamLookupUnavailable
@@ -83,8 +84,23 @@ def recover_web_product_codes(
         if (found.code.upper() == code and found.work_type in GAME_TYPES
                 and found.work_title and found.status in {"confirmed_game", "needs_review"}):
             verified.append(found)
-    # 여러 별도 작품번호가 검색되면 한 작품으로 축약하지 않는다.
-    if len(codes) == 1 and len(verified) == 1:
+    # 검색 결과의 공식 등록 코드와 검색 대상 게임의 일치는 별도로 확인.
+    def title_correlates(code: str, official_title: str) -> bool:
+        official_keys = explicit_title_keys(official_title)
+        requested = normalized_title(cleaned_search_title(decision.original_query))
+        if requested and requested in official_keys:
+            return True
+        for row in decision.evidence:
+            if code.casefold() not in (row.title + " " + row.url).casefold():
+                continue
+            heading = normalized_title(row.title)
+            if any(len(key) >= 7 and key in heading for key in official_keys):
+                return True
+        return False
+
+    # 별도 작품번호는 한 개로 축약하지 않고, 제목 연결이 없으면 승격하지 않는다.
+    if (len(codes) == 1 and len(verified) == 1
+            and title_correlates(codes[0], verified[0].work_title)):
         item = verified[0]
         return replace(
             decision, status="internet_candidate",
@@ -96,19 +112,16 @@ def recover_web_product_codes(
                    "가리키는지는 확인되지 않아 후보로 보존합니다.",
         )
     return replace(
-        decision, status="internet_candidate",
-        proposed_title=cleaned_search_title(decision.original_query)
-                       or decision.original_query[:80],
-        # 공식 조회 실패/서로 다른 번호는 절대 공식 코드로 승격하지 않는다.
-        dlsite_code="", official_code_verified=False,
-        web_code_hints=codes,
+        decision, status="lookup_unavailable", proposed_title="",
+        # 제목 연관성 없는 코드와 공식 조회 실패는 공식 작품 후보로 승격 금지.
+        dlsite_code="", official_code_verified=False, web_code_hints=codes,
         search_state="network_error" if lookup_errors else "unverified_evidence",
-        reason="웹 검색 제목·URL에서 작품번호 후보 "
+        reason="웹 검색에서 작품번호 후보 "
                + ", ".join(codes)
-               + "을 발견했지만 단일 공식 게임 상품과 연결하지 못했습니다. "
-               + ("공식 조회 실패: " + ", ".join(lookup_errors) + ". "
+               + "를 발견했지만 해당 게임의 공식 번호라는 제목 근거가 부족합니다. "
+               + ("공식 조회 오류: " + ", ".join(lookup_errors) + ". "
                   if lookup_errors else "")
-               + "원본 확인 전까지 제3자 미확인 후보로 보존합니다.",
+               + "번호는 미확인 검색 근거로만 보존합니다.",
     )
 
 

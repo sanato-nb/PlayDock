@@ -10,7 +10,9 @@ import re
 from typing import Mapping, Sequence
 
 from .archive_identity import IdentityReport
-from .catalog_aliases import catalog_titles, explicit_title_keys
+from .catalog_aliases import (
+    catalog_titles, explicit_title_keys, group_external_attempts, representative,
+)
 from .detector import normalized_title
 from .evidence_normalizer import EvidenceRecord
 
@@ -119,6 +121,28 @@ def candidates_from_report(report: IdentityReport,
     return ()
 
 
+def _candidate_official_ids(
+    title: str, report: IdentityReport,
+) -> tuple[set[str], set[str]]:
+    """서로 다른 외부 후보 사이에서 공식 작품번호가 섞이지 않도록 보존."""
+    dlsite: set[str] = set()
+    steam: set[str] = set()
+    key = title_key(title)
+    for group in group_external_attempts(report.attempts):
+        if title_key(representative(group).decision.proposed_title) != key:
+            continue
+        for attempt in group:
+            d = attempt.decision
+            if (d.dlsite_code
+                    and (d.status == "confirmed_game" or d.official_code_verified)):
+                dlsite.add(d.dlsite_code.upper())
+            if (d.source_platform in {"steam", "dlsite+steam"}
+                    and d.source_id and d.status == "platform_confirmed_game"):
+                steam.add(d.source_id)
+        break
+    return dlsite, steam
+
+
 def compare_candidate(title: str, records: tuple[EvidenceRecord, ...],
                       *, verified_aliases: Mapping[str, Sequence[str]] | None = None,
                       report: IdentityReport | None = None) -> CandidateComparison:
@@ -127,8 +151,11 @@ def compare_candidate(title: str, records: tuple[EvidenceRecord, ...],
     own_official = any(e.kind == "title" and e.origin == "official"
                        and title_key(e.value) == primary for e in records)
     # 외부 비교는 같은 플랫폼 ID끼리만 한다.
-    official_dlsite = _official_ids(records, "dlsite_code")
-    official_steam = _official_ids(records, "steam_app_id")
+    if report is None:
+        official_dlsite = _official_ids(records, "dlsite_code")
+        official_steam = _official_ids(records, "steam_app_id")
+    else:
+        official_dlsite, official_steam = _candidate_official_ids(title, report)
     # 명시적 공식 제목 후보가 여러 개인 경우, 다른 후보의 공식 ID를
     # 이 후보에 억지로 붙이지 않도록 6-D에서 복수후보 상태를 별도 처리.
     matches: list[str] = []

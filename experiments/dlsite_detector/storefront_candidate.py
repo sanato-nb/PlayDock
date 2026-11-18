@@ -52,14 +52,17 @@ def single_store_candidate(
         except (ValueError, TypeError):
             continue
         platform = ""
-        if host.endswith(".itch.io") and len(segments) >= 1:
-            # 'developer.itch.io/' 프로필이나 다른 개발자의 작품을 잘못 매칭하지 않음.
-            if segments[0] in {"games", "profile", "collection", "posts"}:
+        if (parsed.scheme != "https" or parsed.username or parsed.password
+                or parsed.port not in (None, 443)):
+            continue
+        if host.endswith(".itch.io") and len(segments) == 1:
+            # 댓글·devlog·커뮤니티 하위 페이지는 실제 작품 홈이 아니다.
+            if segments[0].casefold() in {"games", "profile", "collection", "posts", "comments", "devlog"}:
                 continue
             platform = "itch.io"
-        elif host == "store.steampowered.com" and len(segments) >= 2:
-            if segments[0] == "app" and segments[1].isdigit():
-                platform = "steam"
+        elif (host == "store.steampowered.com" and len(segments) in (2, 3)
+              and segments[0] == "app" and segments[1].isdigit()):
+            platform = "steam"
         if not platform:
             continue
         candidate = _headline_title(hit.title, platform)

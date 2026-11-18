@@ -104,7 +104,9 @@ def verify_identity(
     external = candidates_from_report(report, records)
     candidates = _resolve_alias_candidates(external, verified_aliases)
     comparisons = tuple(
-        compare_candidate(title, records, verified_aliases=verified_aliases)
+        compare_candidate(
+            title, records, verified_aliases=verified_aliases, report=report,
+        )
         for title in candidates
     )
     kind = hints.archive_kind
