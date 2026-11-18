@@ -12,6 +12,7 @@ from typing import Callable
 
 from .archive_inspector import ArchiveInspection, inspect_archive
 from .archive_encryption import probe_archive_encryption
+from .catalog_aliases import group_external_attempts, representative
 from .detector import normalized_title
 from .enhanced_search import enhanced_classify_game
 from .identity_hints import extract_hints
@@ -216,7 +217,6 @@ def identify_archive(
     notify(2, f"모은 근거 {len(plan)}개를 우선순위대로 인터넷 조회 중")
     actual_order.append(2)
     attempts: list[IdentityAttempt] = []
-    candidates: dict[str, IdentityAttempt] = {}
     non_game: IdentityAttempt | None = None
     for hint in plan:
         # 공식 작품 ID가 이미 확인됐으면 파일명/실행파일의 약한
@@ -243,15 +243,9 @@ def identify_archive(
         attempts.append(attempt)
         if decision.status == "suspected_non_game" and non_game is None:
             non_game = attempt
-        if decision.status in FOUND and decision.proposed_title.strip():
-            key = normalized_title(decision.proposed_title)
-            if key:
-                prior = candidates.get(key)
-                if prior is None or (
-                    decision.status in CONFIRMED and
-                    prior.decision.status not in CONFIRMED
-                ):
-                    candidates[key] = attempt
+    # 제목이 다른 판매처의 공식 병기/별칭이라도 동일 작품인 경우만 묶는다.
+    # 다른 공식 상품 ID는 같은 작품명처럼 보여도 절대 자동 병합하지 않는다.
+    candidate_groups = group_external_attempts(attempts)
 
     steps = (1, 2, 3, 4, 5) if metadata is not None else (1, 2, 3, 4)
     note = ""
@@ -271,15 +265,15 @@ def identify_archive(
 
     # 전 단계에서 검증된 작품명 후보가 2종류 이상 나온 경우 보류.
     # 일반적인 내부 프로젝트명 차이는 6단계에서 판단한다.
-    if len(candidates) > 1:
+    if len(candidate_groups) > 1:
         return IdentityReport(
             path.name, "ambiguous", 2, "", "",
             "독립된 외부 검색에서 서로 다른 작품 후보가 발견됐습니다. " + note,
             inspection, tuple(attempts), metadata, "clear", steps,
             evidence_conflict=True, execution_order=tuple(actual_order),
         )
-    if candidates:
-        selected = next(iter(candidates.values()))
+    if candidate_groups:
+        selected = representative(candidate_groups[0])
         return IdentityReport(
             path.name, "candidate_found", selected.stage,
             selected.decision.proposed_title,
