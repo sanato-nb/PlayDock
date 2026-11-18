@@ -42,6 +42,21 @@ GENERIC_TITLE_KEYS = frozenset({
 WINDOWS_TITLE_KEYS = ("title",)
 CODE_JSON_KEYS = ("dlsite_code", "dlsite_id", "workno", "work_no", "product_id")
 
+# 엔진에서 흔히 사용하는 기본 프로젝트명은 게임 출시 제목의 강한 증거가 아니다.
+# 중간 검증에서 Unity app.info의 "ntr game"이 실제 공식 제목과
+# 다르다는 이유만으로 잘못된 '근거 충돌'이 발생한 것을 반영한다.
+GENERIC_PROJECT_TITLES = frozenset({
+    "ntr game", "game", "new game", "new project", "my project",
+    "untitled", "untitled game", "project", "sample game",
+    "test game", "test", "rpg maker", "game project",
+})
+
+
+def _generic_project_title(value: str) -> bool:
+    name = " ".join(value.casefold().split())
+    return (name in GENERIC_PROJECT_TITLES
+            or bool(re.fullmatch(r"[a-z]{1,4} game", name)))
+
 
 def _decode(payload: bytes) -> str | None:
     if b"\x00" in payload[:1024] and not payload.startswith((b"\xff\xfe", b"\xfe\xff")):
@@ -76,6 +91,10 @@ def parse_metadata_fields(member: str, payload: bytes) -> list[ExtractedField]:
             strength: str = "supporting", parser: str = "generic") -> None:
         if not isinstance(value, str) or not value.strip() or len(value) > 200:
             return
+        if kind == "title" and _generic_project_title(value):
+            # 값 자체를 버리지는 않고 약한 프로젝트 이름 근거로 보존.
+            strength = "weak"
+            kind = "project_name"
         out.append(ExtractedField(field, value.strip(), kind, strength, parser))
 
     if basename.endswith(".json"):
