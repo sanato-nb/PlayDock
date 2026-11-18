@@ -6,6 +6,7 @@ verified_aliases는 출처가 확인된 별칭을 호출자가 명시한 경우�
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Mapping, Sequence
 
 from .archive_identity import IdentityReport
@@ -46,9 +47,30 @@ def _official_ids(records: tuple[EvidenceRecord, ...], platform: str) -> set[str
     }
 
 
+BILINGUAL_SEPARATOR = re.compile(r"\\s+[-–—|]\\s+")
+CJK = re.compile(r"[가-힣ぁ-んァ-ヶ一-龯]")
+
+
+def _bilingual_title_parts(title: str) -> set[str]:
+    """'プロジェクトセナ - Project Sena -'의 명시적 병기 제목만 분리.
+
+    'Adventure - Episode 2'와 같은 후속작·부제에는 적용하지 않는다.
+    공식 제목의 CJK 부분과 영문 부분이 명확하게 나뉠 때만 허용한다.
+    """
+    parts = [part.strip(" -–—|") for part in BILINGUAL_SEPARATOR.split(title)]
+    parts = [part for part in parts if part]
+    if len(parts) < 2:
+        return set()
+    if (not any(CJK.search(part) for part in parts)
+            or not any(re.search(r"[a-zA-Z]{3}", part) and not CJK.search(part)
+                       for part in parts)):
+        return set()
+    return {title_key(part) for part in parts if len(part) >= 4}
+
+
 def _explicit_alias_keys(title: str,
                          verified_aliases: Mapping[str, Sequence[str]] | None) -> set[str]:
-    keys = {title_key(title)}
+    keys = {title_key(title)} | _bilingual_title_parts(title)
     if not verified_aliases:
         return keys
     # 키가 정규화된 정식 제목에 정확히 대응하는 경우만 신뢰.
@@ -58,7 +80,14 @@ def _explicit_alias_keys(title: str,
         }
         if title_key(title) in group:
             keys.update(group)
+            keys.update(_bilingual_title_parts(primary))
     return {key for key in keys if key}
+
+
+def compatible_title_keys(
+    title: str, verified_aliases: Mapping[str, Sequence[str]] | None = None,
+) -> set[str]:
+    return _explicit_alias_keys(title, verified_aliases)
 
 
 def candidates_from_report(report: IdentityReport,
@@ -86,7 +115,19 @@ def candidates_from_report(report: IdentityReport,
             key = title_key(e.value)
             if key and key not in internal:
                 internal[key] = e.value
-    return tuple(internal.values())
+    if internal:
+        return tuple(internal.values())
+    # 7z 솔리드처럼 설정을 읽을 수 없지만 파일명과 실제 EXE/루트명이
+    # 일치하면 '확인 필요'용 로컬 후보로만 보존 (정식 작품 확인 아님).
+    # 파일명만으로는 후보 생성하지 않음.
+    from .search_terms import cleaned_search_title
+
+    filename_key = title_key(cleaned_search_title(report.archive_name))
+    for entry in records:
+        if (entry.origin == "internal_index" and entry.kind == "title"
+                and filename_key and title_key(entry.value) == filename_key):
+            return (cleaned_search_title(report.archive_name),)
+    return ()
 
 
 def compare_candidate(title: str, records: tuple[EvidenceRecord, ...],
