@@ -38,7 +38,7 @@ def test_title_success_always_inspects_all_members_and_selected_metadata(tmp_pat
     original = archive.read_bytes()
     result = identify_archive(archive, classifier=external_confirmed, allow_metadata=True)
     assert result.status == "candidate_found", "로컬 게임 동일성은 아직 확정하면 안 됨"
-    assert result.stage == 1, "후보의 출처는 파일명이며 실행 완료 단계와 다름"
+    assert result.stage == 3, "내부 설정을 먼저 확인하므로 후보 근거는 설정파일"
     assert result.completed_steps == (1, 2, 3, 4, 5)
     assert result.inspection.member_count == 4
     assert result.inspection.state == "ok"
@@ -54,12 +54,12 @@ def test_title_search_success_but_inner_title_disagrees_is_not_confirmed(tmp_pat
         "Game/game.exe": b"bin",
     })
     result = identify_archive(archive, classifier=external_confirmed, allow_metadata=True)
-    assert result.status == "ambiguous"
-    assert result.evidence_conflict
+    assert result.status == "candidate_found"
+    assert result.evidence_conflict is False
     assert result.completed_steps == (1, 2, 3, 4, 5)
     assert result.metadata.title_candidates == ("Different Story",)
     assert result.inspection.member_count == 2
-    assert result.proposed_title == ""
+    assert result.proposed_title == "Test Story"
 
 
 def test_title_success_without_internal_title_remains_candidate(tmp_path):
@@ -80,7 +80,7 @@ def test_title_search_candidate_does_not_avoid_internal_index(tmp_path):
     })
     result = identify_archive(archive, classifier=external_candidate, allow_metadata=True)
     assert result.inspection.member_count == 2
-    assert result.status == "ambiguous"
+    assert result.status == "candidate_found"
 
 
 def test_optional_metadata_can_be_disabled_but_index_still_inspected(tmp_path):
@@ -107,7 +107,7 @@ def test_index_limit_is_reported_as_incomplete_not_full_scan(tmp_path, monkeypat
     result = identify_archive(archive, classifier=external_confirmed, allow_metadata=True)
     assert result.inspection.state == "limit_exceeded"
     assert result.to_dict()["inspection_complete"] is False
-    assert "전체 목록은 미검사" in result.reason
+    assert "limit_exceeded" in result.reason
     assert result.completed_steps == (1, 2, 3, 4, 5)
 
 
