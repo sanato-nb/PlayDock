@@ -6,9 +6,10 @@
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable
+import time
 
 from .archive_inspector import ArchiveInspection, inspect_archive
 from .archive_encryption import probe_archive_encryption
@@ -56,6 +57,7 @@ class IdentityReport:
     completed_steps: tuple[int, ...] = ()
     evidence_conflict: bool = False
     execution_order: tuple[int, ...] = ()
+    stage_timings_ms: dict[str, float] = field(default_factory=dict)
 
     @property
     def label(self) -> str:
@@ -99,7 +101,8 @@ class IdentityReport:
 
 def _name_only_report(path: Path, first: SearchDecision,
                       attempts: tuple[IdentityAttempt, ...],
-                      encryption_state: str, why: str) -> IdentityReport:
+                      encryption_state: str, why: str,
+                      timings: dict[str, float] | None = None) -> IdentityReport:
     """암호 보호 또는 상태 불명 파일에서 내부 단서를 전혀 사용하지 않는다."""
     if first.status in CONFIRMED:
         status = "confirmed_game"
@@ -116,7 +119,7 @@ def _name_only_report(path: Path, first: SearchDecision,
         first.proposed_title if status in {"confirmed_game", "candidate_found", "suspected_non_game"} else "",
         first.dlsite_code, why,
         None, attempts, None, encryption_state, (1, 2, 3),
-        execution_order=(1, 3, 2),
+        execution_order=(1, 3, 2), stage_timings_ms=timings or {},
     )
 
 
@@ -146,22 +149,40 @@ def identify_archive(
                 # 화면의 상태 표시 기능 장애가 분석 결과를 바꾸면 안 된다.
                 pass
 
+    started = time.perf_counter()
+    timings = {
+        "archive_name_parse_ms": 0.0,
+        "encryption_probe_ms": 0.0,
+        "index_scan_ms": 0.0,
+        "metadata_read_ms": 0.0,
+        "search_plan_ms": 0.0,
+        "search_ms": 0.0,
+        "verification_ms": 0.0,
+    }
+    def stamp(key: str, since: float) -> None:
+        timings[key] += round((time.perf_counter() - since) * 1000, 3)
+
     notify(1, "압축파일 이름에서 제목·작품 코드·번역 표기 수집")
     path = Path(archive_path)
     if path.suffix.casefold() not in ARCHIVE_EXTS or not path.is_file() or path.is_symlink():
         return IdentityReport(
             path.name, "invalid_archive", 0, "", "",
             "존재하는 일반 ZIP/7z/RAR 파일만 분석할 수 있습니다.", None,
-            execution_order=(1,),
+            execution_order=(1,), stage_timings_ms=timings,
         )
 
     query = path.stem.strip()
+    stamp("archive_name_parse_ms", started)
     notify(3, "암호화 여부 확인 중")
+    probe_start = time.perf_counter()
     probe = probe_archive_encryption(path)
+    stamp("encryption_probe_ms", probe_start)
     if probe.state != "clear":
         # 원본 압축 내부 경로에 접근하지 않으며 검색은 오직 파일명 한 번.
         notify(2, "암호 보호/확인 불가 파일: 파일명만 인터넷 검색 중")
+        search_start = time.perf_counter()
         first = classifier(query)
+        stamp("search_ms", search_start)
         attempt = (IdentityAttempt(1, "archive_filename", query, first),)
         why = ("암호화 파일은 내부를 읽지 않고 파일명만 검색합니다. "
                if probe.state == "encrypted" else
@@ -169,7 +190,8 @@ def identify_archive(
         why += ("파일명 검색 결과는 압축 내용과 대조하지 않았습니다."
                 if first.status in FOUND | {"suspected_non_game"}
                 else "작품을 조회하지 못했습니다.")
-        base = _name_only_report(path, first, attempt, probe.state, why)
+        base = _name_only_report(path, first, attempt, probe.state, why,
+                                 timings=timings)
         if probe.state == "encrypted":
             return base
         unavailable = ArchiveInspection(
@@ -180,40 +202,50 @@ def identify_archive(
             base.archive_name, base.status, base.stage,
             base.proposed_title, base.product_code, base.reason,
             unavailable, attempt, None, probe.state, (1, 2, 3),
-            execution_order=(1, 3, 2),
+            execution_order=(1, 3, 2), stage_timings_ms=timings,
         )
 
     # 4단계: 실제 목록 검사. 검색은 아직 1회도 하지 않았다.
     notify(4, "압축파일 내부 전체 파일·폴더 목록 수집 중")
     # 같은 헤더의 암호화 상태를 반복 읽지 않도록 신뢰 가능한 검사 결과 전달.
     # 기존 사용자 정의 inspector 콜백 인터페이스는 변경하지 않음.
+    index_start = time.perf_counter()
     inspection = (inspector(path, encryption_probe=probe)
                   if inspector is inspect_archive else inspector(path))
+    stamp("index_scan_ms", index_start)
     if inspection.encrypted or inspection.state in {"encrypted", "needs_password"}:
         # 잘못된 암호 판정 이후에도 내부 단서를 누출하지 않는다.
         notify(2, "암호화가 확인되어 파일명만 검색 중")
+        search_start = time.perf_counter()
         first = classifier(query)
+        stamp("search_ms", search_start)
         return _name_only_report(
             path, first, (IdentityAttempt(1, "archive_filename", query, first),),
             "encrypted", "목록 검사 중 암호 보호를 확인하여 파일명만 검색했습니다.",
+            timings=timings,
         )
 
     metadata = None
     actual_order = [1, 3, 4]
     if allow_metadata and inspection.state in {"ok", "partial", "limit_exceeded"}:
         notify(5, "게임 엔진 설정·작은 메타데이터 근거 수집 중")
+        metadata_start = time.perf_counter()
         metadata = (metadata_reader(path, encryption_probe=probe)
                     if metadata_reader is inspect_metadata else metadata_reader(path))
+        stamp("metadata_read_ms", metadata_start)
         actual_order.append(5)
 
     # 모든 *안전하게 읽을 수 있는* 근거를 확보한 이후에만 검색한다.
     # 실패한 내부 목록은 추측으로 대체하지 않고 파일명만 검색한다.
+    plan_start = time.perf_counter()
     plan = build_search_plan(
         path.name,
         inspection if inspection.state in {"ok", "partial", "limit_exceeded"} else None,
         metadata,
         max_queries=max(1, min(max_search_queries, 12)),
     )
+    stamp("search_plan_ms", plan_start)
+    search_start = time.perf_counter()
     notify(2, f"모은 근거 {len(plan)}개를 우선순위대로 인터넷 조회 중")
     actual_order.append(2)
     attempts: list[IdentityAttempt] = []
@@ -243,6 +275,7 @@ def identify_archive(
         attempts.append(attempt)
         if decision.status == "suspected_non_game" and non_game is None:
             non_game = attempt
+    stamp("search_ms", search_start)
     # 제목이 다른 판매처의 공식 병기/별칭이라도 동일 작품인 경우만 묶는다.
     # 다른 공식 상품 ID는 같은 작품명처럼 보여도 절대 자동 병합하지 않는다.
     candidate_groups = group_external_attempts(attempts)
@@ -271,6 +304,7 @@ def identify_archive(
             "독립된 외부 검색에서 서로 다른 작품 후보가 발견됐습니다. " + note,
             inspection, tuple(attempts), metadata, "clear", steps,
             evidence_conflict=True, execution_order=tuple(actual_order),
+            stage_timings_ms=timings,
         )
     if candidate_groups:
         selected = representative(candidate_groups[0])
@@ -282,6 +316,7 @@ def identify_archive(
             "압축파일과 동일 작품인지 미확정입니다. " + note,
             inspection, tuple(attempts), metadata, "clear", steps,
             execution_order=tuple(actual_order),
+            stage_timings_ms=timings,
         )
     if non_game is not None:
         return IdentityReport(
@@ -290,10 +325,11 @@ def identify_archive(
             "웹 등록 유형은 비게임 추정이지만 로컬 배포물 내용은 미검증입니다. " + note,
             inspection, tuple(attempts), metadata, "clear", steps,
             execution_order=tuple(actual_order),
+            stage_timings_ms=timings,
         )
     return IdentityReport(
         path.name, "lookup_unavailable", 3 if metadata is not None else 2, "", "",
         "모은 내부 근거와 파일명으로 검색했으나 작품을 확인하지 못했습니다. "
         + note, inspection, tuple(attempts), metadata, "clear", steps,
-        execution_order=tuple(actual_order),
+        execution_order=tuple(actual_order), stage_timings_ms=timings,
     )

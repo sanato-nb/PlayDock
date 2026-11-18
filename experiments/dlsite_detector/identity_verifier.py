@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import re
+import time
 from typing import Mapping, Sequence
 
 from .archive_identity import IdentityReport
@@ -97,6 +98,7 @@ def verify_identity(
     같은 제목, 파일명 코드, README 여러 개, 작품 페이지 검색 성공만으로
     '일치 확인'을 절대 만들지 않는다. 암호 파일은 오직 이름 근거만 평가.
     """
+    verification_start = time.perf_counter()
     hints = extract_hints(report.archive_name)
     records = normalize_evidence(report)
     external = candidates_from_report(report, records)
@@ -347,7 +349,7 @@ def verify_identity(
 
     # 독립적인 파일 쓰기·DB 수정 기능은 제공하지 않음. matched도 사용자
     # 확인이 필요한 '근거 일치'라는 의미일 뿐 자동 연결 권한이 아니다.
-    return VerificationReport(
+    verified = VerificationReport(
         archive_name=report.archive_name,
         verdict=verdict,
         proposed_title=selected,
@@ -369,3 +371,7 @@ def verify_identity(
         catalog_release_type=catalog_release_type,
         local_identity_status=verdict,
     )
+    report.stage_timings_ms["verification_ms"] = round(
+        (time.perf_counter() - verification_start) * 1000, 3,
+    )
+    return verified

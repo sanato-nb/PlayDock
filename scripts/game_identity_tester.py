@@ -26,13 +26,15 @@ from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.search_session import SearchSession
 from experiments.dlsite_detector.internal_metadata import inspect_metadata
 
-VERSION = "0.5-test"
+VERSION = "0.6-test"
 CATALOG_KO = {
     "official_game_found": "공식 작품 발견",
     "web_candidate": "웹 후보",
     "multiple_candidates": "복수 후보",
     "conflicting_official_ids": "공식 ID 충돌",
     "lookup_error": "검색 오류",
+    "skipped_due_to_cooldown": "검색 생략 · 재검사",
+    "unverified_evidence": "웹 근거 미확인",
     "not_found": "작품 미발견",
     "not_checked": "조회 안 함",
 }
@@ -296,6 +298,7 @@ class IdentityTesterApp(tk.Tk):
                 if self.stop_requested.is_set():
                     break
                 started = time.perf_counter()
+                stages = None
                 before = session.metrics if session else None
                 self.queue.put(("progress", idx, path.name))
                 def on_stage(stage: int, label: str) -> None:
@@ -376,6 +379,11 @@ class IdentityTesterApp(tk.Tk):
                     }
                 result["duration_seconds"] = duration
                 result["payload"]["analysis_seconds"] = duration
+                if stages is not None:
+                    stages.stage_timings_ms["total_ms"] = round(duration * 1000, 3)
+                    result["payload"]["stages_1_to_5"]["stage_timings_ms"] = (
+                        stages.stage_timings_ms.copy()
+                    )
                 result["detail"] = (
                     f"분석 소요시간: {duration:.2f}초\n\n" + result["detail"]
                 )

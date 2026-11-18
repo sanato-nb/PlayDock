@@ -458,3 +458,28 @@ def test_same_title_across_unlinked_platforms_does_not_merge():
         attempt("Star Trek", steam="123456", status="platform_confirmed_game"),
     )
     assert len(group_external_attempts(entries)) == 2
+
+
+def test_phase_timings_are_nonnegative_and_source_archive_is_unchanged(tmp_path):
+    import hashlib
+    archive = make_zip(tmp_path, "Phase Clock Game.zip", {
+        "Phase Clock Game/Clock.exe": b"not executable",
+        "Phase Clock Game/Clock_Data/app.info": "Studio\nPhase Clock Game\n",
+    })
+    checksum_before = hashlib.sha256(archive.read_bytes()).hexdigest()
+    seen = []
+    def classify(query):
+        seen.append(query)
+        return SearchDecision("lookup_unavailable", query, search_state="not_found")
+    report = identify_archive(archive, classifier=classify, allow_metadata=True,
+                              max_search_queries=2)
+    verification = verify_identity(report)
+    clocks = report.to_dict()["stage_timings_ms"]
+    assert set(("archive_name_parse_ms", "encryption_probe_ms",
+                "index_scan_ms", "metadata_read_ms", "search_ms",
+                "verification_ms")).issubset(clocks)
+    assert all(value >= 0 for value in clocks.values())
+    assert report.execution_order.index(4) < report.execution_order.index(2)
+    assert report.execution_order.index(5) < report.execution_order.index(2)
+    assert seen and not verification.automatic_binding_allowed
+    assert hashlib.sha256(archive.read_bytes()).hexdigest() == checksum_before
