@@ -13,15 +13,19 @@ import json
 from pathlib import Path
 from queue import Empty, Queue
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from experiments.dlsite_detector.archive_identity import identify_archive
+from experiments.dlsite_detector.enhanced_search import (
+    enhanced_classify_game, fast_enhanced_classify_game,
+)
 from experiments.dlsite_detector.archive_inspector import inspect_archive
 from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.internal_metadata import inspect_metadata
 
-VERSION = "0.3-test"
+VERSION = "0.4-test"
 VERDICT_KO = {
     "matched": "일치 확인",
     "likely_candidate": "유력 후보",
@@ -48,6 +52,7 @@ class IdentityTesterApp(tk.Tk):
         self.thread: threading.Thread | None = None
         self.stop_requested = threading.Event()
         self.online = tk.BooleanVar(value=True)
+        self.fast_mode = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value="게임 압축파일을 선택한 뒤 분석 시작을 누르세요.")
         self.progress = tk.StringVar(value="선택된 파일 없음")
         self.stage_status = tk.StringVar(value="현재 단계: 대기")
@@ -118,10 +123,10 @@ class IdentityTesterApp(tk.Tk):
             text="내부 근거 수집 → 인터넷 통합 검색 → 교차검증",
             variable=self.online,
         ).pack(side="left")
-        ttk.Label(
+        ttk.Checkbutton(
             options,
-            text="끄면 인터넷 없이 내부 목록·소형 설정만 확인 (최종 작품 판정 없음)",
-            style="Hint.TLabel",
+            text="빠른 검색 (기본·파일당 최대 3개 검색어)",
+            variable=self.fast_mode,
         ).pack(side="left", padx=(14, 0))
 
         # 진행 표시를 위쪽에 고정: 결과 목록이나 긴 상세 내용에 가려지지 않음.
@@ -239,7 +244,7 @@ class IdentityTesterApp(tk.Tk):
         if mode:
             approved = messagebox.askokcancel(
                 "인터넷 검색 안내",
-                "선택한 압축파일의 이름에서 추출한 작품명·품번을 "
+                "선택한 압축파일 이름과 내부 근거에서 추출한 작품명·품번을 "
                 "DLsite, Steam 및 일반 웹 검색에 전송합니다.\n\n"
                 "전체 로컬 경로·압축파일 내용은 전송하지 않습니다.\n"
                 "네트워크 접속이 차단되면 '확인 필요' 또는 '분류 불가'로 "
@@ -259,8 +264,9 @@ class IdentityTesterApp(tk.Tk):
         self.save_button.configure(state="disabled")
         self.status.set("분석 중… (대용량 압축 목록이나 인터넷 검색은 오래 걸릴 수 있습니다)")
         paths = tuple(self.paths)
+        fast_mode = self.fast_mode.get()
         self.thread = threading.Thread(
-            target=self._worker, args=(paths, mode), daemon=True,
+            target=self._worker, args=(paths, mode, fast_mode), daemon=True,
         )
         self.thread.start()
 
@@ -268,11 +274,13 @@ class IdentityTesterApp(tk.Tk):
         self.stop_requested.set()
         self.status.set("중단 요청됨. 진행 중인 파일이 완료되면 다음 파일부터 중지합니다.")
 
-    def _worker(self, paths: tuple[Path, ...], online: bool) -> None:
+    def _worker(self, paths: tuple[Path, ...], online: bool,
+                fast_mode: bool = True) -> None:
         try:
             for idx, path in enumerate(paths):
                 if self.stop_requested.is_set():
                     break
+                started = time.perf_counter()
                 self.queue.put(("progress", idx, path.name))
                 def on_stage(stage: int, label: str) -> None:
                     # 작업 스레드에서 tkinter를 직접 건드리지 않는다.
@@ -283,11 +291,15 @@ class IdentityTesterApp(tk.Tk):
                     if online:
                         stages = identify_archive(
                             path, allow_metadata=True, progress_callback=on_stage,
+                            classifier=(fast_enhanced_classify_game if fast_mode else
+                                        enhanced_classify_game),
+                            max_search_queries=(3 if fast_mode else 6),
                         )
                         on_stage(6, "외부 작품과 내부 근거 교차검증 중")
                         verified = verify_identity(stages)
                         data = {
                             "mode": "stages_1_to_6",
+                            "search_mode": "fast" if fast_mode else "detailed",
                             "archive_name": path.name,
                             "stages_1_to_5": stages.to_dict(),
                             "verification": verified.to_dict(),
@@ -331,6 +343,12 @@ class IdentityTesterApp(tk.Tk):
                         "payload": {"mode": "error", "archive_name": path.name,
                                     "error": type(exc).__name__},
                     }
+                duration = round(time.perf_counter() - started, 3)
+                result["duration_seconds"] = duration
+                result["payload"]["analysis_seconds"] = duration
+                result["detail"] = (
+                    f"분석 소요시간: {duration:.2f}초\n\n" + result["detail"]
+                )
                 self.queue.put(("result", idx, result))
         finally:
             self.queue.put(("done",))
@@ -437,7 +455,8 @@ class IdentityTesterApp(tk.Tk):
                     self._set_detail(row["detail"])
                     self._show_progress(len(self.rows), 1)
                     self.stage_status.set(
-                        f"방금 검사 완료: {row['name']} · {row['verdict']}"
+                        f"방금 검사 완료: {row['name']} · {row['verdict']} "
+                        f"· {row['duration_seconds']:.1f}초"
                     )
                     self.save_button.configure(state="normal")
                 elif event[0] == "done":
