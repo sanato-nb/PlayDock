@@ -12,6 +12,8 @@ from .archive_identity import IdentityReport
 from .detector import normalized_title
 from .evidence_normalizer import EvidenceRecord, normalize_evidence
 from .identity_hints import extract_hints
+from .search_terms import cleaned_search_title
+from .search_plan import _useful_title
 from .identity_matcher import (
     CandidateComparison, candidates_from_report, compare_candidate,
     compatible_title_keys, title_key,
@@ -349,6 +351,32 @@ def verify_identity(
             verdict = "needs_review"
             blockers.append("웹 검색 유래 작품번호만으로 로컬 정체를 확정할 수 없습니다.")
 
+    # v0.7의 기본 파일명 중심 모드에서 확보할 수 있는 독립 대조 근거.
+    # 정식 작품 제목이 다국어여서 이름이 달라도 곧바로 '충돌'이라 하지 않음.
+    local_name_support: list[str] = []
+    if len(candidates) == 1 and report.encryption_state == "clear":
+        title_keys = compatible_title_keys(candidates[0], verified_aliases)
+        archive_name_key = title_key(cleaned_search_title(report.archive_name))
+        if archive_name_key and archive_name_key in title_keys:
+            local_name_support.append("압축파일명 제목과 외부 후보 제목 일치")
+        if report.inspection and report.inspection.state == "ok":
+            local_titles = {
+                title_key(_useful_title(name))
+                for name in report.inspection.title_candidates
+                if _useful_title(name)
+            }
+            if local_titles & title_keys:
+                local_name_support.append("압축 내부 EXE·폴더 이름과 외부 후보 제목 일치")
+        official_for_this_candidate = comparisons[0].official_ids if comparisons else ()
+        declared = {
+            f"dlsite_code:{v.upper()}" for v in hints.dlsite_codes
+        } | {f"steam_app_id:{v}" for v in hints.steam_app_ids}
+        if declared & set(official_for_this_candidate):
+            local_name_support.append(
+                "압축파일명에 적힌 작품번호가 외부 공식 상품번호와 일치함 "
+                "(파일명 자체의 진위는 미검증)"
+            )
+
     # 독립적인 파일 쓰기·DB 수정 기능은 제공하지 않음. matched도 사용자
     # 확인이 필요한 '근거 일치'라는 의미일 뿐 자동 연결 권한이 아니다.
     verified = VerificationReport(
@@ -372,6 +400,7 @@ def verify_identity(
         catalog_product_ids=catalog_ids,
         catalog_release_type=catalog_release_type,
         local_identity_status=verdict,
+        local_name_support=tuple(local_name_support),
     )
     report.stage_timings_ms["verification_ms"] = round(
         (time.perf_counter() - verification_start) * 1000, 3,

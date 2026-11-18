@@ -526,6 +526,10 @@ class IdentityTesterApp(tk.Tk):
             f"내부 목록: {verified.inspection_state}",
             f"README 제한 단서: {verified.metadata_state}",
             "",
+            "[로컬 파일명 ↔ 외부 후보 대조 (정체 인증 아님)]",
+            *[f"  • {s}" for s in verified.local_name_support] if verified.local_name_support
+              else ["  • 대조 가능한 정확한 이름 근거 없음 또는 복수 후보"],
+            "",
             "[단계별 소요시간 (ms)]",
             *[
                 f"  {key}: {value:.3f}"

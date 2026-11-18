@@ -42,6 +42,9 @@ class VerificationReport:
     catalog_product_ids: tuple[str, ...] = ()
     catalog_release_type: str = "unknown"
     local_identity_status: str = "unverified"
+    # 압축 이름/내부 경로와 *외부 후보 이름*의 독립 대조 신호.
+    # 단순 이름·파일명에 불과하므로 결코 자동 일치 확인의 근거가 아니다.
+    local_name_support: tuple[str, ...] = ()
 
     @property
     def label(self) -> str:
