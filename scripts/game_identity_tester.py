@@ -50,6 +50,8 @@ class IdentityTesterApp(tk.Tk):
         self.online = tk.BooleanVar(value=True)
         self.status = tk.StringVar(value="게임 압축파일을 선택한 뒤 분석 시작을 누르세요.")
         self.progress = tk.StringVar(value="선택된 파일 없음")
+        self.stage_status = tk.StringVar(value="현재 단계: 대기")
+        self.running_online = True
         self._style()
         self._layout()
         self.after(100, self._drain_queue)
@@ -122,10 +124,21 @@ class IdentityTesterApp(tk.Tk):
             style="Hint.TLabel",
         ).pack(side="left", padx=(14, 0))
 
-        ttk.Label(outer, textvariable=self.progress,
-                  style="Hint.TLabel").pack(anchor="w", pady=(0, 5))
+        # 진행 표시를 위쪽에 고정: 결과 목록이나 긴 상세 내용에 가려지지 않음.
+        ttk.Label(outer, textvariable=self.progress).pack(anchor="w", pady=(3, 3))
+        self.bar = ttk.Progressbar(
+            outer, maximum=100, value=0, mode="determinate",
+        )
+        self.bar.pack(fill="x", pady=(0, 5))
+        ttk.Label(outer, textvariable=self.stage_status).pack(anchor="w", pady=(0, 2))
+        ttk.Label(outer, textvariable=self.status,
+                  style="Hint.TLabel").pack(anchor="w", pady=(0, 8))
         columns = ("file", "verdict", "title", "encryption", "scan")
-        self.tree = ttk.Treeview(outer, columns=columns, show="headings", height=9)
+        list_frame = ttk.Frame(outer)
+        list_frame.pack(fill="both", expand=True, pady=(0, 10))
+        self.tree = ttk.Treeview(
+            list_frame, columns=columns, show="headings", height=9,
+        )
         for key, text, width in (
             ("file", "압축파일", 300),
             ("verdict", "판정", 115),
@@ -135,7 +148,10 @@ class IdentityTesterApp(tk.Tk):
         ):
             self.tree.heading(key, text=text)
             self.tree.column(key, minwidth=85, width=width, stretch=key in ("file", "title"))
-        self.tree.pack(fill="both", expand=True, pady=(0, 10))
+        scroll = ttk.Scrollbar(list_frame, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll.set)
+        self.tree.pack(side="left", fill="both", expand=True)
+        scroll.pack(side="right", fill="y")
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         ttk.Label(outer, text="선택한 파일의 판정 근거 및 주의 사항").pack(anchor="w")
         self.detail = tk.Text(
@@ -146,10 +162,29 @@ class IdentityTesterApp(tk.Tk):
         self.detail.pack(fill="both", expand=True, pady=(5, 9))
         self.detail.insert("1.0", "아직 분석 결과가 없습니다.")
         self.detail.configure(state="disabled")
-        self.bar = ttk.Progressbar(outer, maximum=1, value=0)
-        self.bar.pack(fill="x", pady=(0, 7))
-        ttk.Label(outer, textvariable=self.status,
-                  style="Hint.TLabel").pack(anchor="w")
+
+    def _show_progress(self, complete: int, stage: int = 1) -> None:
+        """정확한 완료 파일 비율 + 현재 6단계 진행 위치.
+
+        단계 진행률은 소요시간의 추정치가 아님을 화면에 명시한다.
+        """
+        total = len(self.paths)
+        if total <= 0:
+            self.bar.configure(value=0)
+            self.progress.set("선택된 파일 없음")
+            return
+        step_fraction = (
+            max(0, min(stage - 1, 5)) / 6
+            if self.running_online else
+            (0.5 if stage >= 5 else 0)
+        )
+        fraction = (complete + (step_fraction if complete < total else 0)) / total
+        percent = max(0, min(100, fraction * 100))
+        self.bar.configure(value=percent)
+        self.progress.set(
+            f"{complete} / {total}개 검사 완료  |  전체 약 {percent:.1f}% "
+            "(파일 개수·단계 기준, 시간 예측 아님)"
+        )
 
     def choose_files(self) -> None:
         files = filedialog.askopenfilenames(
@@ -174,6 +209,8 @@ class IdentityTesterApp(tk.Tk):
         self.rows.clear()
         self.tree.delete(*self.tree.get_children())
         self.progress.set("선택된 파일 없음")
+        self.stage_status.set("현재 단계: 대기")
+        self.bar.configure(value=0)
         self.save_button.configure(state="disabled")
         self._set_detail("아직 분석 결과가 없습니다.")
 
@@ -183,7 +220,9 @@ class IdentityTesterApp(tk.Tk):
         for idx, path in enumerate(self.paths):
             self.tree.insert("", "end", iid=str(idx),
                              values=(path.name, "대기", "-", "-", "-"))
-        self.progress.set(f"{len(self.paths)}개 파일 선택됨")
+        self.progress.set(f"{len(self.paths)}개 파일 선택됨 · 판독 시작 대기")
+        self.stage_status.set("현재 단계: 대기")
+        self.bar.configure(value=0)
         self.save_button.configure(state="disabled")
 
     def start(self) -> None:
@@ -207,7 +246,9 @@ class IdentityTesterApp(tk.Tk):
         self.rows.clear()
         self._render_files()
         self.stop_requested.clear()
-        self.bar.configure(maximum=len(self.paths), value=0)
+        self.running_online = mode
+        self.bar.configure(maximum=100, value=0)
+        self._show_progress(0, 1)
         for ctl in (self.choose_button, self.clear_button, self.start_button):
             ctl.configure(state="disabled")
         self.stop_button.configure(state="normal")
@@ -229,11 +270,17 @@ class IdentityTesterApp(tk.Tk):
                 if self.stop_requested.is_set():
                     break
                 self.queue.put(("progress", idx, path.name))
+                def on_stage(stage: int, label: str) -> None:
+                    # 작업 스레드에서 tkinter를 직접 건드리지 않는다.
+                    self.queue.put(("step", idx, stage, label))
                 try:
                     if not path.is_file() or path.is_symlink():
                         raise ValueError("일반 로컬 파일이 아니거나 파일을 찾을 수 없습니다.")
                     if online:
-                        stages = identify_archive(path, allow_metadata=True)
+                        stages = identify_archive(
+                            path, allow_metadata=True, progress_callback=on_stage,
+                        )
+                        on_stage(6, "외부 작품과 내부 근거 교차검증 중")
                         verified = verify_identity(stages)
                         data = {
                             "mode": "stages_1_to_6",
@@ -253,7 +300,9 @@ class IdentityTesterApp(tk.Tk):
                             "payload": data,
                         }
                     else:
+                        on_stage(4, "오프라인 압축파일 내부 목록 확인 중")
                         index = inspect_archive(path)
+                        on_stage(5, "오프라인 소형 설정파일 분석 중")
                         meta = inspect_metadata(path)
                         data = {
                             "mode": "offline_metadata_only",
@@ -307,6 +356,22 @@ class IdentityTesterApp(tk.Tk):
             f"({e.member or e.field or e.parser})"
             for e in verified.evidence[:30]
         )
+        out.extend([
+            "",
+            "[1~5단계 웹 작품 검색 시도]",
+        ])
+        for attempt in stages.attempts[:12]:
+            out.append(
+                f"  {attempt.basis}: {attempt.query} → {attempt.decision.status}"
+            )
+            if attempt.decision.reason:
+                out.append(f"    근거: {attempt.decision.reason[:350]}")
+        if stages.inspection:
+            out.extend([
+                "",
+                "[압축파일 내부 목록에서 발견한 후보]",
+                "  " + (", ".join(stages.inspection.title_candidates[:8]) or "없음"),
+            ])
         out.append("")
         out.append("※ 자동 분류는 원본 파일이나 PlayDock 라이브러리를 수정하지 않습니다.")
         return "\n".join(out)
@@ -338,7 +403,22 @@ class IdentityTesterApp(tk.Tk):
                 event = self.queue.get_nowait()
                 if event[0] == "progress":
                     _, idx, name = event
-                    self.status.set(f"분석 중 {idx + 1}/{len(self.paths)}: {name}")
+                    self.status.set(f"검사 중인 파일: {name}")
+                    if self.running_online:
+                        self.stage_status.set(
+                            f"현재 파일 {idx+1}/{len(self.paths)} · 단계 준비 중"
+                        )
+                    self._show_progress(idx, 1)
+                elif event[0] == "step":
+                    _, idx, stage, label = event
+                    step_text = (
+                        f"{stage}/6단계" if self.running_online
+                        else ("1/2단계" if stage == 4 else "2/2단계")
+                    )
+                    self.stage_status.set(
+                        f"현재 파일 {idx+1}/{len(self.paths)} · {step_text}: {label}"
+                    )
+                    self._show_progress(idx, stage)
                 elif event[0] == "result":
                     _, idx, row = event
                     self.rows.append(row)
@@ -348,16 +428,22 @@ class IdentityTesterApp(tk.Tk):
                             row["encryption"], row["scan"],
                         ))
                         self.tree.selection_set(str(idx))
-                    self.bar.configure(value=len(self.rows))
                     self._set_detail(row["detail"])
-                    self.progress.set(f"{len(self.rows)} / {len(self.paths)}개 검사 완료")
+                    self._show_progress(len(self.rows), 1)
+                    self.stage_status.set(
+                        f"방금 검사 완료: {row['name']} · {row['verdict']}"
+                    )
                     self.save_button.configure(state="normal")
                 elif event[0] == "done":
                     for ctl in (self.choose_button, self.clear_button, self.start_button):
                         ctl.configure(state="normal")
                     self.stop_button.configure(state="disabled")
                     suffix = " (사용자 중지)" if self.stop_requested.is_set() else ""
-                    self.status.set(f"{len(self.rows)}개 파일 처리 완료{suffix}. 필요하면 결과 저장을 누르세요.")
+                    self.status.set(
+                        f"{len(self.rows)}개 파일 처리 완료{suffix}. "
+                        "필요하면 결과 저장을 누르세요."
+                    )
+                    self.stage_status.set("검사 종료")
         except Empty:
             pass
         self.after(100, self._drain_queue)
