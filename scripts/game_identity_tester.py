@@ -599,6 +599,8 @@ def self_test() -> int:
         verified = verify_identity(result)
         assert result.completed_steps == (1, 2, 3, 4, 5)
         assert verified.verdict == "matched", verified.verdict
+        assert verified.catalog_status == "official_game_found"
+        assert verified.local_identity_status == "matched"
         assert not verified.automatic_binding_allowed
     return 0
 
