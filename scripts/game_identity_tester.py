@@ -21,7 +21,7 @@ from experiments.dlsite_detector.archive_inspector import inspect_archive
 from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.internal_metadata import inspect_metadata
 
-VERSION = "0.1-test"
+VERSION = "0.2-test"
 VERDICT_KO = {
     "matched": "일치 확인",
     "likely_candidate": "유력 후보",
