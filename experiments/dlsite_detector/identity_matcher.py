@@ -47,7 +47,7 @@ def _official_ids(records: tuple[EvidenceRecord, ...], platform: str) -> set[str
     }
 
 
-BILINGUAL_SEPARATOR = re.compile(r"\\s+[-–—|]\\s+")
+BILINGUAL_SEPARATOR = re.compile(r"\s+[-–—|]\s+")
 CJK = re.compile(r"[가-힣ぁ-んァ-ヶ一-龯]")
 
 
