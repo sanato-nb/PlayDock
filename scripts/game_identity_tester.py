@@ -23,9 +23,19 @@ from experiments.dlsite_detector.enhanced_search import (
 )
 from experiments.dlsite_detector.archive_inspector import inspect_archive
 from experiments.dlsite_detector.identity_verifier import verify_identity
+from experiments.dlsite_detector.search_session import SearchSession
 from experiments.dlsite_detector.internal_metadata import inspect_metadata
 
-VERSION = "0.4-test"
+VERSION = "0.5-test"
+CATALOG_KO = {
+    "official_game_found": "공식 작품 발견",
+    "web_candidate": "웹 후보",
+    "multiple_candidates": "복수 후보",
+    "conflicting_official_ids": "공식 ID 충돌",
+    "lookup_error": "검색 오류",
+    "not_found": "작품 미발견",
+    "not_checked": "조회 안 함",
+}
 VERDICT_KO = {
     "matched": "일치 확인",
     "likely_candidate": "유력 후보",
@@ -138,18 +148,19 @@ class IdentityTesterApp(tk.Tk):
         ttk.Label(outer, textvariable=self.stage_status).pack(anchor="w", pady=(0, 2))
         ttk.Label(outer, textvariable=self.status,
                   style="Hint.TLabel").pack(anchor="w", pady=(0, 8))
-        columns = ("file", "verdict", "title", "encryption", "scan")
+        columns = ("file", "catalog", "verdict", "title", "encryption", "scan")
         list_frame = ttk.Frame(outer)
         list_frame.pack(fill="both", expand=True, pady=(0, 10))
         self.tree = ttk.Treeview(
             list_frame, columns=columns, show="headings", height=9,
         )
         for key, text, width in (
-            ("file", "압축파일", 300),
-            ("verdict", "판정", 115),
-            ("title", "게임명 후보", 255),
+            ("file", "압축파일", 270),
+            ("catalog", "작품 조회", 130),
+            ("verdict", "내부 대조", 100),
+            ("title", "게임명 후보", 225),
             ("encryption", "암호화", 95),
-            ("scan", "내부 확인", 120),
+            ("scan", "내부 확인", 110),
         ):
             self.tree.heading(key, text=text)
             self.tree.column(key, minwidth=85, width=width, stretch=key in ("file", "title"))
@@ -228,7 +239,7 @@ class IdentityTesterApp(tk.Tk):
         self.rows.clear()
         for idx, path in enumerate(self.paths):
             self.tree.insert("", "end", iid=str(idx),
-                             values=(path.name, "대기", "-", "-", "-"))
+                             values=(path.name, "대기", "대기", "-", "-", "-"))
         self.progress.set(f"{len(self.paths)}개 파일 선택됨 · 판독 시작 대기")
         self.stage_status.set("현재 단계: 대기")
         self.bar.configure(value=0)
@@ -276,11 +287,16 @@ class IdentityTesterApp(tk.Tk):
 
     def _worker(self, paths: tuple[Path, ...], online: bool,
                 fast_mode: bool = True) -> None:
+        # 한 번의 검증 배치에서는 동일 작품 ID/제목의 검색 결과를 재사용한다.
+        session = SearchSession(
+            fast_enhanced_classify_game if fast_mode else enhanced_classify_game,
+        ) if online else None
         try:
             for idx, path in enumerate(paths):
                 if self.stop_requested.is_set():
                     break
                 started = time.perf_counter()
+                before = session.metrics if session else None
                 self.queue.put(("progress", idx, path.name))
                 def on_stage(stage: int, label: str) -> None:
                     # 작업 스레드에서 tkinter를 직접 건드리지 않는다.
@@ -291,8 +307,7 @@ class IdentityTesterApp(tk.Tk):
                     if online:
                         stages = identify_archive(
                             path, allow_metadata=True, progress_callback=on_stage,
-                            classifier=(fast_enhanced_classify_game if fast_mode else
-                                        enhanced_classify_game),
+                            classifier=session,
                             max_search_queries=(3 if fast_mode else 6),
                         )
                         on_stage(6, "외부 작품과 내부 근거 교차검증 중")
@@ -300,12 +315,16 @@ class IdentityTesterApp(tk.Tk):
                         data = {
                             "mode": "stages_1_to_6",
                             "search_mode": "fast" if fast_mode else "detailed",
+                            "search_session": session.metrics.to_dict(),
                             "archive_name": path.name,
                             "stages_1_to_5": stages.to_dict(),
                             "verification": verified.to_dict(),
                         }
                         result = {
                             "name": path.name,
+                            "catalog": CATALOG_KO.get(
+                                verified.catalog_status, verified.catalog_status,
+                            ),
                             "verdict": verified.label,
                             "title": verified.proposed_title or (
                                 " / ".join(verified.candidate_titles) or "-"
@@ -328,6 +347,7 @@ class IdentityTesterApp(tk.Tk):
                         }
                         result = {
                             "name": path.name,
+                            "catalog": "조회 안 함",
                             "verdict": "내부 근거만",
                             "title": " / ".join(meta.title_candidates) or "-",
                             "encryption": "encrypted" if index.encrypted else "미확인" if index.state == "unavailable" else "clear",
@@ -337,13 +357,23 @@ class IdentityTesterApp(tk.Tk):
                         }
                 except Exception as exc:
                     result = {
-                        "name": path.name, "verdict": "오류", "title": "-",
+                        "name": path.name, "catalog": "분석 오류",
+                        "verdict": "오류", "title": "-",
                         "encryption": "-", "scan": "실패",
                         "detail": f"파일 분석 오류: {type(exc).__name__}: {exc}",
                         "payload": {"mode": "error", "archive_name": path.name,
                                     "error": type(exc).__name__},
                     }
                 duration = round(time.perf_counter() - started, 3)
+                if session and before:
+                    after = session.metrics
+                    result["payload"]["search_delta"] = {
+                        key: getattr(after, key) - getattr(before, key)
+                        for key in (
+                            "requests", "cache_hits",
+                            "avoided_requests", "network_errors",
+                        )
+                    }
                 result["duration_seconds"] = duration
                 result["payload"]["analysis_seconds"] = duration
                 result["detail"] = (
@@ -351,11 +381,17 @@ class IdentityTesterApp(tk.Tk):
                 )
                 self.queue.put(("result", idx, result))
         finally:
-            self.queue.put(("done",))
+            self.queue.put(("done", session.metrics.to_dict() if session else {}))
 
     @staticmethod
     def _format_verification(verified, stages) -> str:
         out = [
+            f"작품 조회: {CATALOG_KO.get(verified.catalog_status, verified.catalog_status)}",
+            f"작품 등록 제목: {verified.catalog_title or '미확인'}",
+            f"공식 작품 식별자: {', '.join(verified.catalog_product_ids) or '없음'}",
+            f"외부 등록 상품 유형: {verified.catalog_release_type}",
+            f"로컬 압축파일 대조: {verified.label}",
+            "",
             f"판정: {verified.label}",
             f"게임명 후보: {verified.proposed_title or ', '.join(verified.candidate_titles) or '없음'}",
             f"암호화: {verified.encryption_state}",
@@ -448,8 +484,8 @@ class IdentityTesterApp(tk.Tk):
                     self.rows.append(row)
                     if self.tree.exists(str(idx)):
                         self.tree.item(str(idx), values=(
-                            row["name"], row["verdict"], row["title"],
-                            row["encryption"], row["scan"],
+                            row["name"], row["catalog"], row["verdict"],
+                            row["title"], row["encryption"], row["scan"],
                         ))
                         self.tree.selection_set(str(idx))
                     self._set_detail(row["detail"])
@@ -464,8 +500,15 @@ class IdentityTesterApp(tk.Tk):
                         ctl.configure(state="normal")
                     self.stop_button.configure(state="disabled")
                     suffix = " (사용자 중지)" if self.stop_requested.is_set() else ""
+                    metrics = event[1]
+                    m = (
+                        f" 웹 조회 {metrics.get('requests', 0)}회, "
+                        f"캐시 재사용 {metrics.get('cache_hits', 0)}회, "
+                        f"장애로 생략 {metrics.get('avoided_requests', 0)}회."
+                        if metrics else ""
+                    )
                     self.status.set(
-                        f"{len(self.rows)}개 파일 처리 완료{suffix}. "
+                        f"{len(self.rows)}개 파일 처리 완료{suffix}.{m} "
                         "필요하면 결과 저장을 누르세요."
                     )
                     self.stage_status.set("검사 종료")
@@ -508,7 +551,7 @@ class IdentityTesterApp(tk.Tk):
             if target.suffix.casefold() == ".csv":
                 with target.open("w", encoding="utf-8-sig", newline="") as stream:
                     writer = csv.DictWriter(
-                        stream, fieldnames=("name", "verdict", "title", "encryption", "scan"),
+                        stream, fieldnames=("name", "catalog", "verdict", "title", "encryption", "scan"),
                     )
                     writer.writeheader()
                     writer.writerows([
