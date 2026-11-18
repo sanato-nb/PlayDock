@@ -17,7 +17,9 @@ import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
-from experiments.dlsite_detector.archive_identity import identify_archive
+from experiments.dlsite_detector.archive_identity import (
+    identify_archive, recheck_archive_search, search_recheck_needed,
+)
 from experiments.dlsite_detector.enhanced_search import (
     enhanced_classify_game, fast_enhanced_classify_game,
 )
@@ -60,6 +62,9 @@ class IdentityTesterApp(tk.Tk):
         self.configure(bg="#101923")
         self.paths: list[Path] = []
         self.rows: list[dict] = []
+        # GUI 세션 안에만 보관하는 이전 근거/원본 stat (파일명·메타 데이터 외부 전송 없음).
+        self._previous: dict[int, tuple] = {}
+        self._last_fast_mode = True
         self.queue: Queue = Queue()
         self.thread: threading.Thread | None = None
         self.stop_requested = threading.Event()
@@ -123,6 +128,11 @@ class IdentityTesterApp(tk.Tk):
             state="disabled",
         )
         self.stop_button.pack(side="left", padx=(0, 8))
+        self.retry_button = ttk.Button(
+            toolbar, text="검색 실패 항목 재검사", command=self.retry_search_errors,
+            state="disabled",
+        )
+        self.retry_button.pack(side="left", padx=(0, 8))
         self.save_button = ttk.Button(
             toolbar, text="결과 저장", command=self.save_report, state="disabled",
         )
@@ -229,6 +239,8 @@ class IdentityTesterApp(tk.Tk):
             return
         self.paths.clear()
         self.rows.clear()
+        self._previous.clear()
+        self.retry_button.configure(state="disabled")
         self.tree.delete(*self.tree.get_children())
         self.progress.set("선택된 파일 없음")
         self.stage_status.set("현재 단계: 대기")
@@ -239,6 +251,8 @@ class IdentityTesterApp(tk.Tk):
     def _render_files(self) -> None:
         self.tree.delete(*self.tree.get_children())
         self.rows.clear()
+        self._previous.clear()
+        self.retry_button.configure(state="disabled")
         for idx, path in enumerate(self.paths):
             self.tree.insert("", "end", iid=str(idx),
                              values=(path.name, "대기", "대기", "-", "-", "-"))
@@ -278,6 +292,8 @@ class IdentityTesterApp(tk.Tk):
         self.status.set("분석 중… (대용량 압축 목록이나 인터넷 검색은 오래 걸릴 수 있습니다)")
         paths = tuple(self.paths)
         fast_mode = self.fast_mode.get()
+        self._last_fast_mode = fast_mode
+        self.retry_button.configure(state="disabled")
         self.thread = threading.Thread(
             target=self._worker, args=(paths, mode, fast_mode), daemon=True,
         )
@@ -286,6 +302,123 @@ class IdentityTesterApp(tk.Tk):
     def request_stop(self) -> None:
         self.stop_requested.set()
         self.status.set("중단 요청됨. 진행 중인 파일이 완료되면 다음 파일부터 중지합니다.")
+
+    @staticmethod
+    def _online_result(path, stages, verified, session, fast_mode: bool) -> dict:
+        data = {
+            "mode": "stages_1_to_6",
+            "search_mode": "fast" if fast_mode else "detailed",
+            "search_session": session.metrics.to_dict(),
+            "archive_name": path.name,
+            "stages_1_to_5": stages.to_dict(),
+            "verification": verified.to_dict(),
+        }
+        return {
+            "name": path.name,
+            "catalog": CATALOG_KO.get(
+                verified.catalog_status, verified.catalog_status,
+            ),
+            "verdict": verified.label,
+            "title": verified.proposed_title or (
+                " / ".join(verified.candidate_titles) or "-"
+            ),
+            "encryption": verified.encryption_state,
+            "scan": verified.inspection_state,
+            "detail": IdentityTesterApp._format_verification(verified, stages),
+            "payload": data,
+        }
+
+    def retry_search_errors(self) -> None:
+        """GUI 수동 재검사: 오류/생략 파일만, 내부 목록은 안전할 때 재사용."""
+        if self.thread and self.thread.is_alive():
+            return
+        targets = tuple(
+            (idx, self.paths[idx], report, signature)
+            for idx, (report, signature) in sorted(self._previous.items())
+            if search_recheck_needed(report)
+        )
+        if not targets:
+            messagebox.showinfo("재검사", "추가 검색이 필요한 이전 결과가 없습니다.")
+            return
+        approved = messagebox.askokcancel(
+            "검색 실패 항목 재검사",
+            f"{len(targets)}개 파일에서 실패·생략된 작품 검색을 다시 확인합니다.\n"
+            "파일 크기와 수정시각이 같으면 이전 내부 근거를 재사용합니다.\n"
+            "새로운 작품 검색어는 인터넷에 전송됩니다. 진행할까요?",
+        )
+        if not approved:
+            return
+        self.stop_requested.clear()
+        for ctl in (self.choose_button, self.clear_button, self.start_button,
+                    self.retry_button):
+            ctl.configure(state="disabled")
+        self.stop_button.configure(state="normal")
+        self.status.set(f"이전 검색 오류 {len(targets)}개 파일 재검사 중")
+        self.thread = threading.Thread(
+            target=self._retry_worker,
+            args=(targets, self._last_fast_mode), daemon=True,
+        )
+        self.thread.start()
+
+    def _retry_worker(self, targets: tuple, fast_mode: bool) -> None:
+        session = SearchSession(
+            fast_enhanced_classify_game if fast_mode else enhanced_classify_game,
+        )
+        try:
+            for position, (idx, path, previous, signature) in enumerate(targets, 1):
+                if self.stop_requested.is_set():
+                    break
+                started = time.perf_counter()
+                before = session.metrics
+                self.queue.put(("retry_progress", position, len(targets), path.name))
+                def on_stage(stage: int, label: str) -> None:
+                    self.queue.put(("retry_step", idx, stage, label))
+                try:
+                    stages = recheck_archive_search(
+                        path, previous, classifier=session,
+                        expected_stat=signature,
+                        progress_callback=on_stage,
+                        max_search_queries=3 if fast_mode else 6,
+                    )
+                    on_stage(6, "실패 검색 재조회 후 최종 검증 중")
+                    verified = verify_identity(stages)
+                    result = self._online_result(
+                        path, stages, verified, session, fast_mode,
+                    )
+                    result["payload"]["recheck"] = {
+                        "local_evidence_reused": stages.local_evidence_reused,
+                        "only_failed_queries_retried": stages.local_evidence_reused,
+                    }
+                    delta = {
+                        key: getattr(session.metrics, key) - getattr(before, key)
+                        for key in ("requests", "cache_hits",
+                                    "avoided_requests", "network_errors")
+                    }
+                    result["payload"]["search_delta"] = delta
+                    duration = round(time.perf_counter() - started, 3)
+                    result["duration_seconds"] = duration
+                    result["payload"]["analysis_seconds"] = duration
+                    stages.stage_timings_ms["total_ms"] = round(duration * 1000, 3)
+                    result["payload"]["stages_1_to_5"]["stage_timings_ms"] = (
+                        stages.stage_timings_ms.copy()
+                    )
+                    result["detail"] = (
+                        f"재검사 소요시간: {duration:.2f}초\n"
+                        f"기존 내부 근거 재사용: {stages.local_evidence_reused}\n\n"
+                        + result["detail"]
+                    )
+                    st = path.stat()
+                    new_signature = (st.st_size, st.st_mtime_ns)
+                    self.queue.put((
+                        "retry_result", idx, result, stages, new_signature,
+                    ))
+                except Exception as exc:
+                    self.queue.put((
+                        "retry_error", path.name,
+                        f"{type(exc).__name__}: {exc}",
+                    ))
+        finally:
+            self.queue.put(("retry_done", session.metrics.to_dict()))
 
     def _worker(self, paths: tuple[Path, ...], online: bool,
                 fast_mode: bool = True) -> None:
@@ -315,28 +448,9 @@ class IdentityTesterApp(tk.Tk):
                         )
                         on_stage(6, "외부 작품과 내부 근거 교차검증 중")
                         verified = verify_identity(stages)
-                        data = {
-                            "mode": "stages_1_to_6",
-                            "search_mode": "fast" if fast_mode else "detailed",
-                            "search_session": session.metrics.to_dict(),
-                            "archive_name": path.name,
-                            "stages_1_to_5": stages.to_dict(),
-                            "verification": verified.to_dict(),
-                        }
-                        result = {
-                            "name": path.name,
-                            "catalog": CATALOG_KO.get(
-                                verified.catalog_status, verified.catalog_status,
-                            ),
-                            "verdict": verified.label,
-                            "title": verified.proposed_title or (
-                                " / ".join(verified.candidate_titles) or "-"
-                            ),
-                            "encryption": verified.encryption_state,
-                            "scan": verified.inspection_state,
-                            "detail": self._format_verification(verified, stages),
-                            "payload": data,
-                        }
+                        result = self._online_result(
+                            path, stages, verified, session, fast_mode,
+                        )
                     else:
                         on_stage(4, "오프라인 압축파일 내부 목록 확인 중")
                         index = inspect_archive(path)
@@ -387,7 +501,11 @@ class IdentityTesterApp(tk.Tk):
                 result["detail"] = (
                     f"분석 소요시간: {duration:.2f}초\n\n" + result["detail"]
                 )
-                self.queue.put(("result", idx, result))
+                signature = None
+                if stages is not None and path.is_file():
+                    st = path.stat()
+                    signature = (st.st_size, st.st_mtime_ns)
+                self.queue.put(("result", idx, result, stages, signature))
         finally:
             self.queue.put(("done", session.metrics.to_dict() if session else {}))
 
@@ -488,8 +606,11 @@ class IdentityTesterApp(tk.Tk):
                     )
                     self._show_progress(idx, stage)
                 elif event[0] == "result":
-                    _, idx, row = event
+                    _, idx, row, stages, signature = event
+                    row["file_index"] = idx
                     self.rows.append(row)
+                    if stages is not None and signature is not None:
+                        self._previous[idx] = (stages, signature)
                     if self.tree.exists(str(idx)):
                         self.tree.item(str(idx), values=(
                             row["name"], row["catalog"], row["verdict"],
@@ -503,10 +624,58 @@ class IdentityTesterApp(tk.Tk):
                         f"· {row['duration_seconds']:.1f}초"
                     )
                     self.save_button.configure(state="normal")
+                elif event[0] == "retry_progress":
+                    _, position, total, name = event
+                    self.status.set(
+                        f"재검사 {position}/{total} · {name}"
+                    )
+                elif event[0] == "retry_step":
+                    _, idx, stage, label = event
+                    self.stage_status.set(
+                        f"재검사 {idx + 1}번 파일 · {stage}단계 · {label}"
+                    )
+                elif event[0] == "retry_result":
+                    _, idx, row, stages, signature = event
+                    row["file_index"] = idx
+                    for position, prior_row in enumerate(self.rows):
+                        if prior_row.get("file_index") == idx:
+                            self.rows[position] = row
+                            break
+                    self._previous[idx] = (stages, signature)
+                    if self.tree.exists(str(idx)):
+                        self.tree.item(str(idx), values=(
+                            row["name"], row["catalog"], row["verdict"],
+                            row["title"], row["encryption"], row["scan"],
+                        ))
+                        self.tree.selection_set(str(idx))
+                    self._set_detail(row["detail"])
+                elif event[0] == "retry_error":
+                    _, name, error = event
+                    self.status.set(f"검색 재검사 실패 ({name}): {error}")
+                elif event[0] == "retry_done":
+                    for ctl in (self.choose_button, self.clear_button, self.start_button):
+                        ctl.configure(state="normal")
+                    self.stop_button.configure(state="disabled")
+                    self.retry_button.configure(
+                        state="normal" if any(
+                            search_recheck_needed(report)
+                            for report, _ in self._previous.values()
+                        ) else "disabled"
+                    )
+                    self.status.set(
+                        f"검색 오류 재검사 종료 · 웹 요청 {event[1].get('requests', 0)}회"
+                    )
+                    self.stage_status.set("재검사 종료")
                 elif event[0] == "done":
                     for ctl in (self.choose_button, self.clear_button, self.start_button):
                         ctl.configure(state="normal")
                     self.stop_button.configure(state="disabled")
+                    self.retry_button.configure(
+                        state="normal" if self.running_online and any(
+                            search_recheck_needed(report)
+                            for report, _ in self._previous.values()
+                        ) else "disabled"
+                    )
                     suffix = " (사용자 중지)" if self.stop_requested.is_set() else ""
                     metrics = event[1]
                     m = (
@@ -534,7 +703,7 @@ class IdentityTesterApp(tk.Tk):
             return
         name = self.paths[index].name
         for row in self.rows:
-            if row["name"] == name:
+            if row.get("file_index") == index:
                 self._set_detail(row["detail"])
                 return
 
