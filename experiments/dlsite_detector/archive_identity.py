@@ -127,6 +127,7 @@ def identify_archive(
     allow_metadata: bool = False,
     metadata_reader: Callable[[Path], MetadataInspection] = inspect_metadata,
     progress_callback: Callable[[int, str], None] | None = None,
+    max_search_queries: int = 6,
 ) -> IdentityReport:
     """비암호화 파일: 1→3→4→5→2→6단계 순서로 근거를 수집해 돌려준다.
 
@@ -144,7 +145,7 @@ def identify_archive(
                 # 화면의 상태 표시 기능 장애가 분석 결과를 바꾸면 안 된다.
                 pass
 
-    notify(1, "압축파일명에서 제목·작품 코드 추출")
+    notify(1, "압축파일 이름에서 제목·작품 코드·번역 표기 수집")
     path = Path(archive_path)
     if path.suffix.casefold() not in ARCHIVE_EXTS or not path.is_file() or path.is_symlink():
         return IdentityReport(
@@ -183,7 +184,10 @@ def identify_archive(
 
     # 4단계: 실제 목록 검사. 검색은 아직 1회도 하지 않았다.
     notify(4, "압축파일 내부 전체 파일·폴더 목록 수집 중")
-    inspection = inspector(path)
+    # 같은 헤더의 암호화 상태를 반복 읽지 않도록 신뢰 가능한 검사 결과 전달.
+    # 기존 사용자 정의 inspector 콜백 인터페이스는 변경하지 않음.
+    inspection = (inspector(path, encryption_probe=probe)
+                  if inspector is inspect_archive else inspector(path))
     if inspection.encrypted or inspection.state in {"encrypted", "needs_password"}:
         # 잘못된 암호 판정 이후에도 내부 단서를 누출하지 않는다.
         notify(2, "암호화가 확인되어 파일명만 검색 중")
@@ -197,7 +201,8 @@ def identify_archive(
     actual_order = [1, 3, 4]
     if allow_metadata and inspection.state in {"ok", "partial", "limit_exceeded"}:
         notify(5, "게임 엔진 설정·작은 메타데이터 근거 수집 중")
-        metadata = metadata_reader(path)
+        metadata = (metadata_reader(path, encryption_probe=probe)
+                    if metadata_reader is inspect_metadata else metadata_reader(path))
         actual_order.append(5)
 
     # 모든 *안전하게 읽을 수 있는* 근거를 확보한 이후에만 검색한다.
@@ -206,6 +211,7 @@ def identify_archive(
         path.name,
         inspection if inspection.state in {"ok", "partial", "limit_exceeded"} else None,
         metadata,
+        max_queries=max(1, min(max_search_queries, 12)),
     )
     notify(2, f"모은 근거 {len(plan)}개를 우선순위대로 인터넷 조회 중")
     actual_order.append(2)
@@ -213,8 +219,16 @@ def identify_archive(
     candidates: dict[str, IdentityAttempt] = {}
     non_game: IdentityAttempt | None = None
     for hint in plan:
-        # 복수 작품의 실행파일·아이디 단서가 있을 수 있어 모든 *선정된*
-        # 후보를 점검한다. 공통 실행기/폴더는 계획 생성 단계에서 이미 제외.
+        # 공식 작품 ID가 이미 확인됐으면 파일명/실행파일의 약한
+        # 제목으로 다시 검색해 동일 작품 별칭을 중복 생성하지 않는다.
+        # 단, 다른 명시적 작품 ID 및 내부 설정의 강한 제목은 계속 검사.
+        if (any(a.decision.status in CONFIRMED and a.decision.dlsite_code
+                for a in attempts)
+                and hint.basis in {
+                    "archive_filename", "archive_filename_alias",
+                    "internal_filename", "internal_metadata_supporting_title",
+                }):
+            continue
         notify(2, f"인터넷 조회 중: {hint.basis} ({len(attempts) + 1}/{len(plan)})")
         try:
             decision = classifier(hint.query)
