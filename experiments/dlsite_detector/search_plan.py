@@ -1,4 +1,4 @@
-"""v0.5: 압축파일명 + 내부 목록 + 설정 메타데이터를 합친 후 검색어를 선정.
+"""v0.7: 압축파일명 + 내부 목록 + 제한된 README 단서를 합쳐 검색어 선정.
 
 수집 단계에서는 외부 검색을 하지 않는다. 모든 후보의 가치·중복을 먼저
 평가한 후 공식 작품 ID/강한 제목/파일명을 우선해 요청 수를 제한한다.
@@ -119,4 +119,23 @@ def build_search_plan(
             append(540, 2, "internal_filename", title, title=True)
 
     ranked = sorted(candidates.values(), key=lambda row: (-row[0], row[2]))
-    return tuple(item for _, item, _ in ranked[:max(1, min(max_queries, 12))])
+    limit = max(1, min(max_queries, 12))
+    selected = ranked[:limit]
+    # 내부 작품번호/프로젝트명에 밀려 원래 압축파일명을
+    # 인터넷 검색에서 완전히 잃어버리면 후보 발견률이 떨어진다.
+    filename_title = _useful_title(archive_name)
+    if filename_title:
+        filename_key = normalized_title(filename_title)
+        if not any(normalized_title(item.query) == filename_key
+                   for _, item, _ in selected):
+            wanted = next((
+                candidate for candidate in ranked
+                if normalized_title(candidate[1].query) == filename_key
+            ), None)
+            if wanted is not None:
+                selected = selected[:-1] + [wanted]
+    # 내부 실행파일 이름은 독립된 제목 단서인 경우에만 남은 빈 검색
+    # 슬롯에 들어갈 수 있으며, 파일명 검색이나 공식 품번을 제거하지 않는다.
+    return tuple(item for _, item, _ in sorted(
+        selected, key=lambda row: (-row[0], row[2])
+    ))

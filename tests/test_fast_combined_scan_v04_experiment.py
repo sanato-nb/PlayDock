@@ -66,7 +66,7 @@ def test_fast_mode_skips_duplicate_dlsite_title_web_query(monkeypatch):
     assert len(calls["web"]) == 1
 
 
-def test_confirmed_id_skips_redundant_weak_name_search(tmp_path):
+def test_confirmed_id_still_checks_archive_filename_title(tmp_path):
     path = _zip(tmp_path, "Silver Quest [RJ01234567].zip", {
         "Silver Quest/Silver Quest.exe": b"binary",
         "Silver Quest/game/archive.rpa": b"sample",

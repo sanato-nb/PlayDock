@@ -17,7 +17,9 @@ from .catalog_aliases import group_external_attempts, representative
 from .detector import normalized_title
 from .enhanced_search import enhanced_classify_game
 from .identity_hints import extract_hints
-from .internal_metadata import MetadataInspection, inspect_metadata
+from .internal_metadata import (
+    MetadataInspection, inspect_metadata, inspect_readme_metadata,
+)
 from .pipeline import SearchDecision
 from .search_plan import build_search_plan
 
@@ -130,7 +132,7 @@ def identify_archive(
     classifier: Callable[[str], SearchDecision] = enhanced_classify_game,
     inspector: Callable[[Path], ArchiveInspection] = inspect_archive,
     allow_metadata: bool = False,
-    metadata_reader: Callable[[Path], MetadataInspection] = inspect_metadata,
+    metadata_reader: Callable[[Path], MetadataInspection] = inspect_readme_metadata,
     progress_callback: Callable[[int, str], None] | None = None,
     max_search_queries: int = 6,
 ) -> IdentityReport:
@@ -229,10 +231,11 @@ def identify_archive(
     metadata = None
     actual_order = [1, 3, 4]
     if allow_metadata and inspection.state in {"ok", "partial", "limit_exceeded"}:
-        notify(5, "게임 엔진 설정·작은 메타데이터 근거 수집 중")
+        notify(5, "README 제한 필드 수집 중 (기타 설정파일 내용 미조회)")
         metadata_start = time.perf_counter()
         metadata = (metadata_reader(path, encryption_probe=probe)
-                    if metadata_reader is inspect_metadata else metadata_reader(path))
+                    if metadata_reader in (inspect_metadata, inspect_readme_metadata)
+                    else metadata_reader(path))
         stamp("metadata_read_ms", metadata_start)
         actual_order.append(5)
 
@@ -258,7 +261,7 @@ def identify_archive(
         if (any(a.decision.status in CONFIRMED and a.decision.dlsite_code
                 for a in attempts)
                 and hint.basis in {
-                    "archive_filename", "archive_filename_alias",
+                    "archive_filename_alias",
                     "internal_filename", "internal_metadata_supporting_title",
                 }):
             continue
@@ -360,6 +363,7 @@ def recheck_archive_search(
     expected_stat: tuple[int, int] | None = None,
     progress_callback: Callable[[int, str], None] | None = None,
     max_search_queries: int = 6,
+    metadata_reader: Callable[[Path], MetadataInspection] = inspect_readme_metadata,
 ) -> IdentityReport:
     """검색 오류 파일의 재조사: 안전한 파일 상태 확인 뒤 로컬 근거를 재사용.
 
@@ -380,6 +384,7 @@ def recheck_archive_search(
     if not reuse:
         return identify_archive(
             path, classifier=classifier, allow_metadata=True,
+            metadata_reader=metadata_reader,
             max_search_queries=max_search_queries, progress_callback=progress_callback,
         )
 

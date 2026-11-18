@@ -115,7 +115,7 @@ def _safe_title(value) -> str:
     return name[:120]
 
 
-def _pick_members(rows) -> list[tuple[str, str]]:
+def _pick_members(rows, *, readme_only: bool = False) -> list[tuple[str, str]]:
     candidates = []
     for member, size, compressed, encrypted, is_dir, symlink in rows[:MAX_MEMBERS]:
         if is_dir or encrypted or symlink or size <= 0 or size > MAX_MEMBER_BYTES:
@@ -127,6 +127,13 @@ def _pick_members(rows) -> list[tuple[str, str]]:
         if parts is None or len(parts) > 5:
             continue
         basename = parts[-1].casefold()
+        # 기본 판독기는 이름/구조를 중심으로 판단한다. README 외의
+        # JSON/INI/실행파일 내용은 읽지 않는다.
+        if readme_only and not (
+            basename in {"readme", "readme.txt", "readme.md"}
+            or ALLOWED_SUFFIX.fullmatch(basename)
+        ):
+            continue
         if (basename not in ALLOWED_EXACT and not ALLOWED_SUFFIX.fullmatch(basename)):
             continue
         if basename == "system.json" and not "/".join(p.casefold() for p in parts).endswith("/data/system.json"):
@@ -144,7 +151,7 @@ def _pick_members(rows) -> list[tuple[str, str]]:
     candidates.sort(key=lambda x: (
         order.get(x[1], 9), len(x[0].split("/")), x[0].casefold(),
     ))
-    return candidates[:MAX_CANDIDATE_FILES]
+    return candidates[:2 if readme_only else MAX_CANDIDATE_FILES]
 
 
 def _parse_metadata_text(member: str, payload: bytes):
@@ -210,7 +217,9 @@ def _rar_index(path: Path):
 
 
 
-def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
+def _inspect_non_solid_7z(
+    archive: Path, *, readme_only: bool = False,
+) -> MetadataInspection:
     """py7zr >= 1.1.4 해제 상한을 사용하여 비-solid 소형 항목만 메모리에서 읽기."""
     try:
         import py7zr
@@ -260,7 +269,7 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
                      int(item.compressed) if item.compressed is not None else None,
                      False, bool(item.is_directory), bool(item.is_symlink))
                     for item in files]
-            selected = _pick_members(rows)
+            selected = _pick_members(rows, readme_only=readme_only)
             if not selected:
                 return MetadataInspection(archive.name, "no_metadata", 0, 0, (), (), (),
                                           "제한된 메타데이터 후보 파일 없음")
@@ -291,6 +300,7 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
 
 def inspect_metadata(
     path: Path, *, encryption_probe: EncryptionProbe | None = None,
+    readme_only: bool = False,
 ) -> MetadataInspection:
     """비암호화 압축 안의 작은 파일만 메모리에 읽고 제목·코드 근거를 남긴다.
 
@@ -312,7 +322,7 @@ def inspect_metadata(
         )
     suffix = archive.suffix.lower()
     if suffix == ".7z":
-        return _inspect_non_solid_7z(archive)
+        return _inspect_non_solid_7z(archive, readme_only=readme_only)
     if suffix not in {".zip", ".rar"}:
         return MetadataInspection(archive.name, "unsupported", 0, 0, (), (), (),
                                   "선택적 메타데이터 읽기 미지원 형식입니다.")
@@ -350,7 +360,9 @@ def inspect_metadata(
                      item.isdir(), False)
                     for item in infos
                 ]
-            for member, basename in _pick_members(rows):
+            for member, basename in _pick_members(
+                rows, readme_only=readme_only,
+            ):
                 if read_bytes >= MAX_TOTAL_BYTES:
                     break
                 try:
@@ -381,4 +393,18 @@ def inspect_metadata(
          "로컬 게임과의 동일성은 증명하지 않습니다."
          + (" 일부 파일 읽기 실패: " + ", ".join(errors[:3]) if errors else "")),
         tuple(steam_ids),
+    )
+
+
+def inspect_readme_metadata(
+    path: Path, *, encryption_probe: EncryptionProbe | None = None,
+) -> MetadataInspection:
+    """기본 판독기의 제한적 내용 분석: README 최대 2개만 허용.
+
+    config/engine/JSON/INI/EXE 등은 이름과 내부 목록만 활용한다.
+    README도 명시적으로 라벨링된 제목·상품번호·Steam ID 필드만
+    추출하며 원문 자체는 외부 검색이나 결과 JSON에 저장하지 않는다.
+    """
+    return inspect_metadata(
+        path, encryption_probe=encryption_probe, readme_only=True,
     )

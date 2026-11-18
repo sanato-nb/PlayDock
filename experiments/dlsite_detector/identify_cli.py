@@ -12,7 +12,7 @@ from pathlib import Path
 from .archive_inspector import inspect_archive
 from .archive_identity import identify_archive
 from .identity_hints import extract_hints
-from .internal_metadata import inspect_metadata
+from .internal_metadata import inspect_metadata, inspect_readme_metadata
 from .identity_verifier import verify_identity
 
 
@@ -23,9 +23,9 @@ def main(argv=None) -> int:
                         help="1차 이름 검색 및 2차 재검색을 실제 인터넷에 요청")
     parser.add_argument("--json", action="store_true", help="JSON 결과 출력")
     parser.add_argument("--metadata", action="store_true",
-                        help="오프라인 검사에서도 작은 README·INI·JSON 제목 필드를 확인")
+                        help="오프라인 검사에서 README의 명시적 작품명·ID 필드만 확인")
     parser.add_argument("--no-metadata", action="store_true",
-                        help="온라인 분석에서 작은 파일 내용 읽기를 생략 (1~4단계만)")
+                        help="온라인 분석에서 README 내용 읽기도 생략 (1~4단계만)")
     parser.add_argument("--verify", action="store_true",
                         help="--online 1~5단계 결과로 6단계 읽기 전용 근거 교차검증 실행")
     args = parser.parse_args(argv)
@@ -53,7 +53,7 @@ def main(argv=None) -> int:
         output = {"mode": "offline_inventory", **inspection.to_dict(),
                   "filename_hints": extract_hints(args.archive.name).to_dict()}
         if args.metadata:
-            output["metadata"] = inspect_metadata(args.archive).to_dict()
+            output["metadata"] = inspect_readme_metadata(args.archive).to_dict()
         exit_code = 0 if inspection.state in ("ok", "partial", "limit_exceeded") else 1
 
     if args.json:

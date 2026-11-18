@@ -619,3 +619,96 @@ def test_official_relookup_network_error_is_retryable_and_not_cached():
     assert calls == ["RJ09999992", "RJ09999992"]
     assert session.metrics.cache_hits == 0
     assert session.metrics.network_errors == 2
+
+
+
+def test_v07_index_only_and_readme_limited_source_content(tmp_path, monkeypatch):
+    """공식 번호가 없더라도 압축파일명+내부 파일명 수집 뒤에만 검색."""
+    import zipfile
+    from experiments.dlsite_detector import internal_metadata as m
+    archive = make_zip(tmp_path, "Silver Lantern.zip", {
+        "Internal-Project/Star Runner.exe": b"MZ",
+        "Internal-Project/Star Runner_Data/app.info": b"Studio\\nHidden Private Title\\n",
+        "Internal-Project/game.ini": b"Title=Hidden Ini Title\\n",
+        "Internal-Project/System.json": b'{"gameTitle": "Hidden System Title"}',
+        "Internal-Project/package.json": b'{"window":{"title":"Hidden Package"}}',
+        "Internal-Project/README.txt":
+            b"Game Title: Silver Lantern\\nNotes: internal token SECRET123\\n",
+    })
+    opened = []
+    real_open = zipfile.ZipFile.open
+    def spy_open(self, name, *a, **kw):
+        member = str(name)
+        opened.append(member)
+        assert member.lower().endswith("readme.txt"), member
+        return real_open(self, name, *a, **kw)
+    monkeypatch.setattr(zipfile.ZipFile, "open", spy_open)
+    seen = []
+    def classify(q):
+        seen.append(q)
+        assert opened and all(name.endswith("README.txt") for name in opened)
+        return SearchDecision("lookup_unavailable", q, search_state="not_found")
+    report = identify_archive(archive, classifier=classify, allow_metadata=True,
+                              max_search_queries=3)
+    assert seen and "Silver Lantern" in seen
+    assert report.metadata.title_candidates == ("Silver Lantern",)
+    assert report.inspection and "Star Runner" in report.inspection.title_candidates
+    assert report.metadata.read_bytes > 0
+    assert not any("Hidden " in q or "SECRET" in q for q in seen)
+    assert len(opened) == 1
+
+
+def test_v07_no_readme_does_not_open_member(tmp_path, monkeypatch):
+    import zipfile
+    path = make_zip(tmp_path, "Moon Voyage.zip", {
+        "Moon Voyage/Game.exe": b"a",
+        "Moon Voyage/game.json": b'{"gameTitle":"Do not open"}',
+    })
+    def cannot_open(*args, **kwargs):
+        raise AssertionError("파일 목록만 검사해야 함")
+    monkeypatch.setattr(zipfile.ZipFile, "open", cannot_open)
+    out = identify_archive(
+        path, classifier=lambda q: SearchDecision("lookup_unavailable", q),
+        allow_metadata=True,
+    )
+    assert out.metadata.read_bytes == 0
+    assert out.metadata.inspected_files == 0
+    assert out.inspection is not None
+
+
+def test_v07_filename_search_reservation_under_many_internal_codes(tmp_path):
+    archive = make_zip(tmp_path, "Bright Summer Story.zip", {
+        "RJ09999991/data.pak": b"x",
+        "RJ09999992/engine.dll": b"x",
+        "RJ09999993/plugin.dll": b"x",
+        "Bright Summer Story/Bright Summer Story.exe": b"x",
+    })
+    from experiments.dlsite_detector.archive_inspector import inspect_archive
+    index = inspect_archive(archive)
+    plan = build_search_plan(archive.name, index, None, max_queries=3)
+    assert any(item.query == "Bright Summer Story" for item in plan)
+    assert len(plan) <= 3
+    observed = []
+    identify_archive(
+        archive, classifier=lambda q: (
+            observed.append(q) or SearchDecision("confirmed_game", q,
+                proposed_title="Official Synthetic",
+                dlsite_code="RJ09999991")
+        ) if q == "RJ09999991" else (
+            observed.append(q) or SearchDecision("lookup_unavailable", q)
+        ), allow_metadata=True, max_search_queries=3,
+    )
+    assert "Bright Summer Story" in observed
+
+
+def test_v07_metadata_full_opt_in_still_available_for_legacy_research(tmp_path):
+    from experiments.dlsite_detector.internal_metadata import (
+        inspect_metadata, inspect_readme_metadata,
+    )
+    archive = make_zip(tmp_path, "Research Sample.zip", {
+        "game/game.ini": b"Title=Deep Research Only",
+        "game/README.txt": b"Game Title: Public Notes",
+    })
+    assert inspect_readme_metadata(archive).title_candidates == ("Public Notes",)
+    legacy = inspect_metadata(archive)
+    assert "Deep Research Only" in legacy.title_candidates

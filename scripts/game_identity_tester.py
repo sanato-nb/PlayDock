@@ -26,9 +26,9 @@ from experiments.dlsite_detector.enhanced_search import (
 from experiments.dlsite_detector.archive_inspector import inspect_archive
 from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.search_session import SearchSession
-from experiments.dlsite_detector.internal_metadata import inspect_metadata
+from experiments.dlsite_detector.internal_metadata import inspect_readme_metadata
 
-VERSION = "0.6-test"
+VERSION = "0.7-test"
 CATALOG_KO = {
     "official_game_found": "공식 작품 발견",
     "web_candidate": "웹 후보",
@@ -455,7 +455,7 @@ class IdentityTesterApp(tk.Tk):
                         on_stage(4, "오프라인 압축파일 내부 목록 확인 중")
                         index = inspect_archive(path)
                         on_stage(5, "오프라인 소형 설정파일 분석 중")
-                        meta = inspect_metadata(path)
+                        meta = inspect_readme_metadata(path)
                         data = {
                             "mode": "offline_metadata_only",
                             "archive_name": path.name,
