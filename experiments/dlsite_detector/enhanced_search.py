@@ -94,7 +94,12 @@ def recover_web_product_codes(
             if code.casefold() not in (row.title + " " + row.url).casefold():
                 continue
             heading = normalized_title(row.title)
-            if any(len(key) >= 7 and key in heading for key in official_keys):
+            # 같은 검색 결과 헤드라인 안에서 *요청 제목과 공식 제목*을
+            # 동시에 확인해야 다른 게임의 품번을 빼앗는 오판을 막을 수 있다.
+            if (requested and len(heading) <= 180
+                    and requested in heading
+                    and any(len(key) >= 7 and key in heading
+                            for key in official_keys)):
                 return True
         return False
 
