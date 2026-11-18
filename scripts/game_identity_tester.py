@@ -28,7 +28,7 @@ from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.search_session import SearchSession
 from experiments.dlsite_detector.internal_metadata import inspect_readme_metadata
 
-VERSION = "0.7-test"
+VERSION = "0.8-test"
 CATALOG_KO = {
     "official_game_found": "공식 작품 발견",
     "web_candidate": "웹 후보",
