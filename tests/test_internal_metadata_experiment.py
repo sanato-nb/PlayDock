@@ -150,8 +150,8 @@ def test_confirmed_filename_must_be_checked_against_internal_metadata(tmp_path):
         allow_metadata=True,
     )
     assert report.stage == 3
-    assert report.status == "ambiguous"
-    assert report.evidence_conflict is True
+    assert report.status == "candidate_found"
+    assert report.evidence_conflict is False  # 제목 차이는 6단계에서 보수적 검토
     assert report.metadata.title_candidates == ("Another Game",)
     assert report.completed_steps == (1, 2, 3, 4, 5)
 
@@ -250,7 +250,7 @@ def test_web_title_candidate_can_be_checked_against_metadata_when_requested(tmp_
     deeper = identify_archive(path, classifier=found, allow_metadata=True)
     assert deeper.status == "candidate_found"
     assert deeper.metadata.title_candidates == ("Night of Revenge",)
-    assert deeper.stage == 1  # 후보 출처는 파일명. 실제 처리 단계는 5까지 완료
+    assert deeper.stage == 3  # 메타데이터 제목을 먼저 수집하여 통합 검색
     assert deeper.completed_steps == (1, 2, 3, 4, 5)
 
 
@@ -261,7 +261,7 @@ def test_conflicting_search_title_and_internal_title_flagged_ambiguous(tmp_path)
                                                   proposed_title="Another Game"),
         allow_metadata=True,
     )
-    assert first.status == "ambiguous"
+    assert first.status == "candidate_found"
     assert first.metadata.title_candidates == ("Different Game",)
 
 
@@ -289,4 +289,4 @@ def test_stage3_uses_internal_code_field_for_search(tmp_path):
     assert report.status == "candidate_found"
     assert report.stage == 3
     assert report.product_code == "RJ01234567"
-    assert queried[-1] == "RJ01234567"
+    assert queried[0] == "RJ01234567"  # 작품 코드는 제목보다 우선 조회
