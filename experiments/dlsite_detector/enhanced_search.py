@@ -70,10 +70,15 @@ def recover_web_product_codes(
     if not codes:
         return decision
     verified = []
+    lookup_errors = []
     for code in codes:
         try:
             found = lookup(code, code=code, allow_title_search=False)
-        except (Exception,):
+        except Exception as exc:
+            lookup_errors.append(type(exc).__name__)
+            continue
+        if found.status == "lookup_unavailable":
+            lookup_errors.append("official_lookup_unavailable")
             continue
         if (found.code.upper() == code and found.work_type in GAME_TYPES
                 and found.work_title and found.status in {"confirmed_game", "needs_review"}):
@@ -96,11 +101,14 @@ def recover_web_product_codes(
                        or decision.original_query[:80],
         # 공식 조회 실패/서로 다른 번호는 절대 공식 코드로 승격하지 않는다.
         dlsite_code="", official_code_verified=False,
-        web_code_hints=codes, search_state="unverified_evidence",
+        web_code_hints=codes,
+        search_state="network_error" if lookup_errors else "unverified_evidence",
         reason="웹 검색 제목·URL에서 작품번호 후보 "
                + ", ".join(codes)
                + "을 발견했지만 단일 공식 게임 상품과 연결하지 못했습니다. "
-                 "원본 확인 전까지 제3자 미확인 후보로 보존합니다.",
+               + ("공식 조회 실패: " + ", ".join(lookup_errors) + ". "
+                  if lookup_errors else "")
+               + "원본 확인 전까지 제3자 미확인 후보로 보존합니다.",
     )
 
 

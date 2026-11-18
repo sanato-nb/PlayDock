@@ -1,4 +1,4 @@
-# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.5)
+# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.6)
 
 > **시작점:** [인수인계](HANDOFF_2026-11-19_KO.md) · [새 채팅 프롬프트](NEXT_CHAT_PROMPT_KO.md) · [회귀 체크리스트](REGRESSION_CHECKLIST_KO.md).
 >
@@ -40,15 +40,15 @@ experiments/dlsite_detector/
 ├── search_terms.py           — 압축파일 이름에서 검색용 제목 정제
 ├── identity_hints.py         — 작품번호·Steam ID·버전·배포/번역 단서 추출
 ├── search_plan.py            — 파일명+내부 근거를 합쳐 검색 후보 점수 정렬·중복 제거
-├── search_session.py         — GUI 배치 검색 캐시·에러/쿨다운 제한 및 통계
+├── search_session.py         — GUI 배치 검색 캐시·에러/쿨다운 제한·검색 재시도 대기열 및 통계
 ├── detector.py               — DLsite 등록번호·타입 조회
 ├── steam_client.py           — Steam 개별 앱 정보 조회
 ├── pipeline.py               — 일반 웹 검색·검색 결과 근거 및 후보 판정
-├── enhanced_search.py        — DLsite·Steam·웹 결과 병합 및 빠른/상세 검색
+├── enhanced_search.py        — DLsite·Steam·웹 결과 통합·웹 작품번호 공식 재조회 및 빠른/상세 검색
 ├── web_alias_discovery.py    — 다국어 이름·영문 병기 웹 단서 추출
 ├── storefront_candidate.py   — itch.io/Steam 개별 상품 페이지 후보 식별
-├── catalog_aliases.py        — 공식 작품 후보의 언어별 별칭과 같은 상품 후보 통합
-├── archive_identity.py       — 암호·목록·설정 수집 → 통합 인터넷 검색 연결
+├── catalog_aliases.py        — 공식 다국어 별칭과 검증된 DLsite↔Steam 교차 근거를 통한 보수적 상품 병합
+├── archive_identity.py       — 암호·목록·설정 수집 → 통합 인터넷 검색, 단계별 시간, 실패 항목 재검색 시 내부 근거 재사용
 ├── evidence_normalizer.py    — 파일명·목록·메타·공식 웹 근거를 출처별 정규화
 ├── identity_matcher.py       — 작품 ID/공식 제목/내부 근거 비교
 ├── identity_verifier.py      — 6단계 보수 판정과 카탈로그·로컬 상태 구분
@@ -61,6 +61,7 @@ experiments/dlsite_detector/
 ├── review_store.py           — 독립 실험 SQLite 수동 검토·이름 변경 이력 관리
 ├── artwork_staging.py        — 아이콘·이미지 단계적 변경·복원 실험
 ├── README_KO.md              — v0.1~v0.5 상세 변경 이력(이전 규칙 일부 포함)
+├── V06_IMPLEMENTATION_2026-11-19_KO.md — v0.6 실제 구현·테스트·남은 한계
 ├── HANDOFF_2026-11-19_KO.md  — 현재 상태·실측 검증·다음 작업·제약사항
 ├── FILE_MAP_KO.md            — 현재 파일·폴더 및 호출 경로 설명
 ├── REGRESSION_CHECKLIST_KO.md — 새 버전 기능·안전성 검증 기준
@@ -71,7 +72,7 @@ experiments/dlsite_detector/
 
 ```text
 scripts/
-├── game_identity_tester.py            — 독립 Tkinter GUI(진행률·파일 선택·JSON/CSV 내보내기)
+├── game_identity_tester.py            — 독립 Tkinter GUI(진행률·검색 실패 재검사·단계별 시간·JSON/CSV 내보내기)
 └── Identity-Tester-README_KO.txt       — 독립 Windows 테스트 EXE 사용 방법
 
 tests/

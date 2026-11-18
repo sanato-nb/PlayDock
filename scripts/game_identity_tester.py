@@ -526,6 +526,11 @@ class IdentityTesterApp(tk.Tk):
             f"내부 목록: {verified.inspection_state}",
             f"메타데이터: {verified.metadata_state}",
             "",
+            "[단계별 소요시간 (ms)]",
+            *[
+                f"  {key}: {value:.3f}"
+                for key, value in stages.stage_timings_ms.items()
+            ],
             "[적용된 규칙]",
             *[f"  • {x}" for x in verified.matched_rules],
             "[판정 보류·충돌 사유]",

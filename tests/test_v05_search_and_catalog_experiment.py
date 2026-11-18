@@ -583,3 +583,39 @@ def test_cross_store_bridge_cannot_erase_a_different_official_code():
         ),
     )
     assert len(group_external_attempts((a, b, c))) == 2
+
+
+
+def test_official_relookup_network_error_is_retryable_and_not_cached():
+    from experiments.dlsite_detector.enhanced_search import enhanced_classify_game
+    from experiments.dlsite_detector.pipeline import WebEvidence
+    from experiments.dlsite_detector.detector import Detection
+    calls = []
+    original = SearchDecision(
+        "lookup_unavailable", "Fiction Galaxy",
+        evidence=(WebEvidence(
+            "Fiction Galaxy RJ09999992", "https://example.org/g/RJ09999992",
+            "example.org", False, True, False,
+        ),),
+        search_state="unverified_evidence",
+    )
+    def unavailable(title, **kw):
+        calls.append(kw["code"])
+        return Detection("lookup_unavailable", title, reason="HTTP 503")
+    def classify(q):
+        return enhanced_classify_game(
+            q, classifier=lambda *a, **kw: original,
+            web_recovery_lookup=unavailable,
+            steam_fetcher=lambda *_: None,
+        )
+    session = SearchSession(classify, max_failures=2)
+    a = session("Fiction Galaxy")
+    b = session("Fiction Galaxy")
+    assert a.status == "internet_candidate"
+    assert a.search_state == "network_error"
+    assert a.web_code_hints == ("RJ09999992",)
+    assert a.dlsite_code == ""
+    assert b.search_state == "network_error"
+    assert calls == ["RJ09999992", "RJ09999992"]
+    assert session.metrics.cache_hits == 0
+    assert session.metrics.network_errors == 2

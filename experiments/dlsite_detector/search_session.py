@@ -93,8 +93,8 @@ class SearchSession:
                 reason=f"인터넷 조회 실패: {type(exc).__name__}",
             )
         is_error = (
-            result.status == "lookup_unavailable" and
-            (result.search_state == "network_error" or
+            result.search_state == "network_error" or
+            (result.status == "lookup_unavailable" and
              any(marker in result.reason for marker in ERROR_MARKERS))
         )
         if is_error:
