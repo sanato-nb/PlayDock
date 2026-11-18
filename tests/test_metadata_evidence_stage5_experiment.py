@@ -7,6 +7,7 @@ import zipfile
 import pytest
 
 from experiments.dlsite_detector.archive_identity import identify_archive
+from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.internal_metadata import inspect_metadata
 from experiments.dlsite_detector.metadata_fields import parse_metadata_fields
 from experiments.dlsite_detector.pipeline import SearchDecision
@@ -154,8 +155,9 @@ def test_explicit_strong_game_ini_conflict_still_requests_review(tmp_path):
         ),
         allow_metadata=True,
     )
-    assert report.status == "ambiguous"
-    assert report.evidence_conflict is True
+    assert report.status == "candidate_found"
+    assert report.evidence_conflict is False
+    assert verify_identity(report).verdict == "needs_review"
 
 
 def test_engine_priority_wins_over_many_readme_files(tmp_path):
