@@ -429,8 +429,8 @@ def self_test() -> int:
     with TemporaryDirectory(prefix="playdock-identity-selftest-") as tmp:
         path = Path(tmp) / "Tester Sample.zip"
         with zipfile.ZipFile(path, "w") as z:
-            z.writestr("Game/Game.ini", "Title=Sample Test Game\\n")
-            z.writestr("Game/steam_appid.txt", "1621540\\n")
+            z.writestr("Game/Game.ini", "Title=Sample Test Game\n")
+            z.writestr("Game/steam_appid.txt", "1621540\n")
             z.writestr("Game/Tester.exe", b"SAMPLE, NOT EXECUTABLE")
             z.writestr("Game/game/archive.rpa", b"SAMPLE DATA")
         def offline_mock(_):
