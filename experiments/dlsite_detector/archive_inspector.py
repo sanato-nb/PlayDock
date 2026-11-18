@@ -12,7 +12,7 @@ import re
 import zipfile
 
 from .detector import extract_code
-from .archive_encryption import probe_archive_encryption
+from .archive_encryption import EncryptionProbe, probe_archive_encryption
 
 
 MAX_MEMBERS = 120_000
@@ -151,7 +151,9 @@ def _list_archive(path: Path, suffix: str):
         raise ValueError("지원하지 않는 파일 형식입니다.")
 
 
-def inspect_archive(path: Path) -> ArchiveInspection:
+def inspect_archive(
+    path: Path, *, encryption_probe: EncryptionProbe | None = None,
+) -> ArchiveInspection:
     """파일 목록만 분석해 정체 검색에 사용할 *후보*를 반환한다.
 
     리스트를 DB에 저장하거나 외부 사이트로 전송하지 않는다.
@@ -169,7 +171,7 @@ def inspect_archive(path: Path) -> ArchiveInspection:
 
     # 암호 보호 압축파일은 파일명이 보이는 형식이라도 내부 폴더명/EXE
     # 이름/작품 코드를 정체 판단에 사용하지 않는다.
-    probe = probe_archive_encryption(archive)
+    probe = encryption_probe if encryption_probe is not None else probe_archive_encryption(archive)
     if probe.state != "clear":
         encrypted = probe.state == "encrypted"
         return ArchiveInspection(
