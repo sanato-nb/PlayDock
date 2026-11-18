@@ -1,12 +1,12 @@
-"""압축파일 이름과 압축 내부 근거를 모두 모은 뒤 통합 검색어를 선정하는 계획기.
+"""v0.5: 압축파일명 + 내부 목록 + 설정 메타데이터를 합친 후 검색어를 선정.
 
-검색 전 파일명·실행파일·패키지·엔진 설정·작품 ID를 함께 수집한다.
-공통 런타임 파일명, 번역 플러그인 및 일반 폴더명은 인터넷 검색 금지.
-코드→명시적 게임명→정제된 압축명→게임 EXE 순으로 우선순위를 정한다.
+수집 단계에서는 외부 검색을 하지 않는다. 모든 후보의 가치·중복을 먼저
+평가한 후 공식 작품 ID/강한 제목/파일명을 우선해 요청 수를 제한한다.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from .archive_inspector import ArchiveInspection
 from .detector import normalized_title
@@ -17,7 +17,7 @@ from .search_terms import cleaned_search_title
 
 @dataclass(frozen=True)
 class SearchHint:
-    stage: int  # 후보 출처: 1=압축파일명, 2=내부 목록, 3=내부 설정
+    stage: int  # 출처: 1 파일명, 2 내부 파일명, 3 내부 설정
     basis: str
     query: str
 
@@ -30,15 +30,36 @@ SKIP_TERMS = frozenset({
     "databasecleanuptool", "game", "launcher", "readme", "patch", "data",
     "ntr game", "my project", "new game", "new project", "untitled",
     "game project", "test", "sample", "test game",
+    "player", "extracted", "bepinex", "monobleedingedge",
+    "mono", "dotnet", "d3d12", "licenses", "license",
+    "python", "lib", "bin", "binary", "binaries", "common",
+    "system", "config", "settings", "crashreporter", "redist",
+    "redistributables", "unityplayer", "gameassembly",
+    "cg", "fullnet", "resources assets", "plugin", "plugins",
 })
+SKIP_KEYS = frozenset(
+    re.sub(r"[^\w]", "", value.casefold()) for value in SKIP_TERMS
+)
+ENGINE_SUFFIX = re.compile(
+    r"(?i)(?:[_\s-]+(?:data|data[0-9]*|win64[-_ ]?shipping"
+    r"|windowsnoeditor|standalonewindows64|windows64))+$"
+)
+BUILD_SUFFIX = re.compile(
+    r"(?i)[-_. ]+(?:v)?\d+(?:[._]\d+){1,5}"
+    r"(?:[-_. ]+(?:pc|windows|win64|x64|64bit))?$"
+)
+CG_RESOURCE = re.compile(r"(?i)^(?:cg|gallery|assets?)\s+\w{2,30}$")
 
 
 def _useful_title(value: str) -> str:
     title = cleaned_search_title(value).strip()
-    key = title.casefold().strip()
+    title = ENGINE_SUFFIX.sub("", title).strip()
+    title = BUILD_SUFFIX.sub("", title).strip()
+    key = re.sub(r"[^\w]", "", title.casefold())
     if (len(title) < 3 or len(title) > 140
-            or key in SKIP_TERMS or key.replace("_", " ") in SKIP_TERMS
-            or not any(c.isalpha() for c in title)):
+            or not any(c.isalpha() for c in title)
+            or key in SKIP_KEYS or CG_RESOURCE.fullmatch(title)
+            or title.casefold().startswith(("system.", "unity.", "mono."))):
         return ""
     return title
 
@@ -50,52 +71,52 @@ def build_search_plan(
     *,
     max_queries: int = 6,
 ) -> tuple[SearchHint, ...]:
-    """네트워크를 사용하지 않는 결정적 검색 계획.
+    """파일명과 내부 증거를 수집한 후에만 요청 후보를 정렬한다.
 
-    동일 작품 코드가 파일명과 내부 폴더에서 반복될 때 중복 조회하지 않는다.
-    단, 서로 *다른* 작품 코드는 상충 가능성이 있어 모두 조회한다.
+    작품 번호는 항상 가장 우선한다. 검색 상한 때문에 정제된 *파일명*
+    및 *강한 내부 게임명*이 공통 실행기/폴더명에 밀리지 않도록 한다.
     """
     hints = extract_hints(archive_name)
-    plan: list[SearchHint] = []
-    seen: set[str] = set()
+    candidates: dict[str, tuple[int, SearchHint, int]] = {}
+    insertion = 0
 
-    def append(stage: int, basis: str, query: str, *, title: bool = False) -> None:
-        if len(plan) >= max_queries:
-            return
-        value = (_useful_title(query) if title else query.strip())
+    def append(priority: int, stage: int, basis: str, query: str,
+               *, title: bool = False) -> None:
+        nonlocal insertion
+        value = _useful_title(query) if title else query.strip()
         key = normalized_title(value) or value.casefold()
-        if not value or key in seen:
+        if not value:
             return
-        seen.add(key)
-        plan.append(SearchHint(stage, basis, value))
+        item = SearchHint(stage, basis, value)
+        old = candidates.get(key)
+        if old is None:
+            candidates[key] = (priority, item, insertion)
+            insertion += 1
+        elif priority > old[0]:
+            # 같은 검색어라도 더 신뢰할 만한 출처가 나타나면 출처를 갱신.
+            candidates[key] = (priority, item, old[2])
 
-    # 높은 식별력을 가진 작품 코드부터. 파일/폴더에 반복된 같은 코드는 1회 조회.
     for code in (metadata.product_codes if metadata is not None else ()):
-        append(3, "internal_metadata_code", code)
+        append(1050, 3, "internal_metadata_code", code)
     for code in hints.dlsite_codes:
-        append(1, "archive_filename_code", code)
+        append(1000, 1, "archive_filename_code", code)
     for code in (inspection.product_codes if inspection is not None else ()):
-        append(2, "internal_product_code", code)
+        append(950, 2, "internal_product_code", code)
+    for steam_id in (metadata.steam_app_ids if metadata is not None else ()):
+        append(925, 3, "internal_metadata_steam_id", f"Steam App ID: {steam_id}")
+    for steam_id in hints.steam_app_ids:
+        append(900, 1, "archive_filename_steam_id", f"Steam App ID: {steam_id}")
 
-    # Steam은 같은 플랫폼 ID를 공식 API로 조회할 수 있는 명시적 태그 사용.
-    for sid in (metadata.steam_app_ids if metadata is not None else ()):
-        append(3, "internal_metadata_steam_id", f"Steam App ID: {sid}")
-    for sid in hints.steam_app_ids:
-        append(1, "archive_filename_steam_id", f"Steam App ID: {sid}")
-
-    # 엔진 설정 제목과 파일명 제목 모두 같은 검색 계획에 포함한다.
-    # 'ntr game'처럼 기본 프로젝트명인 항목은 위의 _useful_title에서 제외.
     for title in (metadata.strong_titles if metadata is not None else ()):
-        append(3, "internal_metadata_title", title, title=True)
-    append(1, "archive_filename", archive_name, title=True)
+        append(800, 3, "internal_metadata_title", title, title=True)
+    append(780, 1, "archive_filename", archive_name, title=True)
     for title in hints.title_aliases:
-        append(1, "archive_filename_alias", title, title=True)
-
-    # exe/루트 폴더에서 나온 게임명은 마지막 수단. 플러그인 공통 이름 제외.
+        append(765, 1, "archive_filename_alias", title, title=True)
+    for title in (metadata.title_candidates if metadata is not None else ()):
+        append(680, 3, "internal_metadata_supporting_title", title, title=True)
     if inspection is not None:
-        for title in inspection.title_candidates[:12]:
-            append(2, "internal_filename", title, title=True)
-    if metadata is not None:
-        for title in metadata.title_candidates:
-            append(3, "internal_metadata_supporting_title", title, title=True)
-    return tuple(plan)
+        for title in inspection.title_candidates[:64]:
+            append(540, 2, "internal_filename", title, title=True)
+
+    ranked = sorted(candidates.values(), key=lambda row: (-row[0], row[2]))
+    return tuple(item for _, item, _ in ranked[:max(1, min(max_queries, 12))])
