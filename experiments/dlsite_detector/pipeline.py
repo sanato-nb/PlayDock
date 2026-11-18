@@ -200,6 +200,7 @@ def classify_game(
     dlsite_lookup: Callable[..., Detection] = detect_dlsite_game,
     web_search: Callable[[str], list[dict]] = default_web_search,
     max_variants: int = 2,
+    allow_single_store_candidate: bool = False,
 ) -> SearchDecision:
     """온라인 검색 요청 1회에 대한 판별 결과. 저장·이름 변경은 절대 하지 않는다.
 
@@ -274,6 +275,21 @@ def classify_game(
                 reason="독립된 게임 관련 출처 2곳 이상에서 제목이 일치했습니다. "
                        "검색 결과만 확인했으므로 동일 작품인지 수동 또는 원문 검증이 필요합니다.",
                 web_checked=True, evidence=tuple(all_evidence))
+    if allow_single_store_candidate and all_evidence:
+        # 공식 페이지 한 곳만 나와도 *제품 후보*는 보관한다. 사용자 파일과
+        # 동일성 확인이나 '게임 확정'에는 사용하지 않는다.
+        from .storefront_candidate import single_store_candidate
+        source = single_store_candidate(display, all_evidence)
+        if source:
+            product_title, platform, url = source
+            return SearchDecision(
+                "internet_candidate", display, proposed_title=product_title,
+                dlsite_status=first.status, dlsite_code=first.code,
+                reason="공식 게임 스토어의 개별 작품 페이지 제목을 찾았습니다. "
+                       "검색 결과만 확인했으므로 작품 원문/압축파일 동일성은 미검증입니다.",
+                web_checked=True, evidence=tuple(all_evidence),
+                source_platform=platform, source_url=url,
+            )
     return SearchDecision(
         "lookup_unavailable", display, dlsite_status=first.status,
         dlsite_code=first.code, web_checked=True, evidence=tuple(all_evidence),
@@ -296,4 +312,5 @@ def fast_classify_game(title: str, *, code: str = "") -> SearchDecision:
     return classify_game(
         title, code=code, dlsite_lookup=lookup_fast,
         web_search=fast_web_search, max_variants=1,
+        allow_single_store_candidate=True,
     )
