@@ -119,3 +119,24 @@ def test_readme_labeled_fields_only_and_legacy_reader_is_explicit(tmp_path):
 def test_windows_self_test_matches_v07_readme_only_policy():
     from scripts.game_identity_tester import self_test
     assert self_test() == 0
+
+
+def test_unhandled_search_exception_is_recheckable_not_not_found(tmp_path):
+    from experiments.dlsite_detector.archive_identity import search_recheck_needed
+    archive = make_zip(tmp_path, "Retryable Galaxy.zip", {
+        "Retryable Galaxy/Retryable Galaxy.exe": b"test",
+        "Retryable Galaxy/UnityPlayer.dll": b"test",
+    })
+
+    def offline_failure(query):
+        raise TimeoutError("temporary service unavailable")
+
+    report = identify_archive(
+        archive, classifier=offline_failure, allow_metadata=True,
+        max_search_queries=2,
+    )
+    assert report.attempts
+    assert all(a.decision.search_state == "network_error"
+               for a in report.attempts)
+    assert search_recheck_needed(report)
+    assert report.to_dict()["search_errors"]

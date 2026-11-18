@@ -273,7 +273,7 @@ def identify_archive(
             decision = SearchDecision(
                 "lookup_unavailable", hint.query,
                 reason="인터넷 조회 실패: " + type(exc).__name__,
-                web_checked=True,
+                web_checked=True, search_state="network_error",
             )
         attempt = IdentityAttempt(hint.stage, hint.basis, hint.query, decision)
         attempts.append(attempt)
