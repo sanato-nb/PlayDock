@@ -35,6 +35,13 @@ class VerificationReport:
     limitations: tuple[str, ...]
     requires_manual_review: bool = True
     automatic_binding_allowed: bool = False
+    # 작품 카탈로그에서 제목/등록번호를 찾는 일과 로컬 파일이 그 작품인지
+    # 증명하는 일은 서로 다른 질문이다. 아래 상태를 독립적으로 기록한다.
+    catalog_status: str = "not_checked"
+    catalog_title: str = ""
+    catalog_product_ids: tuple[str, ...] = ()
+    catalog_release_type: str = "unknown"
+    local_identity_status: str = "unverified"
 
     @property
     def label(self) -> str:
