@@ -111,7 +111,7 @@ def _name_only_report(path: Path, first: SearchDecision,
     else:
         status = "lookup_unavailable"
     return IdentityReport(
-        path.name, status, 1,
+        path.name, status, 1 if status != "lookup_unavailable" else 2,
         first.proposed_title if status in {"confirmed_game", "candidate_found", "suspected_non_game"} else "",
         first.dlsite_code, why,
         None, attempts, None, encryption_state, (1, 2, 3),
@@ -213,10 +213,8 @@ def identify_archive(
     candidates: dict[str, IdentityAttempt] = {}
     non_game: IdentityAttempt | None = None
     for hint in plan:
-        # 공식 작품 하나를 찾았으면 일반 공통 파일명으로 계속 재검색하지 않는다.
-        if (any(a.decision.status in CONFIRMED for a in attempts)
-                and hint.basis in {"internal_filename", "internal_metadata_supporting_title"}):
-            break
+        # 복수 작품의 실행파일·아이디 단서가 있을 수 있어 모든 *선정된*
+        # 후보를 점검한다. 공통 실행기/폴더는 계획 생성 단계에서 이미 제외.
         notify(2, f"인터넷 조회 중: {hint.basis} ({len(attempts) + 1}/{len(plan)})")
         try:
             decision = classifier(hint.query)
@@ -286,7 +284,7 @@ def identify_archive(
             execution_order=tuple(actual_order),
         )
     return IdentityReport(
-        path.name, "lookup_unavailable", 2, "", "",
+        path.name, "lookup_unavailable", 3 if metadata is not None else 2, "", "",
         "모은 내부 근거와 파일명으로 검색했으나 작품을 확인하지 못했습니다. "
         + note, inspection, tuple(attempts), metadata, "clear", steps,
         execution_order=tuple(actual_order),
