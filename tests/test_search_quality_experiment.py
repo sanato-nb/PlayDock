@@ -186,7 +186,7 @@ def test_archive_stage2_web_candidate_requires_manual_confirmation(tmp_path):
         return SearchDecision("lookup_unavailable", query)
     result = identify_archive(path, classifier=classifier)
     assert result.status == "candidate_found" and result.stage == 2
-    assert "수동 확인" in result.reason
+    assert "미확정" in result.reason
 
 
 def test_review_db_saves_web_candidate_without_auto_changing_title(tmp_path):
