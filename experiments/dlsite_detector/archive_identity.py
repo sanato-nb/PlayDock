@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
 from typing import Callable
 import time
@@ -58,6 +58,7 @@ class IdentityReport:
     evidence_conflict: bool = False
     execution_order: tuple[int, ...] = ()
     stage_timings_ms: dict[str, float] = field(default_factory=dict)
+    local_evidence_reused: bool = False
 
     @property
     def label(self) -> str:
@@ -333,3 +334,80 @@ def identify_archive(
         + note, inspection, tuple(attempts), metadata, "clear", steps,
         execution_order=tuple(actual_order), stage_timings_ms=timings,
     )
+
+
+
+def search_recheck_needed(report: IdentityReport) -> bool:
+    """이전에 검색하지 못했거나 공식 번호 재확인이 남은 항목만 재검사."""
+    for attempt in report.attempts:
+        item = attempt.decision
+        if item.search_state in {"network_error", "cooldown_skipped"}:
+            return True
+        if item.web_code_hints and not item.official_code_verified:
+            return True
+        if item.status == "lookup_unavailable" and any(
+            token in item.reason for token in ("검색 오류", "조회 실패", "연속 장애")
+        ):
+            return True
+    return False
+
+
+def recheck_archive_search(
+    archive_path: Path,
+    previous: IdentityReport,
+    *,
+    classifier: Callable[[str], SearchDecision],
+    expected_stat: tuple[int, int] | None = None,
+    progress_callback: Callable[[int, str], None] | None = None,
+    max_search_queries: int = 6,
+) -> IdentityReport:
+    """검색 오류 파일의 재조사: 안전한 파일 상태 확인 뒤 로컬 근거를 재사용.
+
+    이전 검색 성공/정상 미발견은 재요청하지 않고 실패·생략·미확인
+    작품번호만 다시 조회한다. 원본 파일의 크기/mtime이 달라졌거나
+    캐시가 없으면 내부를 정상 재검사한다. 자동 파일 수정 없음.
+    """
+    path = Path(archive_path)
+    if not path.is_file() or path.is_symlink() or path.name != previous.archive_name:
+        raise ValueError("재검사 원본 파일이 없거나 기존 압축파일과 다릅니다.")
+    st = path.stat()
+    signature = (st.st_size, st.st_mtime_ns)
+    reuse = (
+        expected_stat is not None and signature == expected_stat
+        and previous.encryption_state == "clear"
+        and previous.inspection is not None
+    )
+    if not reuse:
+        return identify_archive(
+            path, classifier=classifier, allow_metadata=True,
+            max_search_queries=max_search_queries, progress_callback=progress_callback,
+        )
+
+    stable: dict[str, SearchDecision] = {
+        attempt.query: attempt.decision
+        for attempt in previous.attempts
+        if not (
+            attempt.decision.search_state in {"network_error", "cooldown_skipped"}
+            or attempt.decision.web_code_hints
+               and not attempt.decision.official_code_verified
+            or attempt.decision.status == "lookup_unavailable" and any(
+                word in attempt.decision.reason
+                for word in ("검색 오류", "조회 실패", "연속 장애")
+            )
+        )
+    }
+
+    def retry_only(query: str) -> SearchDecision:
+        cached = stable.get(query)
+        return cached if cached is not None else classifier(query)
+
+    result = identify_archive(
+        path,
+        classifier=retry_only,
+        inspector=lambda _: previous.inspection,
+        allow_metadata=previous.metadata is not None,
+        metadata_reader=lambda _: previous.metadata,
+        max_search_queries=max_search_queries,
+        progress_callback=progress_callback,
+    )
+    return replace(result, local_evidence_reused=True)

@@ -483,3 +483,66 @@ def test_phase_timings_are_nonnegative_and_source_archive_is_unchanged(tmp_path)
     assert report.execution_order.index(5) < report.execution_order.index(2)
     assert seen and not verification.automatic_binding_allowed
     assert hashlib.sha256(archive.read_bytes()).hexdigest() == checksum_before
+
+
+
+def test_recheck_only_retries_failed_search_without_reopening_archive(tmp_path):
+    from experiments.dlsite_detector.archive_identity import (
+        recheck_archive_search, search_recheck_needed,
+    )
+    from experiments.dlsite_detector.archive_inspector import inspect_archive
+    from experiments.dlsite_detector.internal_metadata import inspect_metadata
+    path = make_zip(tmp_path, "Recheck Sky.zip", {
+        "Recheck Sky/Recheck Sky.exe": b"test",
+        "Recheck Sky/Recheck Sky_Data/app.info": "Studio\nRecheck Sky\n",
+    })
+    seen = {"index": 0, "metadata": 0, "requery": []}
+    def indexer(p):
+        seen["index"] += 1
+        return inspect_archive(p)
+    def metareader(p):
+        seen["metadata"] += 1
+        return inspect_metadata(p)
+    before = identify_archive(
+        path, classifier=lambda q: SearchDecision(
+            "lookup_unavailable", q, search_state="network_error",
+            reason="검색 오류: RuntimeError",
+        ), inspector=indexer, metadata_reader=metareader,
+        allow_metadata=True, max_search_queries=3,
+    )
+    assert search_recheck_needed(before)
+    st = path.stat()
+    signature = (st.st_size, st.st_mtime_ns)
+    def recovered(query):
+        seen["requery"].append(query)
+        return SearchDecision(
+            "confirmed_game", query, proposed_title="Recheck Sky",
+            dlsite_code="RJ09999996",
+        )
+    after = recheck_archive_search(
+        path, before, classifier=recovered, expected_stat=signature,
+        max_search_queries=3,
+    )
+    assert after.local_evidence_reused
+    assert seen["index"] == 1 and seen["metadata"] == 1
+    assert seen["requery"]
+    assert not search_recheck_needed(after)
+    assert verify_identity(after).catalog_status == "official_game_found"
+
+
+def test_recheck_file_changed_disables_cached_index(tmp_path):
+    from experiments.dlsite_detector.archive_identity import recheck_archive_search
+    path = make_zip(tmp_path, "Change Sky.zip", {"Change Sky.exe": b"a"})
+    previous = identify_archive(
+        path, classifier=lambda q: SearchDecision("lookup_unavailable", q),
+        allow_metadata=False,
+    )
+    st = path.stat()
+    with zipfile.ZipFile(path, "a") as z:
+        z.writestr("Another.exe", b"b")
+    updated = recheck_archive_search(
+        path, previous, expected_stat=(st.st_size, st.st_mtime_ns),
+        classifier=lambda q: SearchDecision("lookup_unavailable", q),
+    )
+    assert not updated.local_evidence_reused
+    assert updated.inspection.member_count >= 2
