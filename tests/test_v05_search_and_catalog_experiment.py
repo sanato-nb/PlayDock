@@ -546,3 +546,40 @@ def test_recheck_file_changed_disables_cached_index(tmp_path):
     )
     assert not updated.local_evidence_reused
     assert updated.inspection.member_count >= 2
+
+
+
+def test_verified_cross_store_link_can_connect_separate_language_titles():
+    from experiments.dlsite_detector.archive_identity import IdentityAttempt
+    from experiments.dlsite_detector.pipeline import SearchDecision
+    a = attempt("星界の航海", code="RJ09999995", status="confirmed_game")
+    b = attempt("Voyage of Starlight", steam="123456", status="platform_confirmed_game")
+    bridge = IdentityAttempt(
+        1, "verified_cross_platform_link", "RJ09999995",
+        SearchDecision(
+            "confirmed_game", "RJ09999995",
+            proposed_title="星界の航海 - Voyage of Starlight",
+            dlsite_code="RJ09999995", source_platform="dlsite+steam",
+            source_id="123456",
+        ),
+    )
+    assert len(group_external_attempts((a, b))) == 2
+    assert len(group_external_attempts((a, b, bridge))) == 1
+    assert len(group_external_attempts((bridge, a, b))) == 1
+
+
+def test_cross_store_bridge_cannot_erase_a_different_official_code():
+    from experiments.dlsite_detector.archive_identity import IdentityAttempt
+    from experiments.dlsite_detector.pipeline import SearchDecision
+    a = attempt("Star Ocean One", code="RJ09999994", status="confirmed_game")
+    b = attempt("Star Ocean One", code="RJ09999993", status="confirmed_game")
+    c = IdentityAttempt(
+        1, "verified_cross_platform_link", "RJ09999994",
+        SearchDecision(
+            "confirmed_game", "RJ09999994",
+            proposed_title="Star Ocean One",
+            dlsite_code="RJ09999994", source_platform="dlsite+steam",
+            source_id="234567",
+        ),
+    )
+    assert len(group_external_attempts((a, b, c))) == 2

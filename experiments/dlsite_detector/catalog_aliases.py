@@ -43,7 +43,7 @@ def explicit_title_keys(name: str) -> set[str]:
 def _ids(decision) -> tuple[str, str]:
     dlsite = (getattr(decision, "dlsite_code", "") or "").upper()
     steam = (getattr(decision, "source_id", "")
-             if getattr(decision, "source_platform", "") == "steam" else "")
+             if getattr(decision, "source_platform", "") in {"steam", "dlsite+steam"} else "")
     return dlsite, steam
 
 
@@ -70,6 +70,27 @@ def _can_merge(first, second) -> bool:
     return bool(keys_a & keys_b)
 
 
+def _linked_through_official_bridge(first, second, context: Sequence) -> bool:
+    """공식 DLsite + Steam 원본을 둘 다 확인한 단일 조회만 교차 링크로 사용."""
+    a, b = _ids(first), _ids(second)
+    if any(x and y and x != y for x, y in zip(a, b)):
+        return False
+    name_a = (getattr(first, "proposed_title", "") or "").strip()
+    name_b = (getattr(second, "proposed_title", "") or "").strip()
+    if bool(DISTRIBUTION_PREFIX.match(name_a)) != bool(DISTRIBUTION_PREFIX.match(name_b)):
+        return False
+    for item in context:
+        if getattr(item, "source_platform", "") != "dlsite+steam":
+            continue
+        dlsite, steam = _ids(item)
+        if not (dlsite and steam):
+            continue
+        if ((a[0] == dlsite and b[1] == steam)
+                or (a[1] == steam and b[0] == dlsite)):
+            return True
+    return False
+
+
 def group_external_attempts(attempts: Sequence) -> tuple[tuple, ...]:
     """IdentityAttempt 목록을 제품 후보 그룹으로 병합. 대표는 공식 코드 우선.
 
@@ -94,10 +115,17 @@ def group_external_attempts(attempts: Sequence) -> tuple[tuple, ...]:
         if len(matches) == 1:
             matches[0].append(item)
         else:
-            # 서로 다른 두 공식 ID 그룹을 무심코 transitive merge 금지.
-            if all(_can_merge(item.decision, m.decision)
+            # 무관한 그룹은 단순한 제목 유사성으로 합치지 않는다.
+            # 공식에서 양쪽 코드/상품을 *각각* 확인한 결정만 중간 연결 가능.
+            bridge_context = [item.decision] + [
+                member.decision for group in matches for member in group
+            ]
+            def compatible(a, b):
+                return (_can_merge(a, b) or
+                        _linked_through_official_bridge(a, b, bridge_context))
+            if all(compatible(item.decision, m.decision)
                    for group in matches for m in group) and all(
-                    _can_merge(a.decision, b.decision)
+                    compatible(a.decision, b.decision)
                     for i, g in enumerate(matches) for other in matches[i + 1:]
                     for a in g for b in other
             ):
