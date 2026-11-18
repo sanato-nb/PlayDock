@@ -113,3 +113,9 @@ def test_readme_labeled_fields_only_and_legacy_reader_is_explicit(tmp_path):
                for e in basic.evidence)
     legacy = inspect_metadata(archive)
     assert "Unwanted INI Title" in legacy.title_candidates
+
+
+
+def test_windows_self_test_matches_v07_readme_only_policy():
+    from scripts.game_identity_tester import self_test
+    assert self_test() == 0

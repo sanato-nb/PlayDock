@@ -142,7 +142,7 @@ class IdentityTesterApp(tk.Tk):
         options.pack(fill="x", pady=(0, 8))
         ttk.Checkbutton(
             options,
-            text="내부 근거 수집 → 인터넷 통합 검색 → 교차검증",
+            text="파일명·내부 구조·README 제한 확인 → 통합 검색 → 교차검증",
             variable=self.online,
         ).pack(side="left")
         ttk.Checkbutton(
@@ -524,7 +524,7 @@ class IdentityTesterApp(tk.Tk):
             f"파일 구성: {verified.package_assessment}",
             f"한국어 근거: {verified.localization_assessment}",
             f"내부 목록: {verified.inspection_state}",
-            f"메타데이터: {verified.metadata_state}",
+            f"README 제한 단서: {verified.metadata_state}",
             "",
             "[단계별 소요시간 (ms)]",
             *[
@@ -571,7 +571,7 @@ class IdentityTesterApp(tk.Tk):
             f"인터넷 검색 없는 내부 조사 (작품 정체 확정 아님)",
             f"압축 내부 목록: {inspection.state} / {inspection.member_count}개 항목",
             f"암호화 표시: {inspection.encrypted}",
-            f"메타데이터: {meta.state} / {meta.inspected_files}개 파일 읽음",
+            f"README 제한 읽기: {meta.state} / {meta.inspected_files}개 파일 읽음",
             f"게임명 후보: {', '.join(meta.title_candidates) or '없음'}",
             f"DLsite 코드: {', '.join(meta.product_codes) or '없음'}",
             f"Steam ID: {', '.join(meta.steam_app_ids) or '없음'}",
@@ -765,8 +765,10 @@ def self_test() -> int:
     with TemporaryDirectory(prefix="playdock-identity-selftest-") as tmp:
         path = Path(tmp) / "Tester Sample.zip"
         with zipfile.ZipFile(path, "w") as z:
-            z.writestr("Game/Game.ini", "Title=Sample Test Game\n")
+            z.writestr("Game/Game.ini", "Title=Legacy Game (must not read)\n")
             z.writestr("Game/steam_appid.txt", "1621540\n")
+            z.writestr("Game/README.txt",
+                       "Game Title: Sample Test Game\nSteam App ID: 1621540\n")
             z.writestr("Game/Tester.exe", b"SAMPLE, NOT EXECUTABLE")
             z.writestr("Game/game/archive.rpa", b"SAMPLE DATA")
         def offline_mock(_):
@@ -780,9 +782,11 @@ def self_test() -> int:
         )
         verified = verify_identity(result)
         assert result.completed_steps == (1, 2, 3, 4, 5)
-        assert verified.verdict == "matched", verified.verdict
+        assert verified.verdict == "needs_review", verified.verdict
         assert verified.catalog_status == "official_game_found"
-        assert verified.local_identity_status == "matched"
+        assert verified.local_identity_status == "needs_review"
+        assert result.metadata.title_candidates == ("Sample Test Game",)
+        assert result.metadata.inspected_files == 1
         assert not verified.automatic_binding_allowed
     return 0
 

@@ -1,4 +1,4 @@
-# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.6)
+# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.7)
 
 > **시작점:** [인수인계](HANDOFF_2026-11-19_KO.md) · [새 채팅 프롬프트](NEXT_CHAT_PROMPT_KO.md) · [회귀 체크리스트](REGRESSION_CHECKLIST_KO.md).
 >
@@ -35,11 +35,11 @@ experiments/dlsite_detector/
 ├── __init__.py                — 독립 실험 Python 패키지 초기화
 ├── archive_encryption.py      — ZIP/7z/RAR 암호화 여부 확인
 ├── archive_inspector.py       — 압축 내부 항목·크기·EXE·엔진·작품번호·언어 단서 수집
-├── internal_metadata.py       — 제한된 작은 설정/README 내용 읽기 및 출처 기록
+├── internal_metadata.py       — 기본 README 제한 필드만 읽기; 레거시 정밀 설정 파서는 명시적 선택 시만 사용
 ├── metadata_fields.py        — 엔진별 gameTitle/product_name 등 허용 필드 판별
 ├── search_terms.py           — 압축파일 이름에서 검색용 제목 정제
 ├── identity_hints.py         — 작품번호·Steam ID·버전·배포/번역 단서 추출
-├── search_plan.py            — 파일명+내부 근거를 합쳐 검색 후보 점수 정렬·중복 제거
+├── search_plan.py            — 파일명·내부 목록·README 통합 검색 계획; 압축파일명 제목 검색 보장
 ├── search_session.py         — GUI 배치 검색 캐시·에러/쿨다운 제한·검색 재시도 대기열 및 통계
 ├── detector.py               — DLsite 등록번호·타입 조회
 ├── steam_client.py           — Steam 개별 앱 정보 조회
@@ -48,7 +48,7 @@ experiments/dlsite_detector/
 ├── web_alias_discovery.py    — 다국어 이름·영문 병기 웹 단서 추출
 ├── storefront_candidate.py   — itch.io/Steam 개별 상품 페이지 후보 식별
 ├── catalog_aliases.py        — 공식 다국어 별칭과 검증된 DLsite↔Steam 교차 근거를 통한 보수적 상품 병합
-├── archive_identity.py       — 암호·목록·설정 수집 → 통합 인터넷 검색, 단계별 시간, 실패 항목 재검색 시 내부 근거 재사용
+├── archive_identity.py       — 암호·내부 구조·README 수집 후 통합 검색; 시간 계측·검색 실패 재검사
 ├── evidence_normalizer.py    — 파일명·목록·메타·공식 웹 근거를 출처별 정규화
 ├── identity_matcher.py       — 작품 ID/공식 제목/내부 근거 비교
 ├── identity_verifier.py      — 6단계 보수 판정과 카탈로그·로컬 상태 구분
@@ -62,6 +62,7 @@ experiments/dlsite_detector/
 ├── artwork_staging.py        — 아이콘·이미지 단계적 변경·복원 실험
 ├── README_KO.md              — v0.1~v0.5 상세 변경 이력(이전 규칙 일부 포함)
 ├── V06_IMPLEMENTATION_2026-11-19_KO.md — v0.6 실제 구현·테스트·남은 한계
+├── V07_IMPLEMENTATION_2026-11-19_KO.md — v0.7 파일명·내부 구조·README 기반 실제 개발 기록
 ├── HANDOFF_2026-11-19_KO.md  — 현재 상태·실측 검증·다음 작업·제약사항
 ├── FILE_MAP_KO.md            — 현재 파일·폴더 및 호출 경로 설명
 ├── REGRESSION_CHECKLIST_KO.md — 새 버전 기능·안전성 검증 기준
@@ -76,7 +77,8 @@ scripts/
 └── Identity-Tester-README_KO.txt       — 독립 Windows 테스트 EXE 사용 방법
 
 tests/
-├── test_v05_search_and_catalog_experiment.py       — v0.5 검색·별칭·쿨다운·이중 판정
+├── test_v05_search_and_catalog_experiment.py       — v0.5~v0.6 검색·별칭·쿨다운·이중 판정
+├── test_v07_filename_structure_readme_experiment.py — v0.7 README 읽기 제한·파일명 검색 보장·원본 불변성·자체 테스트
 ├── test_fast_combined_scan_v04_experiment.py       — 속도/중복 조회 제한과 내부 단서 통합
 ├── test_internal_first_search_v03_experiment.py    — 검색 전 이름+내부 근거 수집 및 암호 정책
 ├── test_archive_identity_pipeline_experiment.py   — 압축 식별 파이프라인·근거 순서

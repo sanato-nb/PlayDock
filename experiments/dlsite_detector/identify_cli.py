@@ -1,7 +1,7 @@
 """PlayDock 1~5단계 독립 검색 실험 CLI.
 
---online 시 비암호화 압축파일은 검색 성공 여부와 관계없이 목록/소형
-메타데이터를 확인한다. --online 없이는 외부 인터넷을 사용하지 않는다.
+--online 시 비암호화 압축파일은 검색 전에 내부 목록 및 최대 2개
+README의 명시적 필드만 확인한다. --online 없이는 외부 인터넷을 사용하지 않는다.
 """
 from __future__ import annotations
 
