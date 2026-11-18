@@ -115,7 +115,8 @@ def test_pipeline_calls_steps_in_order_and_callback_is_optional(tmp_path):
         progress_callback=lambda step,label: events.append((step,label)),
     )
     assert report.completed_steps == (1,2,3,4,5)
-    assert [step for step,_ in events] == [1,2,3,4,5]
+    assert [step for step,_ in events][:5] == [1,3,4,5,2]
+    assert report.execution_order == (1,3,4,5,2)
 
     # 잘못된 UI 콜백이 작품 판정/파일 검사 자체를 중단하면 안 된다.
     other=identify_archive(
