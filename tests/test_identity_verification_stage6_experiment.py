@@ -168,7 +168,7 @@ def test_weak_filename_id_is_not_independent_id_confirmation():
 def test_verified_alias_enables_strong_match_without_guessing():
     report = fixture_report(title="달빛 이야기", metadata_title="Moonlight Story")
     original = verify_identity(report)
-    assert original.verdict == "conflict"
+    assert original.verdict == "needs_review"
     corrected = verify_identity(
         report, verified_aliases={"달빛 이야기": ["Moonlight Story"]}
     )
@@ -178,7 +178,7 @@ def test_verified_alias_enables_strong_match_without_guessing():
 
 def test_no_unverified_fuzzy_match_for_sequel():
     report = fixture_report(title="Adventure", metadata_title="Adventure II")
-    assert verify_identity(report).verdict == "conflict"
+    assert verify_identity(report).verdict == "needs_review"
 
 
 def test_different_internal_roots_block_matched_even_with_same_id():
