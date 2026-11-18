@@ -243,3 +243,80 @@ def test_one_bilingual_catalog_record_survives_full_pipeline(tmp_path):
     assert ver.catalog_status == "official_game_found"
     assert len(ver.candidate_titles) == 1
     assert ver.verdict != "conflict"
+
+
+def test_single_official_store_page_is_web_candidate_only():
+    from experiments.dlsite_detector import pipeline
+
+    def no_dlsite(name, *, code="", allow_title_search=False):
+        from experiments.dlsite_detector.detector import Detection
+        return Detection("unverified", name)
+
+    result = pipeline.classify_game(
+        "Moonlight Story",
+        dlsite_lookup=no_dlsite,
+        web_search=lambda q: [{
+            "title": "Moonlight Story - itch.io",
+            "href": "https://fable-studio.itch.io/moonlight-story",
+            "body": "An indie game",
+        }],
+        max_variants=1,
+        allow_single_store_candidate=True,
+    )
+    assert result.status == "internet_candidate"
+    assert result.proposed_title == "Moonlight Story"
+    assert result.source_platform == "itch.io"
+    assert not result.dlsite_code
+
+
+def test_itch_developer_profile_is_not_assumed_to_be_a_game():
+    from experiments.dlsite_detector import pipeline
+    from experiments.dlsite_detector.detector import Detection
+
+    result = pipeline.classify_game(
+        "Moonlight Studio", dlsite_lookup=lambda *a, **kw:
+        Detection("unverified", "Moonlight Studio"),
+        web_search=lambda q: [{
+            "title": "Moonlight Studio - itch.io",
+            "href": "https://moonlight-studio.itch.io/",
+            "body": "Games by Moonlight Studio",
+        }],
+        max_variants=1, allow_single_store_candidate=True,
+    )
+    assert result.status == "lookup_unavailable"
+
+
+def test_itch_official_devlog_and_possessive_title_are_only_web_candidate():
+    from experiments.dlsite_detector import pipeline
+    from experiments.dlsite_detector.detector import Detection
+
+    result = pipeline.classify_game(
+        "elenastory", dlsite_lookup=lambda *a, **kw:
+        Detection("unverified", "elenastory"),
+        web_search=lambda q: [{
+            "title": "Update 1.5 is Now Live! - Elena's Story by Example Studio",
+            "href": "https://example-studio.itch.io/elenas-story/devlog/5555/update-15",
+            "body": "Game update",
+        }],
+        max_variants=1, allow_single_store_candidate=True,
+    )
+    assert result.status == "internet_candidate"
+    assert result.proposed_title == "Elena's Story"
+    assert result.source_platform == "itch.io"
+
+
+def test_unrelated_store_game_is_not_linked_by_developer_name():
+    from experiments.dlsite_detector import pipeline
+    from experiments.dlsite_detector.detector import Detection
+
+    result = pipeline.classify_game(
+        "BunnyHero", dlsite_lookup=lambda *a, **kw:
+        Detection("unverified", "BunnyHero"),
+        web_search=lambda q: [{
+            "title": "The Selfish Bunny by BunnyHero - itch.io",
+            "href": "https://bunnyhero.itch.io/the-selfish-bunny",
+            "body": "A game made by BunnyHero",
+        }],
+        max_variants=1, allow_single_store_candidate=True,
+    )
+    assert result.status == "lookup_unavailable"
