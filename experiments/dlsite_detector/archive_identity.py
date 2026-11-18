@@ -113,6 +113,7 @@ def identify_archive(
     inspector: Callable[[Path], ArchiveInspection] = inspect_archive,
     allow_metadata: bool = False,
     metadata_reader: Callable[[Path], MetadataInspection] = inspect_metadata,
+    progress_callback: Callable[[int, str], None] | None = None,
 ) -> IdentityReport:
     """1~5단계 수집. allow_metadata=True면 필요한 소형 메타데이터도 확인한다.
 
@@ -120,18 +121,29 @@ def identify_archive(
     전체 로컬 경로·README 원문·압축파일 데이터는 웹으로 전송하지 않는다.
     UI·본체 DB·원본 파일 내용과 파일명은 변경하지 않는다.
     """
+    def notify(stage: int, label: str) -> None:
+        # 콜백은 UI 상태만 전달하며 실제 판정 근거에 영향을 주지 않음.
+        if progress_callback is not None:
+            try:
+                progress_callback(stage, label)
+            except Exception:
+                pass
+
+    notify(1, "압축파일명 및 검색어 준비")
     path = Path(archive_path)
     if path.suffix.casefold() not in ARCHIVE_EXTS or not path.is_file() or path.is_symlink():
         return IdentityReport(path.name, "invalid_archive", 0, "", "",
                               "존재하는 일반 ZIP/7z/RAR 파일만 분석할 수 있습니다.", None)
 
     query = path.stem.strip()
+    notify(2, "인터넷에서 작품 후보 검색 중")
     first = classifier(query)  # 1단계 이름 전처리 + 2단계 외부 검색
     attempts: list[IdentityAttempt] = [
         IdentityAttempt(1, "archive_filename", query, first),
     ]
 
     # 3단계: 외부 검색 성공 여부와 관계없이 암호 상태를 먼저 확인한다.
+    notify(3, "압축파일 암호화 여부 검사 중")
     probe = probe_archive_encryption(path)
     if probe.state == "encrypted":
         return _name_only_report(
@@ -159,6 +171,7 @@ def identify_archive(
 
     # 4단계: 이름 검색이 성공한 게임도 내부 목록 전체를 검사한다.
     # 압축해제하지 않으며 inspector가 최대 항목 수 제한을 관리한다.
+    notify(4, "압축파일 내부 전체 목록 확인 중")
     inspection = inspector(path)
     steps = (1, 2, 3, 4)
     if inspection.state not in {"ok", "partial", "limit_exceeded"}:
@@ -204,6 +217,7 @@ def identify_archive(
     # 외부 이름으로 작품을 이미 확인한 경우에는 불필요한 내부 이름별
     # 인터넷 재검색을 하지 않고 증거를 저장한다. 불확실한 경우에만 재검색.
     if first.status not in FOUND | {"suspected_non_game"}:
+        notify(4, "내부 목록에서 찾은 제목·작품 코드로 재검색 중")
         index_hints = (
             [("internal_filename", v) for v in inspection.title_candidates[:MAX_TITLE_QUERIES]]
             + [("internal_product_code", v) for v in inspection.product_codes[:MAX_CODE_QUERIES]]
@@ -215,9 +229,11 @@ def identify_archive(
     # 최종 검증에 쓸 수 있게 수집한다.
     metadata = None
     if allow_metadata:
+        notify(5, "작은 설정파일·README 메타데이터 확인 중")
         metadata = metadata_reader(path)
         steps = (1, 2, 3, 4, 5)
         if metadata.state == "ok" and first.status not in FOUND | {"suspected_non_game"}:
+            notify(5, "메타데이터 제목·품번 후보 재검색 중")
             meta_hints = (
                 [("internal_metadata_title", v)
                  for v in metadata.title_candidates[:MAX_METADATA_TITLE_QUERIES]]
