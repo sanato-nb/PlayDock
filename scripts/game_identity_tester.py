@@ -21,7 +21,7 @@ from experiments.dlsite_detector.archive_inspector import inspect_archive
 from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.internal_metadata import inspect_metadata
 
-VERSION = "0.2-test"
+VERSION = "0.3-test"
 VERDICT_KO = {
     "matched": "일치 확인",
     "likely_candidate": "유력 후보",
@@ -115,7 +115,7 @@ class IdentityTesterApp(tk.Tk):
         options.pack(fill="x", pady=(0, 8))
         ttk.Checkbutton(
             options,
-            text="인터넷에서 작품 검색 + 1~6단계 교차검증",
+            text="내부 근거 수집 → 인터넷 통합 검색 → 교차검증",
             variable=self.online,
         ).pack(side="left")
         ttk.Label(
@@ -173,8 +173,12 @@ class IdentityTesterApp(tk.Tk):
             self.bar.configure(value=0)
             self.progress.set("선택된 파일 없음")
             return
+        # 비암호화 파일은 1 → 3 → 4 → 5 → 2 → 6 순서.
+        # 기존 단계 번호 순서를 기준으로 계산하면 검색을 시작할 때
+        # 진행바가 뒤로 움직이므로 실제 실행 순서로 변환한다.
+        stage_positions = {1: 0, 3: 1, 4: 2, 5: 3, 2: 4, 6: 5}
         step_fraction = (
-            max(0, min(stage - 1, 5)) / 6
+            stage_positions.get(stage, 0) / 6
             if self.running_online else
             (0.5 if stage >= 5 else 0)
         )
@@ -412,7 +416,9 @@ class IdentityTesterApp(tk.Tk):
                 elif event[0] == "step":
                     _, idx, stage, label = event
                     step_text = (
-                        f"{stage}/6단계" if self.running_online
+                        (f"{ {1:1, 3:2, 4:3, 5:4, 2:5, 6:6}.get(stage, 1) }/6"
+                         f" (원래 {stage}단계)")
+                        if self.running_online
                         else ("1/2단계" if stage == 4 else "2/2단계")
                     )
                     self.stage_status.set(
