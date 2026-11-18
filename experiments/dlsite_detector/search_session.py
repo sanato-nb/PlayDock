@@ -10,6 +10,7 @@ from collections import OrderedDict
 from dataclasses import dataclass, replace
 from typing import Callable
 import re
+import time
 
 from .detector import normalized_title
 from .pipeline import SearchDecision
@@ -48,10 +49,13 @@ class SearchSession:
     def __init__(
         self, classifier: Callable[[str], SearchDecision], *,
         max_failures: int = 2, cache_size: int = 512,
+        cooldown_seconds: float = 20.0,
     ) -> None:
         self.classifier = classifier
         self.max_failures = max(1, max_failures)
         self.cache_size = max(1, cache_size)
+        self.cooldown_seconds = max(0.0, cooldown_seconds)
+        self._retry_after = 0.0
         self._cache: OrderedDict[str, SearchDecision] = OrderedDict()
         self._failures = 0
         self._requests = 0
@@ -67,7 +71,9 @@ class SearchSession:
             self._cache.move_to_end(key)
             return replace(cached, original_query=query)
         # 연속 검색 장애가 있을 때도 작품 ID 조회는 계속한다.
-        if self._failures >= self.max_failures and not CODE.fullmatch(query.strip()):
+        if (self._failures >= self.max_failures
+                and time.monotonic() < self._retry_after
+                and not CODE.fullmatch(query.strip())):
             self._avoided += 1
             return SearchDecision(
                 "lookup_unavailable", query, web_checked=False,
@@ -89,10 +95,13 @@ class SearchSession:
         if is_error:
             self._errors += 1
             self._failures += 1
+            if self._failures >= self.max_failures:
+                self._retry_after = time.monotonic() + self.cooldown_seconds
             # 외부 서비스가 복구되면 다른 파일에서 다시 시도하도록
             # 실패한 쿼리는 캐시하지 않는다.
         else:
             self._failures = 0
+            self._retry_after = 0.0
             self._cache[key] = result
             self._cache.move_to_end(key)
             while len(self._cache) > self.cache_size:
@@ -106,3 +115,4 @@ class SearchSession:
     def clear(self) -> None:
         self._cache.clear()
         self._failures = 0
+        self._retry_after = 0.0
