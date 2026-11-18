@@ -62,8 +62,8 @@ def test_multiple_competing_english_aliases_fail_closed():
     records=(
         hit("황성의 빅토리아스 Radiant Victorias", "a.example"),
         hit("황성의 빅토리아스 Radiant Victorias", "b.example"),
-        hit("황성의 빅토리아스 Unknown Game", "c.example"),
-        hit("황성의 빅토리아스 Unknown Game", "d.example"),
+        hit("황성의 빅토리아스 Starlight Meadow", "c.example"),
+        hit("황성의 빅토리아스 Starlight Meadow", "d.example"),
     )
     assert discover_parallel_title(name, records) is None
 
@@ -142,7 +142,6 @@ def test_offline_progress_percentage_is_bounded_without_gui_window():
         def configure(self, **kwargs):
             self.value=kwargs.get("value")
 
-    obj=object.__new__(IdentityTesterApp) if False else None
     # Tk.__new__ produces an uninitialized wrapper; helper only touches mocks.
     class Dummy:
         _show_progress=IdentityTesterApp._show_progress
