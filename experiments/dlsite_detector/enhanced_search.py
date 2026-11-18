@@ -12,7 +12,7 @@ import re
 
 from .detector import normalized_title
 from .identity_hints import extract_hints
-from .pipeline import SearchDecision, classify_game
+from .pipeline import SearchDecision, classify_game, fast_classify_game
 from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product, SteamLookupUnavailable
 from .web_alias_discovery import discover_parallel_title
@@ -53,6 +53,8 @@ def enhanced_classify_game(
     code: str = "",
     classifier: Callable[..., SearchDecision] = classify_game,
     steam_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_product,
+    alias_retry_limit: int = 2,
+    steam_candidate_limit: int = 4,
 ) -> SearchDecision:
     """압축파일명 1차 검색의 고도화 판별 결과.
 
@@ -144,7 +146,7 @@ def enhanced_classify_game(
         if not sid or sid in tried:
             continue
         tried.add(sid)
-        if len(tried) > 4:
+        if len(tried) > steam_candidate_limit:
             break
         try:
             item = steam_fetcher(sid)
@@ -165,7 +167,7 @@ def enhanced_classify_game(
 
     # 파일명에 사용자가 직접 병기한 공식 후보 별칭만 활용한다.
     # 번역/음역은 AI로 만들어내지 않으며 아무 영문 단어를 다른 언어로 바꾸지 않는다.
-    for alias in hints.title_aliases[:2]:
+    for alias in hints.title_aliases[:max(0, alias_retry_limit)]:
         if not alias or normalized_title(alias) == normalized_title(request_name):
             continue
         second = classifier(alias, code="")
@@ -198,3 +200,15 @@ def enhanced_classify_game(
         return replace(original,
                        reason=original.reason + " Steam 원본 조회 실패: " + store_error)
     return original
+
+
+
+def fast_enhanced_classify_game(title: str, *, code: str = "") -> SearchDecision:
+    """사용자 검증판 고속 검색: 명시적 공식 ID 우선, 웹 반복·별칭 재검색 억제.
+
+    별칭 자체는 상위 search_plan에서 독립 검색 후보로 처리한다.
+    """
+    return enhanced_classify_game(
+        title, code=code, classifier=fast_classify_game,
+        alias_retry_limit=0, steam_candidate_limit=1,
+    )
