@@ -47,7 +47,7 @@ CODE_JSON_KEYS = ("dlsite_code", "dlsite_id", "workno", "work_no", "product_id")
 # 다르다는 이유만으로 잘못된 '근거 충돌'이 발생한 것을 반영한다.
 GENERIC_PROJECT_TITLES = frozenset({
     "ntr game", "game", "new game", "new project", "my project",
-    "untitled", "untitled game", "project", "sample game",
+    "untitled", "untitled game", "project",
     "test game", "test", "rpg maker", "game project",
 })
 
