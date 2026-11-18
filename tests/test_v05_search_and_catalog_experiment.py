@@ -320,3 +320,27 @@ def test_unrelated_store_game_is_not_linked_by_developer_name():
         max_variants=1, allow_single_store_candidate=True,
     )
     assert result.status == "lookup_unavailable"
+
+
+def test_circuit_breaker_eventually_probes_to_recover(monkeypatch):
+    from experiments.dlsite_detector import search_session
+    clock = {"now": 100.0}
+    monkeypatch.setattr(search_session.time, "monotonic", lambda: clock["now"])
+    calls = []
+
+    def unstable(q):
+        calls.append(q)
+        if len(calls) <= 2:
+            return SearchDecision("lookup_unavailable", q,
+                                  reason="일반 인터넷 검색 오류: RuntimeError")
+        return SearchDecision("internet_candidate", q, proposed_title=q)
+
+    session = SearchSession(unstable, max_failures=2, cooldown_seconds=20)
+    assert session("Story One").status == "lookup_unavailable"
+    assert session("Story Two").status == "lookup_unavailable"
+    assert session("Story Three").web_checked is False
+    clock["now"] = 121.0
+    assert session("Story Four").status == "internet_candidate"
+    assert session("Story Five").status == "internet_candidate"
+    assert calls == ["Story One", "Story Two", "Story Four", "Story Five"]
+    assert session.metrics.avoided_requests == 1
