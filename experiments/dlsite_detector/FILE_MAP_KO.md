@@ -1,4 +1,4 @@
-# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.7)
+# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.8)
 
 > **시작점:** [인수인계](HANDOFF_2026-11-19_KO.md) · [새 채팅 프롬프트](NEXT_CHAT_PROMPT_KO.md) · [회귀 체크리스트](REGRESSION_CHECKLIST_KO.md).
 >
@@ -44,9 +44,9 @@ experiments/dlsite_detector/
 ├── detector.py               — DLsite 등록번호·타입 조회
 ├── steam_client.py           — Steam 개별 앱 정보 조회
 ├── pipeline.py               — 일반 웹 검색·검색 결과 근거 및 후보 판정
-├── enhanced_search.py        — DLsite·Steam·웹 결과 통합·웹 작품번호 공식 재조회 및 빠른/상세 검색
+├── enhanced_search.py        — DLsite·Steam 통합, 웹 코드-공식 제목 교차 확인으로 무관한 작품 ID 오인 방지
 ├── web_alias_discovery.py    — 다국어 이름·영문 병기 웹 단서 추출
-├── storefront_candidate.py   — itch.io/Steam 개별 상품 페이지 후보 식별
+├── storefront_candidate.py   — itch.io/Steam 진짜 작품 홈 판별; 댓글·devlog 오인 차단
 ├── catalog_aliases.py        — 공식 다국어 별칭과 검증된 DLsite↔Steam 교차 근거를 통한 보수적 상품 병합
 ├── archive_identity.py       — 암호·내부 구조·README 수집 후 통합 검색; 시간 계측·검색 실패 재검사
 ├── evidence_normalizer.py    — 파일명·목록·메타·공식 웹 근거를 출처별 정규화
@@ -63,6 +63,7 @@ experiments/dlsite_detector/
 ├── README_KO.md              — v0.1~v0.5 상세 변경 이력(이전 규칙 일부 포함)
 ├── V06_IMPLEMENTATION_2026-11-19_KO.md — v0.6 실제 구현·테스트·남은 한계
 ├── V07_IMPLEMENTATION_2026-11-19_KO.md — v0.7 파일명·내부 구조·README 기반 실제 개발 기록
+├── V08_ACCURACY_2026-11-19_KO.md — v0.8 오인 차단·후보별 공식 ID 근거 분리 및 검증
 ├── HANDOFF_2026-11-19_KO.md  — 현재 상태·실측 검증·다음 작업·제약사항
 ├── FILE_MAP_KO.md            — 현재 파일·폴더 및 호출 경로 설명
 ├── REGRESSION_CHECKLIST_KO.md — 새 버전 기능·안전성 검증 기준
