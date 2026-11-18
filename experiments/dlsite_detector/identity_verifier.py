@@ -11,7 +11,8 @@ from .detector import normalized_title
 from .evidence_normalizer import EvidenceRecord, normalize_evidence
 from .identity_hints import extract_hints
 from .identity_matcher import (
-    CandidateComparison, candidates_from_report, compare_candidate, title_key,
+    CandidateComparison, candidates_from_report, compare_candidate,
+    compatible_title_keys, title_key,
 )
 from .verification_report import VerificationReport
 
@@ -23,6 +24,8 @@ GAME_DATA_SIGNALS = frozenset({
     "Ren'Py 게임 데이터 파일 존재",
     "RPG Maker 게임 데이터 파일 존재",
     "Godot 게임 데이터 파일 후보",
+    "NW.js/Electron 패키지 데이터 존재",
+    "RPG Maker MV/MZ 게임 데이터 존재",
 })
 
 
@@ -128,6 +131,17 @@ def verify_identity(
         ]
         if index_state != "ok":
             limitations.append(f"내부 목록 검사 완전성 부족: {index_state}")
+        failed_queries = [
+            attempt for attempt in report.attempts
+            if any(token in attempt.decision.reason for token in (
+                "검색 오류", "조회 실패", "RuntimeError", "TimeoutError",
+                "ConnectionError", "HTTPError",
+            ))
+        ]
+        if failed_queries:
+            limitations.append(
+                f"검색 서비스 오류/차단 {len(failed_queries)}회: 정체가 존재하지 않음을 뜻하지 않습니다."
+            )
         if meta_state not in {"ok", "no_metadata"}:
             limitations.append(f"메타데이터 미검사·부분 검사: {meta_state}")
         if kind in FILE_ONLY:
@@ -143,11 +157,7 @@ def verify_identity(
         if len(candidates) == 1:
             selected = candidates[0]
             primary = title_key(selected)
-            known_aliases.add(primary)
-            if verified_aliases:
-                for name, values in verified_aliases.items():
-                    if title_key(name) == primary:
-                        known_aliases.update(title_key(v) for v in values)
+            known_aliases.update(compatible_title_keys(selected, verified_aliases))
         distinct_internal = strong_titles - known_aliases
         # 같은 이름이 내부에서만 발견되어도 외부 작품 검증을 대체할 수 없다.
         external_candidate_present = any(
@@ -189,9 +199,9 @@ def verify_identity(
             applied.append("bundle_multiple_titles")
             selected = ""
         elif not comparisons:
-            verdict = "needs_review" if strong_titles or any(
+            verdict = "needs_review" if (strong_titles or failed_queries or any(
                 e.kind in {"dlsite_code", "steam_app_id"} for e in records
-            ) else "unclassifiable"
+            )) else "unclassifiable"
             blockers.append("외부에서 확인된 게임 정체 후보가 없습니다.")
             applied.append("no_external_match")
             selected = candidates[0] if len(candidates) == 1 else ""
@@ -210,9 +220,12 @@ def verify_identity(
                     applied.append("possible_multiple_games_or_aliases")
                     selected = ""
                 else:
-                    verdict = "conflict"
-                    blockers.append("게임 설정의 강한 제목 근거가 외부 후보·검증된 별칭과 다릅니다.")
-                    applied.append("strong_title_disagreement")
+                    # ID가 일치하지 않는 단일 설정 제목 차이는 버전/부제/
+                    # 개발 시 프로젝트명 가능성이 있어 곧바로 다른 작품 확정 금지.
+                    verdict = "needs_review"
+                    blockers.append("내부 게임 제목과 외부 작품 제목이 다릅니다. "
+                                    "버전·개발용 프로젝트명·별칭인지 확인이 필요합니다.")
+                    applied.append("strong_title_disagreement_review")
             elif kind in FILE_ONLY:
                 verdict = "needs_review"
                 applied.append("file_type_blocks_game_confirmation")
