@@ -392,8 +392,8 @@ def test_web_code_official_relookup_is_still_local_unverified(tmp_path):
     )
     result = enhanced_classify_game(
         "가상 은하 산책", classifier=lambda *args, **kwargs: initial,
-        web_recovery_lookup=lambda code, **kw: Detection(
-            "needs_review", code, code=code,
+        web_recovery_lookup=lambda title, **kw: Detection(
+            "needs_review", title, code=kw["code"],
             work_title="Galaxy Walk Official", work_type="RPG",
         ),
         steam_fetcher=lambda *_: None,
