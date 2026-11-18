@@ -145,6 +145,32 @@ def default_web_search(query: str) -> list[dict]:
     return records[:16]
 
 
+def fast_web_search(query: str) -> list[dict]:
+    """검증판 빠른 모드: 제한된 단일 웹 요청, 결과 6개, 짧은 네트워크 제한.
+
+    상세 모드의 이중 검색과 달리 첫 요청이 실패해도 반복하지 않는다.
+    검색 오류는 추후 판정의 limitations에 남긴다.
+    """
+    try:
+        from ddgs import DDGS
+    except ImportError as exc:
+        raise RuntimeError("일반 인터넷 검색에 ddgs 패키지가 필요합니다.") from exc
+    clean = cleaned_search_title(query)
+    if not clean:
+        return []
+    if any("\u3040" <= ch <= "\u30ff" or "\u4e00" <= ch <= "\u9fff" for ch in clean):
+        qualifier = "ゲーム"
+    elif any("\uac00" <= ch <= "\ud7a3" for ch in clean):
+        qualifier = "게임"
+    else:
+        qualifier = "game"
+    try:
+        with DDGS(timeout=6) as client:
+            return list(client.text(f'"{clean}" {qualifier}', max_results=6) or [])[:6]
+    except Exception as exc:
+        raise RuntimeError("빠른 웹 검색 오류: " + type(exc).__name__) from exc
+
+
 def examine_web_results(query: str, records: list[dict]) -> tuple[WebEvidence, ...]:
     local = normalized_title(query)
     seen = set()
@@ -173,6 +199,7 @@ def classify_game(
     code: str = "",
     dlsite_lookup: Callable[..., Detection] = detect_dlsite_game,
     web_search: Callable[[str], list[dict]] = default_web_search,
+    max_variants: int = 2,
 ) -> SearchDecision:
     """온라인 검색 요청 1회에 대한 판별 결과. 저장·이름 변경은 절대 하지 않는다.
 
@@ -211,7 +238,7 @@ def classify_game(
     # 엉뚱한 게임을 확인 처리하게 된다. 로컬 제목이 있는 동안에는 로컬 우선.
     is_code_only = bool(re.fullmatch(r"(?:RJ|VJ|BJ|EJ)\d{6,8}", display.strip(), re.I))
     query_source = first.work_title if is_code_only and first.work_title else display
-    queries = search_title_variants(query_source)
+    queries = search_title_variants(query_source, limit=max(1, min(2, max_variants)))
     # 품번뿐인 파일명은 작품 코드 자체로 검색할 수 있다.
     if not queries and (first.code or code.strip()):
         queries = (first.code or code.strip(),)
@@ -252,4 +279,12 @@ def classify_game(
         dlsite_code=first.code, web_checked=True, evidence=tuple(all_evidence),
         reason=("일반 인터넷 검색 오류: " + ", ".join(errors) + ". " if errors else "")
                + "검색 후에도 게임 정체를 확정할 근거가 부족하여 조회 불가로 보관. 수동 분류 가능",
+    )
+
+
+
+def fast_classify_game(title: str, *, code: str = "") -> SearchDecision:
+    """GUI 빠른 모드: 검색어 1개당 외부 일반 검색은 최대 1회."""
+    return classify_game(
+        title, code=code, web_search=fast_web_search, max_variants=1,
     )
