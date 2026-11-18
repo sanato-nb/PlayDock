@@ -1,8 +1,8 @@
-"""PlayDock 독립 게임 정체 조사: 파일명 → 웹 → 암호 확인 → 전체 목록 → 소형 메타데이터.
+"""PlayDock 독립 게임 정체 조사: 이름 준비 → 암호 → 내부 목록/설정 → 통합 웹검색.
 
-5단계까지는 근거 수집이 목적이다. 인터넷에서 작품명이 확인되어도 로컬
-압축파일이 그 게임이라고 확정하지 않는다. 최종 근거 대조·자동 변경은
-이 모듈의 범위가 아니다. 암호화된 압축파일은 이름 검색만 수행한다.
+검색 성공 여부와 상관없이 비암호화 압축파일에서 가능한 단서를 *먼저*
+전부 모은다. 검색은 모은 단서의 우선순위에 따라서 나중에 수행한다.
+암호화된 압축파일은 기존 정책대로 파일명 검색만 수행한다.
 """
 from __future__ import annotations
 
@@ -17,6 +17,7 @@ from .enhanced_search import enhanced_classify_game
 from .identity_hints import extract_hints
 from .internal_metadata import MetadataInspection, inspect_metadata
 from .pipeline import SearchDecision
+from .search_plan import build_search_plan
 
 
 CONFIRMED = frozenset({"confirmed_game", "internet_confirmed_game", "platform_confirmed_game"})
@@ -50,10 +51,10 @@ class IdentityReport:
     attempts: tuple[IdentityAttempt, ...] = ()
     metadata: MetadataInspection | None = None
     encryption_state: str = "not_checked"
-    # 실제 수행한 1~5단계. 1 파일명, 2 인터넷, 3 암호 확인,
-    # 4 내부 목록, 5 선택적 메타데이터.
+    # 단계 번호는 기존 호환을 위해 오름차순. 실제 시간순 실행은 execution_order.
     completed_steps: tuple[int, ...] = ()
     evidence_conflict: bool = False
+    execution_order: tuple[int, ...] = ()
 
     @property
     def label(self) -> str:
@@ -74,8 +75,19 @@ class IdentityReport:
         result["inspection_complete"] = bool(
             self.inspection and self.inspection.state == "ok"
         )
-        result["external_status"] = (self.attempts[0].decision.status
-                                     if self.attempts else "")
+        result["external_status"] = next(
+            (a.decision.status for a in self.attempts
+             if a.decision.status in FOUND),
+            self.attempts[0].decision.status if self.attempts else "",
+        )
+        result["search_errors"] = tuple(
+            {"query": a.query, "reason": a.decision.reason[:300]}
+            for a in self.attempts
+            if any(term in a.decision.reason for term in (
+                "검색 오류", "조회 실패", "RuntimeError", "TimeoutError",
+                "ConnectionError", "HTTPError",
+            ))
+        )
         source = next((a.decision for a in reversed(self.attempts)
                        if a.decision.source_platform), None)
         result["source_platform"] = source.source_platform if source else ""
@@ -103,6 +115,7 @@ def _name_only_report(path: Path, first: SearchDecision,
         first.proposed_title if status in {"confirmed_game", "candidate_found", "suspected_non_game"} else "",
         first.dlsite_code, why,
         None, attempts, None, encryption_state, (1, 2, 3),
+        execution_order=(1, 3, 2),
     )
 
 
@@ -115,176 +128,166 @@ def identify_archive(
     metadata_reader: Callable[[Path], MetadataInspection] = inspect_metadata,
     progress_callback: Callable[[int, str], None] | None = None,
 ) -> IdentityReport:
-    """1~5단계 수집. allow_metadata=True면 필요한 소형 메타데이터도 확인한다.
+    """비암호화 파일: 1→3→4→5→2→6단계 순서로 근거를 수집해 돌려준다.
 
-    외부 검색은 압축파일명/정제된 내부 *제목 후보*와 품번만 전송한다.
-    전체 로컬 경로·README 원문·압축파일 데이터는 웹으로 전송하지 않는다.
-    UI·본체 DB·원본 파일 내용과 파일명은 변경하지 않는다.
+    1~5단계 보고서는 입력 파일을 수정하지 않는다. 전체 로컬 경로,
+    README 원문, 압축파일 바이트는 인터넷으로 전송하지 않는다.
+    각 검색 요청은 검색 계획기가 고른 짧은 제목/공식 식별자 문자열뿐이다.
+
+    암호화 또는 암호화 여부 불명 파일: 1→3→2단계, 파일명 검색만 실행.
     """
     def notify(stage: int, label: str) -> None:
-        # 콜백은 UI 상태만 전달하며 실제 판정 근거에 영향을 주지 않음.
         if progress_callback is not None:
             try:
                 progress_callback(stage, label)
             except Exception:
+                # 화면의 상태 표시 기능 장애가 분석 결과를 바꾸면 안 된다.
                 pass
 
-    notify(1, "압축파일명 및 검색어 준비")
+    notify(1, "압축파일명에서 제목·작품 코드 추출")
     path = Path(archive_path)
     if path.suffix.casefold() not in ARCHIVE_EXTS or not path.is_file() or path.is_symlink():
-        return IdentityReport(path.name, "invalid_archive", 0, "", "",
-                              "존재하는 일반 ZIP/7z/RAR 파일만 분석할 수 있습니다.", None)
+        return IdentityReport(
+            path.name, "invalid_archive", 0, "", "",
+            "존재하는 일반 ZIP/7z/RAR 파일만 분석할 수 있습니다.", None,
+            execution_order=(1,),
+        )
 
     query = path.stem.strip()
-    notify(2, "인터넷에서 작품 후보 검색 중")
-    first = classifier(query)  # 1단계 이름 전처리 + 2단계 외부 검색
-    attempts: list[IdentityAttempt] = [
-        IdentityAttempt(1, "archive_filename", query, first),
-    ]
-
-    # 3단계: 외부 검색 성공 여부와 관계없이 암호 상태를 먼저 확인한다.
-    notify(3, "압축파일 암호화 여부 검사 중")
+    notify(3, "암호화 여부 확인 중")
     probe = probe_archive_encryption(path)
-    if probe.state == "encrypted":
-        return _name_only_report(
-            path, first, tuple(attempts), probe.state,
-            "암호화된 압축파일은 파일명만 검색합니다. " +
-            ("작품 후보는 압축파일 내부와 대조하지 않았습니다."
-             if first.status in FOUND | {"suspected_non_game"}
-             else "파일명 검색으로 정체를 찾지 못해 분류 불가입니다."),
-        )
     if probe.state != "clear":
-        report = _name_only_report(
-            path, first, tuple(attempts), probe.state,
-            "암호화 여부를 확인할 수 없어 내부 파일을 읽지 않았습니다. " + probe.reason,
-        )
-        # 이름 기반 외부 확인은 유지하되 내부 검사를 시도하지 않은 상태 표시.
+        # 원본 압축 내부 경로에 접근하지 않으며 검색은 오직 파일명 한 번.
+        notify(2, "암호 보호/확인 불가 파일: 파일명만 인터넷 검색 중")
+        first = classifier(query)
+        attempt = (IdentityAttempt(1, "archive_filename", query, first),)
+        why = ("암호화 파일은 내부를 읽지 않고 파일명만 검색합니다. "
+               if probe.state == "encrypted" else
+               "암호 상태를 확인할 수 없어 파일명만 검색합니다. ")
+        why += ("파일명 검색 결과는 압축 내용과 대조하지 않았습니다."
+                if first.status in FOUND | {"suspected_non_game"}
+                else "작품을 조회하지 못했습니다.")
+        base = _name_only_report(path, first, attempt, probe.state, why)
+        if probe.state == "encrypted":
+            return base
         unavailable = ArchiveInspection(
             path.name, path.suffix.lstrip("."), "unavailable", 0, 0, None,
             False, (), (), (), (), probe.reason,
         )
         return IdentityReport(
-            path.name, report.status, 1 if report.status != "lookup_unavailable" else 2,
-            report.proposed_title, report.product_code, report.reason,
-            unavailable, report.attempts, None, probe.state, (1, 2, 3),
+            base.archive_name, base.status, base.stage,
+            base.proposed_title, base.product_code, base.reason,
+            unavailable, attempt, None, probe.state, (1, 2, 3),
+            execution_order=(1, 3, 2),
         )
 
-    # 4단계: 이름 검색이 성공한 게임도 내부 목록 전체를 검사한다.
-    # 압축해제하지 않으며 inspector가 최대 항목 수 제한을 관리한다.
-    notify(4, "압축파일 내부 전체 목록 확인 중")
+    # 4단계: 실제 목록 검사. 검색은 아직 1회도 하지 않았다.
+    notify(4, "압축파일 내부 전체 파일·폴더 목록 수집 중")
     inspection = inspector(path)
-    steps = (1, 2, 3, 4)
-    if inspection.state not in {"ok", "partial", "limit_exceeded"}:
-        # 검사 중 암호 상태가 바뀌거나 다른 형식에서 암호가 발견된 경우도 중단.
-        if inspection.encrypted or inspection.state in {"encrypted", "needs_password"}:
-            return _name_only_report(
-                path, first, tuple(attempts), "encrypted",
-                "암호화 확인 후 내부 단서 사용을 중단했습니다. " + inspection.reason,
-            )
-        name_report = _name_only_report(
-            path, first, tuple(attempts), "unknown",
-            "내부 목록 분석 실패. 파일명 검색 결과만 보관합니다. " + inspection.reason,
-        )
-        return IdentityReport(
-            name_report.archive_name, name_report.status, name_report.stage,
-            name_report.proposed_title, name_report.product_code, name_report.reason,
-            inspection, name_report.attempts, None, "unknown", steps,
+    if inspection.encrypted or inspection.state in {"encrypted", "needs_password"}:
+        # 잘못된 암호 판정 이후에도 내부 단서를 누출하지 않는다.
+        notify(2, "암호화가 확인되어 파일명만 검색 중")
+        first = classifier(query)
+        return _name_only_report(
+            path, first, (IdentityAttempt(1, "archive_filename", query, first),),
+            "encrypted", "목록 검사 중 암호 보호를 확인하여 파일명만 검색했습니다.",
         )
 
-    candidates: dict[str, IdentityAttempt] = {}
-    first_title = first.proposed_title.strip()
-    if first.status in FOUND and first_title:
-        key = normalized_title(first_title)
-        if key:
-            candidates[key] = attempts[0]
-
-    seen = {normalized_title(query) or query.casefold().strip()}
-
-    def search_hints(stage: int, hints: list[tuple[str, str]]) -> None:
-        for basis, title in hints:
-            key = normalized_title(title) or title.casefold().strip()
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            decision = classifier(title)
-            attempt = IdentityAttempt(stage, basis, title, decision)
-            attempts.append(attempt)
-            if decision.status in FOUND and decision.proposed_title.strip():
-                title_key = normalized_title(decision.proposed_title)
-                if title_key and title_key not in candidates:
-                    candidates[title_key] = attempt
-
-    # 외부 이름으로 작품을 이미 확인한 경우에는 불필요한 내부 이름별
-    # 인터넷 재검색을 하지 않고 증거를 저장한다. 불확실한 경우에만 재검색.
-    if first.status not in FOUND | {"suspected_non_game"}:
-        notify(4, "내부 목록에서 찾은 제목·작품 코드로 재검색 중")
-        index_hints = (
-            [("internal_filename", v) for v in inspection.title_candidates[:MAX_TITLE_QUERIES]]
-            + [("internal_product_code", v) for v in inspection.product_codes[:MAX_CODE_QUERIES]]
-        )
-        search_hints(2, index_hints)
-
-    # 5단계: ZIP/RAR 및 안전한 비솔리드 7z의 제한된 설정 메타데이터.
-    # 검색 성공이어도 사용자 요청 시 메타데이터를 확인해 추후
-    # 최종 검증에 쓸 수 있게 수집한다.
     metadata = None
-    if allow_metadata:
-        notify(5, "작은 설정파일·README 메타데이터 확인 중")
+    actual_order = [1, 3, 4]
+    if allow_metadata and inspection.state in {"ok", "partial", "limit_exceeded"}:
+        notify(5, "게임 엔진 설정·작은 메타데이터 근거 수집 중")
         metadata = metadata_reader(path)
-        steps = (1, 2, 3, 4, 5)
-        if metadata.state == "ok" and first.status not in FOUND | {"suspected_non_game"}:
-            notify(5, "메타데이터 제목·품번 후보 재검색 중")
-            meta_hints = (
-                [("internal_metadata_title", v)
-                 for v in metadata.title_candidates[:MAX_METADATA_TITLE_QUERIES]]
-                + [("internal_metadata_code", v)
-                   for v in metadata.product_codes[:MAX_METADATA_CODE_QUERIES]]
-            )
-            search_hints(3, meta_hints)
+        actual_order.append(5)
 
-    # 6단계의 최종 동일성 확인은 아직 수행하지 않는다. 명시적 설정파일
-    # 제목이 외부 작품명과 충돌할 때만 안전하게 '보류'로 표시한다.
-    conflicts = bool(
-        first.status in FOUND and first_title and metadata
-        # README·패키지 설명 등은 보조 근거라서 제목이 달라도
-        # 그것만으로 게임 정체 충돌이라고 처리하지 않는다.
-        and metadata.strong_titles
-        and normalized_title(first_title) not in {
-            normalized_title(v) for v in metadata.strong_titles
-        }
+    # 모든 *안전하게 읽을 수 있는* 근거를 확보한 이후에만 검색한다.
+    # 실패한 내부 목록은 추측으로 대체하지 않고 파일명만 검색한다.
+    plan = build_search_plan(
+        path.name,
+        inspection if inspection.state in {"ok", "partial", "limit_exceeded"} else None,
+        metadata,
     )
-    note = ("내부 목록 분석이 항목 수 제한으로 중단됐으므로 전체 목록은 미검사입니다. "
-            if inspection.state == "limit_exceeded" else
-            "내부 목록은 확인했지만 일부 경로를 제외했습니다. "
-            if inspection.state == "partial" else "")
-    note += ("선택적 메타데이터도 확인했습니다. " if metadata else
-             "작은 파일 내용은 읽지 않았습니다. ")
-    note += "게임 정체의 최종 교차검증과 자동 연결은 아직 수행하지 않았습니다."
+    notify(2, f"모은 근거 {len(plan)}개를 우선순위대로 인터넷 조회 중")
+    actual_order.append(2)
+    attempts: list[IdentityAttempt] = []
+    candidates: dict[str, IdentityAttempt] = {}
+    non_game: IdentityAttempt | None = None
+    for hint in plan:
+        # 공식 작품 하나를 찾았으면 일반 공통 파일명으로 계속 재검색하지 않는다.
+        if (any(a.decision.status in CONFIRMED for a in attempts)
+                and hint.basis in {"internal_filename", "internal_metadata_supporting_title"}):
+            break
+        notify(2, f"인터넷 조회 중: {hint.basis} ({len(attempts) + 1}/{len(plan)})")
+        try:
+            decision = classifier(hint.query)
+        except Exception as exc:
+            # 검색 장애와 실제 검색 결과 없음은 분리해 보고한다.
+            decision = SearchDecision(
+                "lookup_unavailable", hint.query,
+                reason="인터넷 조회 실패: " + type(exc).__name__,
+                web_checked=True,
+            )
+        attempt = IdentityAttempt(hint.stage, hint.basis, hint.query, decision)
+        attempts.append(attempt)
+        if decision.status == "suspected_non_game" and non_game is None:
+            non_game = attempt
+        if decision.status in FOUND and decision.proposed_title.strip():
+            key = normalized_title(decision.proposed_title)
+            if key:
+                prior = candidates.get(key)
+                if prior is None or (
+                    decision.status in CONFIRMED and
+                    prior.decision.status not in CONFIRMED
+                ):
+                    candidates[key] = attempt
 
-    if conflicts or len(candidates) > 1:
+    steps = (1, 2, 3, 4, 5) if metadata is not None else (1, 2, 3, 4)
+    note = ""
+    if inspection.state != "ok":
+        note += f"내부 목록 분석 제한/실패({inspection.state}). "
+    if metadata is None:
+        note += "내부 메타데이터는 읽지 않았습니다. "
+    elif metadata.state != "ok":
+        note += f"메타데이터 판독 제한({metadata.state}). "
+    error_count = sum(
+        "검색 오류" in a.decision.reason or "조회 실패" in a.decision.reason
+        for a in attempts
+    )
+    if error_count:
+        note += f"인터넷 검색 오류/차단 {error_count}건: 단순 미검색과 구분해야 합니다. "
+    note += "게임 정체의 최종 교차검증과 자동 연결은 별도 6단계에서 수행합니다."
+
+    # 전 단계에서 검증된 작품명 후보가 2종류 이상 나온 경우 보류.
+    # 일반적인 내부 프로젝트명 차이는 6단계에서 판단한다.
+    if len(candidates) > 1:
         return IdentityReport(
-            path.name, "ambiguous", 3 if conflicts else 2, "", "",
-            "외부 작품 후보와 내부 설정의 게임명이 다르거나 여러 작품 후보가 있습니다. "
-            + note, inspection, tuple(attempts), metadata,
-            "clear", steps, True,
+            path.name, "ambiguous", 2, "", "",
+            "독립된 외부 검색에서 서로 다른 작품 후보가 발견됐습니다. " + note,
+            inspection, tuple(attempts), metadata, "clear", steps,
+            evidence_conflict=True, execution_order=tuple(actual_order),
         )
     if candidates:
         selected = next(iter(candidates.values()))
         return IdentityReport(
             path.name, "candidate_found", selected.stage,
-            selected.decision.proposed_title, selected.decision.dlsite_code,
-            "작품 후보를 찾았지만 압축파일의 동일 게임 여부는 미확정입니다. "
-            "수동 확인이 필요합니다. " + note, inspection, tuple(attempts), metadata, "clear", steps,
+            selected.decision.proposed_title,
+            selected.decision.dlsite_code,
+            "내부 목록·설정·파일명을 모아 검색한 작품 후보입니다. "
+            "압축파일과 동일 작품인지 미확정입니다. " + note,
+            inspection, tuple(attempts), metadata, "clear", steps,
+            execution_order=tuple(actual_order),
         )
-    if first.status == "suspected_non_game":
+    if non_game is not None:
         return IdentityReport(
-            path.name, "suspected_non_game", 1,
-            first.proposed_title, first.dlsite_code,
-            "DLsite 작품 유형은 비게임으로 추정되지만 로컬 압축파일의 실체는 미확인입니다. "
-            + note, inspection, tuple(attempts), metadata, "clear", steps,
+            path.name, "suspected_non_game", non_game.stage,
+            non_game.decision.proposed_title, non_game.decision.dlsite_code,
+            "웹 등록 유형은 비게임 추정이지만 로컬 배포물 내용은 미검증입니다. " + note,
+            inspection, tuple(attempts), metadata, "clear", steps,
+            execution_order=tuple(actual_order),
         )
     return IdentityReport(
-        path.name, "lookup_unavailable", 3 if metadata else 2, "", "",
-        "파일명과 내부 목록·제한된 메타데이터로 작품을 찾지 못했습니다. "
+        path.name, "lookup_unavailable", 2, "", "",
+        "모은 내부 근거와 파일명으로 검색했으나 작품을 확인하지 못했습니다. "
         + note, inspection, tuple(attempts), metadata, "clear", steps,
+        execution_order=tuple(actual_order),
     )
