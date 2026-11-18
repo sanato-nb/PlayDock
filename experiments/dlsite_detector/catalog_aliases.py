@@ -21,7 +21,7 @@ DISTRIBUTION_PREFIX = re.compile(
 )
 
 
-def _keys(name: str) -> set[str]:
+def explicit_title_keys(name: str) -> set[str]:
     full = normalized_title(name)
     result = {full} if full else set()
     parts = [s.strip(" -–—|/") for s in BILINGUAL.split(name)]
@@ -61,7 +61,7 @@ def _can_merge(first, second) -> bool:
     # 서로 다른 발매 작품을 패치/원작으로 잘못 합치지 않는다.
     if bool(DISTRIBUTION_PREFIX.match(name_a)) != bool(DISTRIBUTION_PREFIX.match(name_b)):
         return False
-    keys_a, keys_b = _keys(name_a), _keys(name_b)
+    keys_a, keys_b = explicit_title_keys(name_a), explicit_title_keys(name_b)
     if not keys_a or not keys_b:
         return False
     return bool(keys_a & keys_b)
