@@ -15,6 +15,7 @@ from .identity_hints import extract_hints
 from .pipeline import SearchDecision, classify_game
 from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product, SteamLookupUnavailable
+from .web_alias_discovery import discover_parallel_title
 
 
 STEAM_PAGE = re.compile(r"^/app/([1-9]\d{2,9})(?:/|$)")
@@ -177,6 +178,22 @@ def enhanced_classify_game(
                        + "'으로 작품을 찾았습니다. 해당 파일과 동일 작품인지 확인이 필요합니다.",
             )
 
+    # 원제와 현지화 제목이 함께 표기된 검색 결과를 원제 후보로 활용.
+    # 같은 번역 제목을 쓰는 독립 도메인 2곳에서 동일 영어 제목이
+    # 발견될 때에만 *미확인 후보*로 표시하며 공식 작품 확인으로 승격하지 않음.
+    if original.status == "lookup_unavailable":
+        parallel_title = discover_parallel_title(request_name, original.evidence)
+        if parallel_title:
+            alias, domains = parallel_title
+            return replace(
+                original, status="internet_candidate",
+                proposed_title=alias, source_platform="", source_id="",
+                source_url="", archive_kind=kind,
+                reason="현지어 제목과 영문 게임명이 병기된 서로 다른 웹 도메인 "
+                       + ", ".join(domains)
+                       + "의 검색 결과에서 영문 제목 후보를 발견했습니다. "
+                         "원본 게임과의 동일성 및 공식 판매 페이지는 검증되지 않았습니다.",
+            )
     if store_error:
         return replace(original,
                        reason=original.reason + " Steam 원본 조회 실패: " + store_error)
