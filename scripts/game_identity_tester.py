@@ -420,5 +420,38 @@ class IdentityTesterApp(tk.Tk):
             messagebox.showerror("저장 오류", str(exc))
 
 
+def self_test() -> int:
+    """배포 EXE에 실제 판독 모듈/ZIP 처리 코드가 포함됐는지 오프라인 확인."""
+    from tempfile import TemporaryDirectory
+    import zipfile
+
+    from experiments.dlsite_detector.pipeline import SearchDecision
+    with TemporaryDirectory(prefix="playdock-identity-selftest-") as tmp:
+        path = Path(tmp) / "Tester Sample.zip"
+        with zipfile.ZipFile(path, "w") as z:
+            z.writestr("Game/Game.ini", "Title=Sample Test Game\\n")
+            z.writestr("Game/steam_appid.txt", "1621540\\n")
+            z.writestr("Game/Tester.exe", b"SAMPLE, NOT EXECUTABLE")
+            z.writestr("Game/game/archive.rpa", b"SAMPLE DATA")
+        def offline_mock(_):
+            return SearchDecision(
+                "platform_confirmed_game", "Sample Test Game",
+                proposed_title="Sample Test Game",
+                source_platform="steam", source_id="1621540",
+            )
+        result = identify_archive(
+            path, classifier=offline_mock, allow_metadata=True,
+        )
+        verified = verify_identity(result)
+        assert result.completed_steps == (1, 2, 3, 4, 5)
+        assert verified.verdict == "matched", verified.verdict
+        assert not verified.automatic_binding_allowed
+    return 0
+
+
 if __name__ == "__main__":
+    import sys
+
+    if "--self-test" in sys.argv:
+        raise SystemExit(self_test())
     IdentityTesterApp().mainloop()
