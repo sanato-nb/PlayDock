@@ -15,7 +15,7 @@ import zipfile
 
 from .archive_inspector import _safe_member_path
 from .detector import extract_code
-from .archive_encryption import probe_archive_encryption
+from .archive_encryption import EncryptionProbe, probe_archive_encryption
 from .search_terms import cleaned_search_title
 from .metadata_fields import parse_metadata_fields
 
@@ -289,7 +289,9 @@ def _inspect_non_solid_7z(archive: Path) -> MetadataInspection:
                                   f"7z 부분 읽기를 완료하지 못해 목록 정보만 사용: {type(exc).__name__}")
 
 
-def inspect_metadata(path: Path) -> MetadataInspection:
+def inspect_metadata(
+    path: Path, *, encryption_probe: EncryptionProbe | None = None,
+) -> MetadataInspection:
     """비암호화 압축 안의 작은 파일만 메모리에 읽고 제목·코드 근거를 남긴다.
 
     RAR은 추가 백엔드가 필요할 수 있고, 솔리드 7z와 암호 압축은 읽지 않는다.
@@ -299,7 +301,7 @@ def inspect_metadata(path: Path) -> MetadataInspection:
         return MetadataInspection(archive.name, "unavailable", 0, 0, (), (), (),
                                   "일반 로컬 압축파일이 아닙니다.")
     # --metadata를 명시해도 암호화된 압축파일의 내용은 절대 읽지 않는다.
-    probe = probe_archive_encryption(archive)
+    probe = encryption_probe if encryption_probe is not None else probe_archive_encryption(archive)
     if probe.state != "clear":
         return MetadataInspection(
             archive.name, "encrypted" if probe.is_encrypted else "unavailable",
@@ -355,7 +357,7 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                     with zf.open(member, "r") as stream:
                         cap = min(MAX_MEMBER_BYTES, MAX_TOTAL_BYTES - read_bytes)
                         chunk = stream.read(cap + 1)
-                except (OSError, RuntimeError, ValueError, zipfile.BadZipFile, EOFError) as exc:
+                except (OSError, RuntimeError, ValueError, zipfile.BadZipFile, EOFError, Exception) as exc:
                     errors.append(type(exc).__name__)
                     continue
                 count += 1
@@ -363,7 +365,7 @@ def inspect_metadata(path: Path) -> MetadataInspection:
                 if len(chunk) > cap:
                     continue
                 _accept_evidence(member, chunk, titles, codes, evidence, steam_ids)
-    except (ImportError, OSError, RuntimeError, ValueError, zipfile.BadZipFile) as exc:
+    except Exception as exc:
         errors.append(type(exc).__name__)
 
     if titles or codes or steam_ids:
