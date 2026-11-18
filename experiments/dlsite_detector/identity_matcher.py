@@ -10,6 +10,7 @@ import re
 from typing import Mapping, Sequence
 
 from .archive_identity import IdentityReport
+from .catalog_aliases import catalog_titles, explicit_title_keys
 from .detector import normalized_title
 from .evidence_normalizer import EvidenceRecord
 
@@ -70,7 +71,7 @@ def _bilingual_title_parts(title: str) -> set[str]:
 
 def _explicit_alias_keys(title: str,
                          verified_aliases: Mapping[str, Sequence[str]] | None) -> set[str]:
-    keys = {title_key(title)} | _bilingual_title_parts(title)
+    keys = {title_key(title)} | _bilingual_title_parts(title) | explicit_title_keys(title)
     if not verified_aliases:
         return keys
     # 키가 정규화된 정식 제목에 정확히 대응하는 경우만 신뢰.
@@ -92,21 +93,9 @@ def compatible_title_keys(
 
 def candidates_from_report(report: IdentityReport,
                            records: tuple[EvidenceRecord, ...]) -> tuple[str, ...]:
-    external: dict[str, str] = {}
-    # 1~5단계의 검색 시도 결과를 전부 보존 (첫 결과만 쓰지 않음).
-    for attempt in report.attempts:
-        d = attempt.decision
-        if d.status not in {
-            "confirmed_game", "internet_confirmed_game",
-            "platform_confirmed_game", "internet_candidate",
-        }:
-            continue
-        value = d.proposed_title.strip()
-        key = title_key(value)
-        if key and key not in external:
-            external[key] = value
+    external = catalog_titles(report.attempts)
     if external:
-        return tuple(external.values())
+        return external
     # 외부에서 후보를 찾지 못했다면 신뢰할 수 있는 내부 설정 제목을
     # 미확인 후보로 보고할 수는 있지만 일치 확인으로 승격하지 않는다.
     internal: dict[str, str] = {}
