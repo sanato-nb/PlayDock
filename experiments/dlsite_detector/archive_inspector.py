@@ -25,10 +25,18 @@ GENERIC_EXECUTABLES = frozenset({
     "rpg_rt", "rpg_rt.exe", "nw", "nw.exe", "renpy", "renpy.exe",
     "electron", "crashreporter", "config", "update", "patch", "client",
     "play", "startgame", "engine", "win64-shipping", "gameassembly",
+    "notificationhelper", "notificationhelper.exe", "notification_helper",
+    "notification_helper.exe", "editor", "editor.exe", "databasecleanuptool",
+    "databasecleanuptool.exe", "common.extprotocol.executor",
+    "eztransxp.extprotocol", "lec.extprotocol", "crashhandler",
 })
 GENERIC_FOLDERS = frozenset({
     "game", "games", "data", "assets", "bin", "binaries", "content",
     "windows", "win64", "patch", "update", "release", "www", "plugins",
+    "locales", "swiftshader", "audio", "css", "font", "fonts", "img",
+    "image", "images", "icon", "icons", "effects", "export", "resources",
+    "save", "saves", "dictionaries", "dataex", "cache", "logs",
+    "translations", "tools", "runtime", "package.nw",
 })
 DISPLAY_EXTENSIONS = (".exe", ".ini", ".json", ".rpa", ".pck", ".pak", ".dll", ".wolf")
 
@@ -94,6 +102,24 @@ def _interesting_title(name: str, *, is_folder: bool = False) -> str:
             or value.casefold().endswith((".dll", ".pck", ".pak", ".exe", ".json"))):
         return ""
     return value
+
+
+HELPER_DIRS = frozenset({
+    "bepinex", "plugins", "xunity.autotranslator", "translators",
+    "fullnet", "tools", "support", "redist", "redistributables",
+})
+
+
+def _is_helper_executable(parts: tuple[str, ...]) -> bool:
+    lowered = [v.casefold() for v in parts]
+    name = lowered[-1]
+    stem = Path(name).stem.replace("_", "").replace("-", "").replace(".", "")
+    if (stem in {"notificationhelper", "databasecleanuptool", "crashreporter",
+                 "unitycrashhandler32", "unitycrashhandler64", "editor",
+                 "eztransxpextprotocol", "lecextprotocol",
+                 "commonextprotocolexecutor"}):
+        return True
+    return any(part in HELPER_DIRS for part in lowered[:-1])
 
 
 def _list_archive(path: Path, suffix: str):
@@ -204,7 +230,8 @@ def inspect_archive(path: Path) -> ArchiveInspection:
                 continue
             stem, extension = Path(basename).stem, Path(basename).suffix.casefold()
             if extension == ".exe":
-                if basename.casefold() not in {"uninstall.exe", "setup.exe", "unins000.exe"}:
+                if (basename.casefold() not in {"uninstall.exe", "setup.exe", "unins000.exe"}
+                        and not _is_helper_executable(parts)):
                     package.add("Windows 실행파일 존재")
             if extension == ".rpa":
                 package.add("Ren'Py 게임 데이터 파일 존재")
@@ -212,11 +239,15 @@ def inspect_archive(path: Path) -> ArchiveInspection:
                 package.add("RPG Maker 게임 데이터 파일 존재")
             if extension == ".pck":
                 package.add("Godot 게임 데이터 파일 후보")
+            if basename.casefold() in {"package.nw", "app.asar"}:
+                package.add("NW.js/Electron 패키지 데이터 존재")
+            if lowered.endswith(("/www/js/rpg_managers.js", "/js/rpg_managers.js")):
+                package.add("RPG Maker MV/MZ 게임 데이터 존재")
             if "/tl/korean/" in "/" + lowered or re.search(
                     r"(?:^|/)(?:korean|ko-kr|ko_kr|한국어)(?:/|$)", lowered):
                 localization.add("한국어 번역 파일/폴더 경로 단서")
             if extension == ".exe":
-                exe_title = _interesting_title(stem)
+                exe_title = "" if _is_helper_executable(parts) else _interesting_title(stem)
                 if exe_title and len(titles) < 64:
                     titles[exe_title] = max(titles.get(exe_title, 0), 3)
                     if len(evidence) < MAX_REPORTED:
@@ -233,6 +264,12 @@ def inspect_archive(path: Path) -> ArchiveInspection:
                 engine = "Godot (추정)"
             elif extension == ".pak" and ("/content/paks/" in "/" + lowered or "windowsnoeditor" in lowered):
                 engine = "Unreal Engine (추정)"
+            elif basename.casefold() == "package.nw":
+                engine = "NW.js (추정)"
+            elif basename.casefold() == "app.asar":
+                engine = "Electron (추정)"
+            elif lowered.endswith(("/www/js/rpg_managers.js", "/js/rpg_managers.js")):
+                engine = "RPG Maker MV/MZ (추정)"
             if engine:
                 engines.add(engine)
                 if len(evidence) < MAX_REPORTED:
