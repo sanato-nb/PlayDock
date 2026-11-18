@@ -1,6 +1,6 @@
-"""압축 내부 근거를 먼저 모은 뒤 웹 검색어를 한 번에 선정하는 계획기.
+"""압축파일 이름과 압축 내부 근거를 모두 모은 뒤 통합 검색어를 선정하는 계획기.
 
-검색 실행 전에 실행파일/패키지/엔진 설정/작품 ID를 모두 수집한다.
+검색 전 파일명·실행파일·패키지·엔진 설정·작품 ID를 함께 수집한다.
 공통 런타임 파일명, 번역 플러그인 및 일반 폴더명은 인터넷 검색 금지.
 코드→명시적 게임명→정제된 압축명→게임 EXE 순으로 우선순위를 정한다.
 """
@@ -83,7 +83,7 @@ def build_search_plan(
     for sid in hints.steam_app_ids:
         append(1, "archive_filename_steam_id", f"Steam App ID: {sid}")
 
-    # 게임 엔진 설정의 실제 title을 먼저, 파일명은 보조 검색어로 사용한다.
+    # 엔진 설정 제목과 파일명 제목 모두 같은 검색 계획에 포함한다.
     # 'ntr game'처럼 기본 프로젝트명인 항목은 위의 _useful_title에서 제외.
     for title in (metadata.strong_titles if metadata is not None else ()):
         append(3, "internal_metadata_title", title, title=True)
