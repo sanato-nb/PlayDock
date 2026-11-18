@@ -357,7 +357,7 @@ def inspect_metadata(
                     with zf.open(member, "r") as stream:
                         cap = min(MAX_MEMBER_BYTES, MAX_TOTAL_BYTES - read_bytes)
                         chunk = stream.read(cap + 1)
-                except (OSError, RuntimeError, ValueError, zipfile.BadZipFile, EOFError, Exception) as exc:
+                except Exception as exc:
                     errors.append(type(exc).__name__)
                     continue
                 count += 1
