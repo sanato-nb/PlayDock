@@ -45,8 +45,9 @@ def test_stage1_success_still_scans_non_encrypted_index(tmp_path):
         inspected.append(value)
         return inspect_archive(value)
     result = identify_archive(path, classifier=classifier, inspector=inspector)
-    assert calls == ["Unknown_Game"]
     assert inspected == [path]
+    assert calls[0] == "Unknown Game"
+    assert result.execution_order == (1, 3, 4, 2)
     assert result.status == "candidate_found" and result.stage == 1
     assert result.inspection.member_count == 1
     assert result.completed_steps == (1, 2, 3, 4)
@@ -78,7 +79,7 @@ def test_stage1_failure_uses_internal_exe_to_search_again(tmp_path):
     result = identify_archive(path, classifier=classifier)
     assert result.status == "candidate_found" and result.stage == 2
     assert result.proposed_title == "Actual Story"
-    assert calls == ["Unknown_Game", "Actual Story"]
+    assert calls == ["Unknown Game", "Actual Story"]
     assert result.inspection is not None
     assert "Unity" in result.inspection.engine_hints
     assert "수동 확인" in result.reason
@@ -106,7 +107,7 @@ def test_stage2_uses_internal_dlsite_code_as_manual_candidate(tmp_path):
     result = identify_archive(path, classifier=classifier)
     assert result.status == "candidate_found" and result.stage == 2
     assert result.product_code == "RJ01081508"
-    assert calls == ["Unknown_Game", "RJ01081508"]
+    assert calls == ["RJ01081508", "Unknown Game"]
     assert result.inspection.product_codes == ("RJ01081508",)
 
 
@@ -136,7 +137,7 @@ def test_generic_or_no_internal_candidates_do_not_repeat_requests(tmp_path):
         return missing(query)
     result = identify_archive(path, classifier=classifier)
     assert result.status == "lookup_unavailable"
-    assert called == ["Unknown_Game"]
+    assert called == ["Unknown Game"]
 
 
 def test_duplicate_internal_title_matching_filename_does_not_repeat(tmp_path):
@@ -157,7 +158,7 @@ def test_archive_path_not_sent_to_searcher(tmp_path):
     called = []
     result = identify_archive(path, classifier=lambda q: called.append(q) or missing(q))
     assert result.stage == 2
-    assert called == ["Unknown_Game", "Unlisted Title"]
+    assert called == ["Unknown Game", "Unlisted Title"]
     assert all(str(tmp_path) not in q and "/" not in q and "\\" not in q for q in called)
 
 
