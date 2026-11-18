@@ -107,7 +107,7 @@ def test_stage2_uses_internal_dlsite_code_as_manual_candidate(tmp_path):
     result = identify_archive(path, classifier=classifier)
     assert result.status == "candidate_found" and result.stage == 2
     assert result.product_code == "RJ01081508"
-    assert calls == ["RJ01081508"]  # 공식 ID 확인 후 중복 약한 제목 검색 생략
+    assert calls == ["RJ01081508", "Unknown Game"]  # 내부 코드 성공 후에도 파일명 검색 보장
     assert result.inspection.product_codes == ("RJ01081508",)
 
 

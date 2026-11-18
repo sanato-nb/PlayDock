@@ -7,6 +7,7 @@ import zipfile
 from experiments.dlsite_detector import archive_inspector, identify_cli
 from experiments.dlsite_detector.archive_identity import identify_archive
 from experiments.dlsite_detector.pipeline import SearchDecision
+from experiments.dlsite_detector.internal_metadata import inspect_metadata
 
 
 def zip_archive(tmp_path, name="Test Story.zip", entries=None):
@@ -36,7 +37,10 @@ def test_title_success_always_inspects_all_members_and_selected_metadata(tmp_pat
         "Test Story/readme.txt": "Game title: Test Story\n",
     })
     original = archive.read_bytes()
-    result = identify_archive(archive, classifier=external_confirmed, allow_metadata=True)
+    result = identify_archive(
+        archive, classifier=external_confirmed, allow_metadata=True,
+        metadata_reader=inspect_metadata,
+    )
     assert result.status == "candidate_found", "로컬 게임 동일성은 아직 확정하면 안 됨"
     assert result.stage == 3, "내부 설정을 먼저 확인하므로 후보 근거는 설정파일"
     assert result.completed_steps == (1, 2, 3, 4, 5)
@@ -53,7 +57,10 @@ def test_title_search_success_but_inner_title_disagrees_is_not_confirmed(tmp_pat
         "Game/Game.ini": "Title=Different Story\n",
         "Game/game.exe": b"bin",
     })
-    result = identify_archive(archive, classifier=external_confirmed, allow_metadata=True)
+    result = identify_archive(
+        archive, classifier=external_confirmed, allow_metadata=True,
+        metadata_reader=inspect_metadata,
+    )
     assert result.status == "candidate_found"
     assert result.evidence_conflict is False
     assert result.completed_steps == (1, 2, 3, 4, 5)
@@ -124,7 +131,7 @@ def test_online_cli_runs_five_steps_by_default(tmp_path, monkeypatch, capsys):
     output = json.loads(capsys.readouterr().out)
     assert observed == [{"allow_metadata": True}]
     assert output["completed_steps"] == [1, 2, 3, 4, 5]
-    assert output["metadata"]["title_candidates"] == ["Test Story"]
+    assert output["metadata"]["title_candidates"] == []  # v0.7 기본은 INI 본문 미조회
 
 
 def test_online_cli_supports_no_metadata_opt_out(tmp_path, monkeypatch, capsys):

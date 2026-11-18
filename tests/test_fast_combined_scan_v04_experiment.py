@@ -81,7 +81,7 @@ def test_confirmed_id_still_checks_archive_filename_title(tmp_path):
         return SearchDecision("lookup_unavailable", q)
     report = identify_archive(path, classifier=search, allow_metadata=True,
                               max_search_queries=3)
-    assert called == ["RJ01234567"]
+    assert called == ["RJ01234567", "Silver Quest"]
     assert report.proposed_title == "Silver Quest"
     assert report.status == "candidate_found"
 
@@ -102,7 +102,8 @@ def test_prechecked_clear_zip_does_not_probe_three_times(tmp_path, monkeypatch):
     monkeypatch.setattr(archive_inspector, "probe_archive_encryption", forbidden)
     monkeypatch.setattr(internal_metadata, "probe_archive_encryption", forbidden)
     report = identify_archive(path, classifier=lambda q: SearchDecision(
-        "lookup_unavailable", q), allow_metadata=True, max_search_queries=1)
+        "lookup_unavailable", q), allow_metadata=True,
+        metadata_reader=inspect_metadata, max_search_queries=1)
     assert report.inspection.state == "ok"
     assert report.metadata.state == "ok"
     assert len(spy) == 1

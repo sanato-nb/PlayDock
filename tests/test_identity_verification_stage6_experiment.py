@@ -15,7 +15,7 @@ from experiments.dlsite_detector.archive_identity import (
 from experiments.dlsite_detector.archive_inspector import ArchiveInspection
 from experiments.dlsite_detector.identity_verifier import verify_identity
 from experiments.dlsite_detector.internal_metadata import (
-    MetadataEvidence, MetadataInspection,
+    MetadataEvidence, MetadataInspection, inspect_metadata,
 )
 from experiments.dlsite_detector.pipeline import SearchDecision
 from experiments.dlsite_detector import identify_cli
@@ -372,7 +372,10 @@ def test_real_zip_integration_and_no_mutation(tmp_path):
         return SearchDecision("platform_confirmed_game", query,
                               proposed_title="Night of Revenge",
                               source_platform="steam", source_id="1621540")
-    report = identify_archive(archive, classifier=official, allow_metadata=True)
+    report = identify_archive(
+        archive, classifier=official, allow_metadata=True,
+        metadata_reader=inspect_metadata,
+    )
     result = verify_identity(report)
     assert report.completed_steps == (1, 2, 3, 4, 5)
     assert result.verdict == "matched"
@@ -392,7 +395,7 @@ def test_cli_verify_returns_nested_read_only_json(tmp_path, monkeypatch, capsys)
             path, classifier=lambda q: SearchDecision(
                 "platform_confirmed_game", q, proposed_title="Night of Revenge",
                 source_platform="steam", source_id="1621540",
-            ), **kwargs)
+            ), metadata_reader=inspect_metadata, **kwargs)
     monkeypatch.setattr(identify_cli, "identify_archive", fake_identify)
     exit_code = identify_cli.main([str(archive), "--online", "--verify", "--json"])
     data = json.loads(capsys.readouterr().out)

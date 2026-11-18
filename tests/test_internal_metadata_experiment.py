@@ -134,7 +134,7 @@ def test_metadata_stage_runs_only_when_opted_in_and_prior_search_fails(tmp_path)
     assert without.status == "lookup_unavailable"
     assert without.metadata is None
     calls.clear()
-    with_metadata = identify_archive(path, classifier=classify, allow_metadata=True)
+    with_metadata = identify_archive(path, classifier=classify, allow_metadata=True, metadata_reader=inspect_metadata)
     assert with_metadata.status == "candidate_found" and with_metadata.stage == 3
     assert with_metadata.proposed_title == "Night of Revenge"
     assert with_metadata.metadata.title_candidates == ("Night of Revenge",)
@@ -147,7 +147,7 @@ def test_confirmed_filename_must_be_checked_against_internal_metadata(tmp_path):
     report = identify_archive(
         path, classifier=lambda _: SearchDecision("confirmed_game", "Existing Game",
                                                   proposed_title="Existing Game"),
-        allow_metadata=True,
+        allow_metadata=True, metadata_reader=inspect_metadata,
     )
     assert report.stage == 3
     assert report.status == "candidate_found"
@@ -164,7 +164,7 @@ def test_metadata_fields_do_not_disclose_raw_readme_to_search(tmp_path):
     queries = []
     report = identify_archive(
         path, classifier=lambda query: queries.append(query) or missing(query),
-        allow_metadata=True,
+        allow_metadata=True, metadata_reader=inspect_metadata,
     )
     assert report.stage == 3
     assert "Example Story" in queries
@@ -177,8 +177,8 @@ def test_cli_metadata_optin_offline_does_not_call_search(tmp_path, monkeypatch, 
                         lambda *_a, **_kw: pytest.fail("offline must not query online"))
     assert identify_cli.main([str(path), "--json", "--metadata"]) == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["metadata"]["title_candidates"] == ["Sample Game"]
-    assert payload["metadata"]["state"] == "ok"
+    assert payload["metadata"]["title_candidates"] == []
+    assert payload["metadata"]["state"] == "no_metadata"  # CLI README-only default
 
 
 def test_index_candidate_also_collects_selected_metadata(tmp_path):
@@ -188,7 +188,7 @@ def test_index_candidate_also_collects_selected_metadata(tmp_path):
     })
     def classify(query):
         return verified(query) if query == "Real Story" else missing(query)
-    r = identify_archive(path, classifier=classify, allow_metadata=True)
+    r = identify_archive(path, classifier=classify, allow_metadata=True, metadata_reader=inspect_metadata)
     assert r.status == "candidate_found" and r.stage == 2
     assert r.metadata.title_candidates == ("Another Story",)
     assert r.completed_steps == (1, 2, 3, 4, 5)
@@ -247,7 +247,7 @@ def test_web_title_candidate_can_be_checked_against_metadata_when_requested(tmp_
     found = lambda _: SearchDecision("internet_candidate", "NOR", proposed_title="Night of Revenge")
     original = identify_archive(path, classifier=found)
     assert original.stage == 1 and original.metadata is None
-    deeper = identify_archive(path, classifier=found, allow_metadata=True)
+    deeper = identify_archive(path, classifier=found, allow_metadata=True, metadata_reader=inspect_metadata)
     assert deeper.status == "candidate_found"
     assert deeper.metadata.title_candidates == ("Night of Revenge",)
     assert deeper.stage == 3  # 메타데이터 제목을 먼저 수집하여 통합 검색
@@ -259,7 +259,7 @@ def test_conflicting_search_title_and_internal_title_flagged_ambiguous(tmp_path)
     first = identify_archive(
         path, classifier=lambda _: SearchDecision("internet_candidate", "Unknown",
                                                   proposed_title="Another Game"),
-        allow_metadata=True,
+        allow_metadata=True, metadata_reader=inspect_metadata,
     )
     assert first.status == "candidate_found"
     assert first.metadata.title_candidates == ("Different Game",)
@@ -285,7 +285,7 @@ def test_stage3_uses_internal_code_field_for_search(tmp_path):
         return (SearchDecision("confirmed_game", query, proposed_title="Discovered Game",
                                dlsite_code="RJ01234567")
                 if query == "RJ01234567" else missing(query))
-    report = identify_archive(path, classifier=classifier, allow_metadata=True)
+    report = identify_archive(path, classifier=classifier, allow_metadata=True, metadata_reader=inspect_metadata)
     assert report.status == "candidate_found"
     assert report.stage == 3
     assert report.product_code == "RJ01234567"

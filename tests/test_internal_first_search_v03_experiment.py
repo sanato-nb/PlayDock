@@ -119,7 +119,7 @@ def test_unity_default_project_name_is_not_a_conflict(tmp_path):
     })
     def external(query):
         return official(query) if query=="RJ01234567" else missing(query)
-    r=identify_archive(path,classifier=external,allow_metadata=True)
+    r=identify_archive(path,classifier=external,allow_metadata=True,metadata_reader=inspect_metadata)
     assert r.metadata.title_candidates == ()
     assert any(e.kind=="project_name" and e.strength=="weak"
                for e in r.metadata.evidence)
@@ -137,7 +137,7 @@ def test_official_bilingual_title_and_short_native_title_are_not_conflict(tmp_pa
             "confirmed_game", query, dlsite_code="RJ01234567",
             proposed_title="星のセナ - Star Sena -",
         ) if query=="RJ01234567" else missing(query)
-    report=identify_archive(path,classifier=external,allow_metadata=True)
+    report=identify_archive(path,classifier=external,allow_metadata=True,metadata_reader=inspect_metadata)
     ver=verify_identity(report)
     assert ver.verdict in {"likely_candidate","needs_review"}
     assert ver.verdict != "conflict"
@@ -153,7 +153,7 @@ def test_different_same_platform_id_is_still_hard_conflict(tmp_path):
         if query=="RJ01234567":
             return official(query)
         return missing(query)
-    r=identify_archive(path,classifier=official_for_code,allow_metadata=True)
+    r=identify_archive(path,classifier=official_for_code,allow_metadata=True,metadata_reader=inspect_metadata)
     ver=verify_identity(r)
     assert ver.verdict=="conflict"
     assert "same_platform_official_id_conflict" in ver.matched_rules
