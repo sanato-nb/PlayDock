@@ -284,7 +284,16 @@ def classify_game(
 
 
 def fast_classify_game(title: str, *, code: str = "") -> SearchDecision:
-    """GUI 빠른 모드: 검색어 1개당 외부 일반 검색은 최대 1회."""
+    """GUI 빠른 모드: 코드 직접 확인 + 일반 웹 요청 1회, 중복 DLsite 제목 검색 금지."""
+    def lookup_fast(name: str, *, code: str = "",
+                    allow_title_search: bool = False) -> Detection:
+        # 작품 ID는 공식 등록 조회를 유지한다. ID 없는 제목에 대해서는
+        # DLsite 제목 검색과 일반 웹 검색을 연달아 수행하지 않는다.
+        return detect_dlsite_game(
+            name, code=code, allow_title_search=False,
+        )
+
     return classify_game(
-        title, code=code, web_search=fast_web_search, max_variants=1,
+        title, code=code, dlsite_lookup=lookup_fast,
+        web_search=fast_web_search, max_variants=1,
     )
