@@ -82,7 +82,7 @@ def test_stage1_failure_uses_internal_exe_to_search_again(tmp_path):
     assert calls == ["Unknown Game", "Actual Story"]
     assert result.inspection is not None
     assert "Unity" in result.inspection.engine_hints
-    assert "수동 확인" in result.reason
+    assert "미확정" in result.reason
     assert path.read_bytes() == original
 
 
