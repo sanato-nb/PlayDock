@@ -563,3 +563,67 @@ GUI 진행률은 **완료 파일 수와 내부 검사 단계에 따른 대략적
 
 **실제 속도 측정은 v0.4에서 같은 파일로 비교해야 합니다.**
 단위/모의 테스트의 성공은 네트워크에서 걸리는 시간을 보장하지 않습니다.
+
+## 18. 검증판 0.5 — 실제 128개 파일 수동 감사 이후 검색 품질/별칭/분리 판정
+
+v0.4의 실제 사용자 실행 결과에서 작품 후보 발견률은 81/128(63.3%)였지만
+이는 정답률이 아니라 후보 발견률입니다. 128개 중 2개만 유력 후보,
+0개만 일치 확인이었고, 웹 오류와 쓸모없는 내부 파일명 검색이 많았습니다.
+이 JSON은 개인정보와 압축 내부 경로를 포함하므로 저장소에 업로드하지
+않았으며 **검증 회귀 테스트에는 가상의 샘플만 사용**합니다.
+
+### 실행 순서 — 기존 그대로
+
+파일명 제목/품번/버전/별칭 수집 + 비암호화 내부 파일목록·작은
+메타데이터 제목/품번 수집 → **통합 검색 후보 전체 생성·우선순위 정렬·중복 제거**
+→ 인터넷 카탈로그/게임 페이지 조회 → 카탈로그와 내부 근거 독립 평가.
+암호화 파일은 내부를 읽지 않으며 파일명 검색만 합니다.
+
+### 변경된 기능
+
+- `search_plan.py`: 계획을 완성한 뒤 상위 3개(빠른 모드)/6개(정밀 모드)
+  쿼리를 선정. 공통 도구명 `player`, `extracted`, `BepInEx`,
+  `D3D12`, `licenses`, `python` 등을 제외하고 `_Data`,
+  `Win64-Shipping`, 실행파일 버전 `-0.5.2-pc` 등의 중복 제목을 정리.
+  숫자만으로 구성된 진짜 시리즈 `Story 1`, `Story 2`는 구분.
+- `catalog_aliases.py`: 공식 번호가 같은 후보 또는 공식 제목에
+  명시된 다국어 병기/물결표 부제의 한 부분이 같은 후보를 통합.
+  **다른 공식 플랫폼 내 작품 ID 두 개를 같은 작품으로 자동 병합하지 않음**.
+  번역 패치라는 판매 등록 상품과 원작 본편을 이름만으로 합치지 않음.
+- `storefront_candidate.py`: 빠른 검색의 공식 개별 itch.io/Steam
+  작품 페이지 제목과 조회 제목이 명시적으로 일치할 때 검색 결과 1건도
+  `internet_candidate`로 기록. 개발자 프로필 및 관련 없는 다른 작품은
+  제외. 이는 제품 진위/로컬 압축내용 확인이 아닙니다.
+- `search_session.py`: **한 번의 GUI 배치**에서 동일 쿼리 검색 결과를
+  메모리 캐시하고, 연속 2회 검색 장애 시 일반 제목의 추가 검색을
+  20초 정도 건너뛴 후 다시 조회. RJ/Steam 공식 식별자 조회는 유지.
+  실패 결과는 정상 검색 결과로 캐시하지 않습니다.
+- `verification_report.py`, `identity_verifier.py`:
+  `catalog_status`(`official_game_found`, `web_candidate`,
+  `multiple_candidates`, `conflicting_official_ids`, `lookup_error`,
+  `not_found`), `catalog_title`, `catalog_product_ids`,
+  `catalog_release_type`, `local_identity_status` 필드를 추가.
+  **공식 작품을 찾았다는 것과 파일 내용이 그 작품임을 검증한 것은
+  절대 동일한 판정이 아닙니다.** 기존 `verdict`는 보수적인
+  내부 파일 대조 상태로 그대로 유지.
+- `scripts/game_identity_tester.py`: 두 상태를 개별 표 열로 표시,
+  파일별 검사 시간 및 세션 검색 요청/캐시/오류 회피 횟수를 JSON에 기록.
+  GUI 및 검증판 버전은 `0.5-test`.
+- `tests/test_v05_search_and_catalog_experiment.py`: 다른 공식 번호의
+  병합 방지, 다국어 이름, 웹 스토어 제품/개발자 프로필 구분,
+  공통 도구명 제외, 검색 회로 차단/복구, 한 번의 검색 캐시, 이중 상태 판정
+  등 생성한 샘플만으로 테스트.
+
+### 사용자 검증 방법
+
+```powershell
+.\PlayDock-Identity-Tester.exe
+```
+
+먼저 빠른 검색이 켜진 상태로 이전과 같은 게임 10개를 검사해
+`analysis_seconds`, `search_delta`, `verification.catalog_status`,
+`verification.local_identity_status`를 v0.4와 비교하세요.
+
+**v0.5의 실제 128개에 대한 정답률/처리시간 개선은 아직 미측정**입니다.
+브랜치는 실험 브랜치에 그대로 두며 PlayDock `main` 및 사용자 DB를
+자동 변경하거나 암호화 게임의 내용을 읽지 않습니다.
