@@ -14,6 +14,9 @@ from .evidence_normalizer import EvidenceRecord, normalize_evidence
 from .identity_hints import extract_hints
 from .search_terms import cleaned_search_title
 from .search_plan import _useful_title
+from .catalog_aliases import (
+    DISTRIBUTION_PREFIX, group_external_attempts, representative,
+)
 from .identity_matcher import (
     CandidateComparison, candidates_from_report, compare_candidate,
     compatible_title_keys, title_key,
@@ -38,6 +41,41 @@ def _catalog_release_type(title: str) -> str:
     if DLC_PRODUCT.search(title):
         return "dlc"
     return "unspecified"
+
+
+def _possible_translation_relations(report: IdentityReport) -> tuple[str, ...]:
+    """다른 공식 코드의 본편/번역 패치 '연관 가능성'만 별도 표시.
+
+    동일 제목은 상품 동일성의 증거가 아니다. 공식 링크를 실제 검증하기
+    전까지 서로 다른 제품을 병합하거나 자동 선택하지 않는다.
+    """
+    items = []
+    for group in group_external_attempts(report.attempts):
+        item = representative(group).decision
+        if not (item.status == "confirmed_game" and item.dlsite_code):
+            continue
+        kind = _catalog_release_type(item.proposed_title)
+        cleaned = DISTRIBUTION_PREFIX.sub("", item.proposed_title).strip()
+        if kind == "translation_patch":
+            key = normalized_title(cleaned)
+        elif kind == "unspecified":
+            key = normalized_title(item.proposed_title)
+        else:
+            continue
+        if key:
+            items.append((kind, key, item.dlsite_code.upper()))
+    relations = []
+    for kind, key, patch_code in items:
+        if kind != "translation_patch":
+            continue
+        for other, other_key, original_code in items:
+            if (other == "unspecified" and key == other_key
+                    and patch_code != original_code):
+                relations.append(
+                    f"번역 패치 후보 {patch_code} ↔ 원작 후보 {original_code}: "
+                    "공식 상품명 기반 연관 가능성 (공식 상호 링크 미검증)"
+                )
+    return tuple(dict.fromkeys(relations))
 
 GAME_DATA_SIGNALS = frozenset({
     "Ren'Py 게임 데이터 파일 존재",
@@ -112,6 +150,7 @@ def verify_identity(
         for title in candidates
     )
     kind = hints.archive_kind
+    candidate_relationships = _possible_translation_relations(report)
     package = _package_assessment(report, kind)
     localized = (
         "korean_files_present_unverified"
@@ -204,7 +243,17 @@ def verify_identity(
                     matching_title_groups.add(evidence.independence_group)
         id_and_title_same_root = bool(matching_id_groups & matching_title_groups)
 
-        if conflicting_official_platforms:
+        if conflicting_official_platforms and candidate_relationships:
+            # 원작과 별도 판매되는 번역 패치가 공식 제목상 관련되어도
+            # 실제 같은 게임 파일이라고 확정하거나 두 코드를 합치지 않는다.
+            verdict = "needs_review"
+            blockers.append(
+                "서로 다른 공식 작품번호가 본편·번역 패치 관계일 가능성이 "
+                "있습니다. 실제 등록 관계와 로컬 배포 구성을 확인하세요."
+            )
+            applied.append("possible_translation_patch_relation")
+            selected = ""
+        elif conflicting_official_platforms:
             verdict = "conflict"
             blockers.append("동일 플랫폼에서 서로 다른 공식 작품 ID가 조회되었습니다: "
                             + ", ".join(conflicting_official_platforms))
@@ -312,7 +361,9 @@ def verify_identity(
              and e.kind == platform}) > 1
         for platform in ("dlsite_code", "steam_app_id")
     )
-    if official_id_conflict:
+    if official_id_conflict and candidate_relationships:
+        catalog_status = "related_products_review"
+    elif official_id_conflict:
         catalog_status = "conflicting_official_ids"
     elif len(candidates) > 1:
         catalog_status = "multiple_candidates"
@@ -333,6 +384,8 @@ def verify_identity(
     catalog_release_type = _catalog_release_type(
         official_titles[0] if len(official_titles) == 1 else catalog_title
     )
+    if candidate_relationships:
+        catalog_release_type = "mixed_related_products"
     if catalog_release_type in {"translation_patch", "dlc"}:
         blockers.append(
             "외부 조회 작품이 본편과 별도 등록된 번역 패치/DLC일 수 있습니다. "
@@ -401,6 +454,7 @@ def verify_identity(
         catalog_release_type=catalog_release_type,
         local_identity_status=verdict,
         local_name_support=tuple(local_name_support),
+        candidate_relationships=candidate_relationships,
     )
     report.stage_timings_ms["verification_ms"] = round(
         (time.perf_counter() - verification_start) * 1000, 3,

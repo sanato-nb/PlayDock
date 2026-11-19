@@ -518,6 +518,13 @@ class IdentityTesterApp(tk.Tk):
             f"외부 등록 상품 유형: {verified.catalog_release_type}",
             f"로컬 압축파일 대조: {verified.label}",
             "",
+            "[서로 다른 외부 상품의 관계 (미확인)]",
+            *(
+                [f"  • {s}" for s in verified.candidate_relationships]
+                if verified.candidate_relationships
+                else ["  • 공식 출처로 입증된 관계 없음"]
+            ),
+            "",
             f"판정: {verified.label}",
             f"게임명 후보: {verified.proposed_title or ', '.join(verified.candidate_titles) or '없음'}",
             f"암호화: {verified.encryption_state}",

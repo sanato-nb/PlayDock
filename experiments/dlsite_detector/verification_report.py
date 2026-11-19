@@ -45,6 +45,8 @@ class VerificationReport:
     # 압축 이름/내부 경로와 *외부 후보 이름*의 독립 대조 신호.
     # 단순 이름·파일명에 불과하므로 결코 자동 일치 확인의 근거가 아니다.
     local_name_support: tuple[str, ...] = ()
+    # 다른 공식 상품의 연관 가능성을 명시. 제품 동일성 확정 아님.
+    candidate_relationships: tuple[str, ...] = ()
 
     @property
     def label(self) -> str:
