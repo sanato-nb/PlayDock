@@ -451,8 +451,18 @@ def analyze_identity(
     elif len(official_rows) == 1:
         key, chosen = official_rows[0]
         matched_title = _match_any_title(local, chosen.proposed_title)
+        extra_name_correlates = any(
+            c.kind == "title" and c.source in {
+                "root_folder", "main_exe", "readme",
+            } and _name_matches(c.value, chosen.proposed_title)
+            for c in local.clues
+        )
+        # 품번이 없는 게임은 압축파일명 + 독립된 다른 이름 단서도
+        # 맞아야 '공식 작품 식별'로 올린다. 파일명 하나만으론 유력 후보.
+        has_name_or_code_support = bool(codes) or extra_name_correlates
         # 진짜 로컬 파일 내용은 검사하지 않으므로 '공식 작품 식별'만 의미.
-        if matched_title and (not local.exe_ambiguous) and (
+        if matched_title and has_name_or_code_support and (
+            not local.exe_ambiguous) and (
             not local_title_conflict) and (
             not codes or key[1].upper() in codes or
             ("Steam App ID: " + key[1]).upper() in codes

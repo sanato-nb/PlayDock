@@ -275,3 +275,28 @@ def test_fast_search_includes_conflicting_codes_from_readme(tmp_path):
     assert [q for q, _ in _queries(scan, 3)] == [
         "Moon Valley", "RJ09999769", "RJ09999768",
     ]
+
+
+
+def test_name_only_with_no_secondary_local_evidence_remains_likely(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley.zip", {
+        "data/unknown.bin": b"contents",
+    })
+    result = analyze_identity(path, classifier=lambda q: SearchDecision(
+        "confirmed_game", q, proposed_title="Moon Valley",
+        dlsite_code="RJ09999766",
+    ))
+    assert result.status == "likely"
+    assert result.is_unresolved
+
+
+def test_no_local_code_but_archive_and_main_exe_name_agree_can_be_identified(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley.zip", {
+        "Moon Valley.exe": b"fake",
+    })
+    result = analyze_identity(path, classifier=lambda q: SearchDecision(
+        "confirmed_game", q, proposed_title="Moon Valley",
+        dlsite_code="RJ09999765",
+    ))
+    assert result.status == "identified"
+    assert result.product_code == "RJ09999765"
