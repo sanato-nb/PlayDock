@@ -7,6 +7,15 @@
 - 엔진·파일 크기·버전·한글화/번역·DLC는 정체 판단에서 **사용하지 않음**. 이후 다른 단계에서만 검사.
 - 외부에는 *검색어*만 전달. 경로/원본 파일 본문/사용자 결과 JSON을 GitHub에 업로드하지 않음.
 
+## v0.10.1 — 폴더명은 압축파일 첫 화면(최상위 1단계)만 참고
+- 실제 v0.10 사용자 결과의 43개 검사에서 내부 폴더명을 92회 검색에 사용해 검색 쿨다운을 증가시키는 문제가 있었다.
+- 원인: `simple_identity.py`가 각 경로의 처음 2개 `parts`를 후보로 모으므로 `plugins/codec`, `audio/bgm`, `img/characters` 등의 안쪽 폴더가 검색어로 만들어짐.
+- 수정: `parts[0]`으로만 폴더 근거를 등록한다. 최상위 폴더와 다른 깊이의 폴더 이름은 제목·품번 검색에 추가하지 않는다.
+- `audio`, `css`, `data`, `effects`, `fonts`, `icon`, `img`, `js`, `locales`, `save`, `swiftshader` 및 공통 리소스 이름을 첫 화면에서도 제거한다.
+- 압축파일명 우선 조회, 품번 조회, EXE 복수 후보 보류 및 README 제한 읽기는 유지한다.
+- 원본 게임 파일과 사용자 JSON은 저장소에 커밋하지 않고 합성 ZIP 네 사례로 검증했다.
+- GitHub Actions 전체 Python 회귀: 645개 통과. 이번 수정의 실사용 43개 또는 129개 개선율은 아직 재측정하지 않았다.
+
 ## 새 파일
 - `experiments/dlsite_detector/simple_identity.py`: 이름·품번 근거 수집, 신뢰할 수 있는 유일 EXE 후보 추정, 보류 근거, 검색 요청 생성, 외부 공식 작품명·상품번호 교차 평가.
 - `scripts/simple_identity_tester.py`: 독립 Tk GUI. 정밀검색 기본/빠른 검색 옵션, 진행바, 전체/보류 탭, 미확인 재검색, JSON `files` + `unresolved`.

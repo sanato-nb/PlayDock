@@ -26,7 +26,7 @@ from experiments.dlsite_detector.enhanced_search import (
 )
 from experiments.dlsite_detector.pipeline import SearchDecision
 
-VERSION = "0.10-test"
+VERSION = "0.10.1-test"
 ARCHIVE_TYPES = [
     ("게임 압축파일", "*.zip *.7z *.rar"),
     ("ZIP", "*.zip"), ("7z", "*.7z"), ("RAR", "*.rar"),
@@ -129,7 +129,7 @@ class SimpleIdentityApp(tk.Tk):
     def _layout(self) -> None:
         outer = ttk.Frame(self, padding=16)
         outer.pack(fill="both", expand=True)
-        ttk.Label(outer, text="게임 정체 판독기 v0.10 · 이름 + 품번",
+        ttk.Label(outer, text="게임 정체 판독기 v0.10.1 · 이름 + 품번",
                   style="Heading.TLabel").pack(anchor="w")
         ttk.Label(
             outer, style="Hint.TLabel",
@@ -427,7 +427,7 @@ class SimpleIdentityApp(tk.Tk):
             return
         destination = filedialog.asksaveasfilename(
             title="검사 결과 JSON 저장",
-            initialfile="PlayDock_Identity_Test_Results_v0.10.json",
+            initialfile="PlayDock_Identity_Test_Results_v0.10.1.json",
             defaultextension=".json",
             filetypes=[("JSON", "*.json")],
         )

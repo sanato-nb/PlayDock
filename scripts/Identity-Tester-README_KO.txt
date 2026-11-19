@@ -1,4 +1,4 @@
-PlayDock 게임 정체 판독기 v0.10-test — 독립 Windows 검증판
+PlayDock 게임 정체 판독기 v0.10.1-test — 독립 Windows 검증판
 
 [시작 방법]
 1. ZIP 안의 PlayDock-Identity-Tester.exe를 원하는 폴더에 압축 해제합니다.
@@ -10,6 +10,17 @@ PlayDock 게임 정체 판독기 v0.10-test — 독립 Windows 검증판
 7. "JSON 저장"을 누르면 전체 결과와 unresolved 미확인 목록이 함께 저장됩니다.
 8. "미확인 재검사"를 누르면 판독 보류 대상만 다시 검색합니다.
    파일 크기·수정시각이 같으면 이름·README 근거를 세션에서 재사용합니다.
+
+[v0.10.1 추가 규칙 — 내부 폴더 첫 화면만 참고]
+- 압축파일을 처음 열었을 때 직접 보이는 1단계 최상위 폴더명만
+  게임 이름·품번의 내부 폴더 후보로 수집합니다.
+- 하위 경로의 plugins/codec, audio/bgm, img/characters, effects/Model,
+  BepInEx/config 등은 폴더명 검색어로 절대 사용하지 않습니다.
+- 첫 화면에 보이더라도 audio, css, data, effects, fonts, icon, img,
+  js, locales, save, swiftshader, www, resources 같은 공통 폴더는 제외합니다.
+- 게임명처럼 보이는 최상위 폴더만 보조 후보가 될 수 있습니다.
+- EXE와 README는 기존의 별도 안전 규칙으로 제한 검사합니다.
+- 압축파일 이름이 검색 1순위이고, 품번은 있으면 함께 조회합니다.
 
 [v0.10에서 수집하는 정보 — 딱 2가지]
 - 게임 이름: 압축파일명 → 최상위 폴더명 → 주 EXE명 → README 명시 라벨.

@@ -1,5 +1,8 @@
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-19)
 
+> **v0.10.1 첫 화면 규칙:** v0.10 검사 JSON에서 공통 하위 폴더명이 너무 많이 검색되는 오염을 확인하고 `simple_identity.py`의 폴더 후보를 **압축파일 최상위 1단계(`parts[0]`)만** 사용하도록 제한했다. `audio`/`css`/`data`/`img`/`js` 등 루트 공통 리소스 폴더도 검색에서 제외한다. EXE·README는 별도 기존 안전 규칙을 유지. 테스트 645개 통과. 새 Windows EXE의 버전 표시는 `0.10.1-test`. 자세한 기록은 `V10_SIMPLIFIED_IDENTITY_2026-11-19_KO.md` 참조.
+
+
 > **v0.10 간소화 독립 판독기 (2026-11-19):** 이번 실험의 **실행 EXE 진입점은 `scripts/simple_identity_tester.py`**이며, 엔진은 `experiments/dlsite_detector/simple_identity.py`입니다. 기존 v0.9 `scripts/game_identity_tester.py`와 복잡한 6단계 엔진은 회귀 호환용으로만 남겼습니다. 새 실행판은 압축파일명·최상위 폴더·복수 EXE 역할 확인·README의 명시적인 **게임 이름/작품번호만** 수집하고, 검색 실패/복수 후보/유력 후보는 별도 미확인 탭 및 JSON `unresolved`에 보관합니다. 버전/한국어/엔진/DLC 검사는 후속 단계로 제외했습니다. [v0.10 상세](V10_SIMPLIFIED_IDENTITY_2026-11-19_KO.md).
 
 
