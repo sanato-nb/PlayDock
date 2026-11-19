@@ -441,8 +441,14 @@ def analyze_identity(
         confirmed_by_code = False
         for query, basis in code_plan:
             decision = run_query(query, basis)
-            if (decision.status in {"confirmed_game", "platform_confirmed_game"}
-                    and (decision.dlsite_code or decision.source_id)):
+            if (
+                (decision.status == "confirmed_game"
+                 and decision.dlsite_code.upper() == query.upper())
+                or (decision.status == "platform_confirmed_game"
+                    and decision.source_id
+                    and query.casefold() ==
+                    ("Steam App ID: " + decision.source_id).casefold())
+            ):
                 confirmed_by_code = True
         if confirmed_by_code:
             notes.append(
