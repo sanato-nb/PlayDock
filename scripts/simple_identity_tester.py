@@ -494,8 +494,9 @@ def self_test() -> int:
             result = analyze_identity(path, classifier=fake_search)
             assert result.status == "identified", result
             assert result.product_code == "RJ09999777"
-            assert "Moon Valley" in seen
-            assert "RJ09999777" in seen
+            assert seen == ["RJ09999777"]
+            assert any(c.kind == "title" and c.value == "Moon Valley"
+                       for c in result.scan.clues)
             assert result.scan.readme_state == "ok"
             assert result.to_dict()["post_identity_checks"] == "deferred"
             multi = root / "Collection.zip"
