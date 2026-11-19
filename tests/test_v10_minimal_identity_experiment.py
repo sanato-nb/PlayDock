@@ -251,3 +251,27 @@ def test_zip_internal_relative_path_is_never_sent_to_web(tmp_path):
 def test_script_offline_self_test_importable():
     from scripts.simple_identity_tester import self_test
     assert self_test() == 0
+
+
+
+def test_conflicting_readme_and_archive_titles_are_not_officially_identified(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley [RJ09999770].zip", {
+        "Moon Valley/README.txt": b"Title: Totally Different Planet\n",
+    })
+    result = analyze_identity(path, classifier=lambda q: (
+        SearchDecision("confirmed_game", q, proposed_title="Moon Valley",
+                       dlsite_code="RJ09999770")
+        if q == "RJ09999770" else SearchDecision("lookup_unavailable", q)
+    ))
+    assert result.status == "likely"
+    assert any("서로 다른" in n for n in result.notes)
+
+
+def test_fast_search_includes_conflicting_codes_from_readme(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley [RJ09999769].zip", {
+        "Moon Valley/README.txt": b"Title: Moon Valley\nProduct ID: RJ09999768\n",
+    })
+    scan = collect_identity_clues(path)
+    assert [q for q, _ in _queries(scan, 3)] == [
+        "Moon Valley", "RJ09999769", "RJ09999768",
+    ]

@@ -18,7 +18,7 @@ from tkinter import ttk, filedialog, messagebox
 import zipfile
 
 from experiments.dlsite_detector.simple_identity import (
-    SimpleResult, analyze_identity,
+    SimpleResult, SimpleScan, analyze_identity,
 )
 from experiments.dlsite_detector.search_session import SearchSession
 from experiments.dlsite_detector.enhanced_search import (
@@ -228,10 +228,15 @@ class SimpleIdentityApp(tk.Tk):
         for idx, path in enumerate(self.paths):
             self.all_tree.insert("", "end", iid=str(idx),
                                  values=(path.name, "대기", "-", "-", "-"))
+        for idx, result in sorted(self.results.items()):
+            if idx < len(self.paths):
+                self._upsert_result(idx, result)
         self.counter.set(f"파일 {len(self.paths)}개 선택됨")
         self.bar.configure(value=0)
         self.step.set("현재 단계: 대기")
-        self.retry.configure(state="disabled")
+        self.retry.configure(state="normal" if any(
+            r.is_unresolved for r in self.results.values()
+        ) else "disabled")
         self.save.configure(state="normal" if self.results else "disabled")
 
     def _set_detail(self, value: str) -> None:
@@ -332,7 +337,19 @@ class SimpleIdentityApp(tk.Tk):
                         "result", idx, result, (st.st_size, st.st_mtime_ns),
                     ))
                 except Exception as exc:
-                    self.queue.put(("error", idx, type(exc).__name__))
+                    # 파일 열기 실패도 별도 '미확인' 목록과 JSON에 남겨야
+                    # 사용자가 추후 수동 검수/재검사를 할 수 있다.
+                    scan = SimpleScan(
+                        path.name, "unknown", "unavailable", 0, (), (),
+                        False, "not_inspected",
+                        ("분석 예외: " + type(exc).__name__,),
+                    )
+                    failed = SimpleResult(
+                        path.name, "unidentified", "", "",
+                        "압축파일 검사 오류. 수동 재검사가 필요합니다.",
+                        scan, (), (), (), scan.notes, 0.0,
+                    )
+                    self.queue.put(("result", idx, failed, None))
                 self.queue.put(("complete", complete+1, len(indices)))
         finally:
             self.queue.put(("done",))
@@ -349,7 +366,8 @@ class SimpleIdentityApp(tk.Tk):
                 elif event[0] == "result":
                     _, idx, result, signature = event
                     self.results[idx] = result
-                    self.snapshots[idx] = (signature, result.scan)
+                    if signature is not None:
+                        self.snapshots[idx] = (signature, result.scan)
                     self._upsert_result(idx, result)
                 elif event[0] == "error":
                     _, idx, error = event

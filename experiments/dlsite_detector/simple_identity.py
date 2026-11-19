@@ -313,8 +313,8 @@ def _queries(scan: SimpleScan, max_queries: int) -> tuple[tuple[str, str], ...]:
     order = {
         ("title", "archive_name"): 0,
         ("product_code", "archive_name"): 1,
-        ("title", "readme"): 2,
-        ("product_code", "readme"): 3,
+        ("product_code", "readme"): 2,
+        ("title", "readme"): 3,
         ("product_code", "root_folder"): 4,
         ("product_code", "main_exe"): 5,
         ("title", "root_folder"): 6,
@@ -434,6 +434,16 @@ def analyze_identity(
         # 파일명/README의 명시적 제품번호 하나가 여러 공식 결과 중
         # 단독으로 일치하더라도 무관한 별개 작품 가능성을 무시하지 않는다.
         notes.append("외부에서 서로 다른 공식 상품 ID가 조회되었습니다.")
+    important_names = {
+        _key(c.value) for c in local.clues
+        if c.kind == "title" and c.source in {"archive_name", "readme"}
+    }
+    # 서로 다른 README·압축파일 제목이 존재하면 공식 작품번호가
+    # 일치해도 복수 이름의 관계는 아직 확인되지 않은 상태로 남긴다.
+    local_title_conflict = len(important_names) > 1
+    if local_title_conflict:
+        notes.append("압축파일명과 README에서 서로 다른 게임 제목을 수집했습니다.")
+
     if len(official_rows) > 1:
         status = "multiple"
         chosen = None
@@ -443,6 +453,7 @@ def analyze_identity(
         matched_title = _match_any_title(local, chosen.proposed_title)
         # 진짜 로컬 파일 내용은 검사하지 않으므로 '공식 작품 식별'만 의미.
         if matched_title and (not local.exe_ambiguous) and (
+            not local_title_conflict) and (
             not codes or key[1].upper() in codes or
             ("Steam App ID: " + key[1]).upper() in codes
         ):
@@ -470,6 +481,8 @@ def analyze_identity(
         status = "likely"
         reason = "암호화 또는 암호 상태 미확인: 파일명 근거만 사용했습니다."
 
+    if errors:
+        notes.append(f"웹 검색 오류/생략 {len(errors)}회: 작품 부재를 뜻하지 않습니다.")
     best_title = (chosen.proposed_title if chosen is not None else
                   next(iter(weak.values()), "") if len(weak) == 1 else "")
     product_code = (official_rows[0][0][1] if chosen is not None else "")
