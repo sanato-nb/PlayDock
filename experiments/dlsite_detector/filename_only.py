@@ -22,13 +22,13 @@ from .detector import (
     GAME_TYPES, Product, fetch_product, normalized_title, product_page_candidate,
 )
 from .identity_hints import extract_hints
-from .pipeline import examine_web_results, fast_web_search
+from .pipeline import WebEvidence, examine_web_results, fast_web_search
 from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product
 from .storefront_candidate import single_store_candidate
 from .filename_web_search import isolated_web_search
 
-VERSION = "0.11.1-test"
+VERSION = "0.11.2-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -127,6 +127,9 @@ class FilenameIdentityResult:
     lookups: tuple[str, ...]
     errors: tuple[str, ...]
     elapsed_seconds: float
+    web_raw_results: tuple[dict, ...] = ()
+    web_evidence: tuple[WebEvidence, ...] = ()
+    search_providers: tuple[dict, ...] = ()
 
     @property
     def is_unresolved(self) -> bool:
@@ -139,6 +142,7 @@ class FilenameIdentityResult:
         return {
             "official_match": "공식 상품명 일치",
             "catalog_found": "품번으로 공식 상품 발견 · 제목 미검증",
+            "web_candidate": "웹에서 게임명 단서 발견 · 미검증",
             "likely": "후보 · 추가 검증 필요",
             "multiple": "복수 상품 후보",
             "unidentified": "정체 미확인",
@@ -218,9 +222,47 @@ def _direct_steam_lookup(sid: str) -> SteamProduct | None:
 
 
 def _single_title_search(title: str) -> list[dict]:
-    # 제목 검색은 별도 프로세스를 강제 종료할 수 있는 독립 워커에서.
-    # 기본 DDGS 글로벌 잠금/남은 백엔드 스레드로 인한 LookupBusy 방지.
-    return isolated_web_search(title)[:MAX_WEB_RESULTS]
+    # 검색 공급자 계측 정보를 보존하기 위해 list 슬라이스를 하지 않는다.
+    return isolated_web_search(title)
+
+
+def _web_name_candidate(local: str, evidence: tuple[WebEvidence, ...]) -> WebEvidence | None:
+    """검색 결과를 '확정'하지 않고 이름 단서로만 사용.
+    
+    제목에 이름이 충분히 구체적으로 들어 있고, 페이지가 게임 문맥을
+    제공하거나 게임 전문 플랫폼에 있어야 한다. 블로그 댓글과
+    프로필·검색·태그 페이지는 제외한다.
+    """
+    name = normalized_title(local)
+    if len(name) < 6:
+        return None
+    candidates = []
+    for ev in evidence:
+        title = normalized_title(ev.title)
+        if name not in title:
+            continue
+        parsed = urlsplit(ev.url)
+        host = (parsed.hostname or "").casefold()
+        path = parsed.path.casefold()
+        if (
+            any(f"/{x}" in path for x in (
+                "comments", "comment", "profile", "users", "search",
+                "tags", "collections", "discussion", "reviews",
+            ))
+            or host in {"www.google.com", "www.bing.com"}
+        ):
+            continue
+        game_site = ev.trusted_source or host.endswith(
+            (".itch.io", ".gamejolt.com", ".kone.gg")
+        ) or host == "kone.gg"
+        if not (ev.game_context or game_site):
+            continue
+        score = (2 if ev.strong_match else 0) + (
+            2 if game_site else 0
+        ) + (1 if ev.game_context else 0)
+        candidates.append((score, ev))
+    candidates.sort(key=lambda x: x[0], reverse=True)
+    return candidates[0][1] if candidates else None
 
 
 def identify_filename(
@@ -239,6 +281,9 @@ def identify_filename(
     found: dict[tuple[str, str], Candidate] = {}
     looked: list[str] = []
     errors: list[str] = []
+    raw_hits: list[dict] = []
+    web_evidence: tuple[WebEvidence, ...] = ()
+    providers: tuple[dict, ...] = ()
 
     def check_code(code: str) -> None:
         looked.append("DLsite " + code)
@@ -285,7 +330,17 @@ def identify_filename(
                     rows = _TITLE_GATE.call(
                         lambda: web_search(clues.game_name), web_timeout
                     )
+                raw_hits = [
+                    {
+                        "title": str(row.get("title") or "")[:220],
+                        "url": str(row.get("href") or row.get("url") or "")[:1000],
+                    }
+                    for row in list(rows)[:MAX_WEB_RESULTS]
+                    if isinstance(row, dict)
+                ]
+                providers = tuple(getattr(rows, "providers", ()))
                 evidence = examine_web_results(clues.game_name, list(rows))
+                web_evidence = evidence
                 # 정확한 DLsite 작품별 공식 URL만 조회. 다른 사이트 제목은
                 # 제품번호의 근거가 되지 않는다.
                 official_hits = []
@@ -320,6 +375,15 @@ def identify_filename(
                         found[("itch.io", url)] = Candidate(
                             title, "itch.io", "", url, "search_result", True,
                             notes="검색 결과만 확인; 작품 원문은 검증하지 않았습니다"
+                        )
+                if not found:
+                    clue = _web_name_candidate(clues.game_name, evidence)
+                    if clue is not None:
+                        found[("web", clue.url)] = Candidate(
+                            clues.game_name, clue.domain, "", clue.url,
+                            "web_search", True, "",
+                            "일반 웹 검색 결과의 제목·게임 문맥만 확인. "
+                            "공식 상품 등록이나 압축파일 내용은 미검증",
                         )
             except Exception as exc:
                 errors.append("제목 검색 실패: " + type(exc).__name__)
@@ -364,6 +428,12 @@ def identify_filename(
             "제목이 없거나 언어가 달라 이름 일치는 검증되지 않았고, "
             "실제 압축파일 내용의 정체도 아직 확인하지 않았습니다."
         )
+    elif len(candidates) == 1 and candidates[0].source == "web_search":
+        status = "web_candidate"
+        reason = (
+            "검색 페이지에서 파일명과 관련된 게임 단서를 찾았습니다. "
+            "공식 상품이나 압축파일의 정체로 확정하지 않았습니다."
+        )
     elif candidates:
         status = "likely"
         reason = ("공식 상품은 발견했지만 이름이 다르거나 별도 패치 상품이거나 "
@@ -373,7 +443,15 @@ def identify_filename(
         reason = "외부 조회 실패 또는 제한시간 초과. 게임이 없다는 뜻이 아닙니다."
     else:
         status = "unidentified"
-        reason = "파일명만으로 확인 가능한 작품을 찾지 못했습니다."
+        if raw_hits:
+            reason = (
+                f"웹 검색 결과 {len(raw_hits)}건은 받았지만 "
+                "공식 작품 또는 이름이 일치하는 유력 단서를 선정하지 못했습니다."
+            )
+        elif any(q.startswith("제목 ") for q in looked):
+            reason = "제목 검색이 0건을 반환했습니다. 웹에 게임이 없다는 의미는 아닙니다."
+        else:
+            reason = "파일명만으로 확인 가능한 작품을 찾지 못했습니다."
 
     candidate = candidates[0] if len(candidates) == 1 else None
     return FilenameIdentityResult(
@@ -382,4 +460,5 @@ def identify_filename(
         candidate.product_id if candidate else "",
         reason, candidates, tuple(looked), tuple(errors),
         round(time.monotonic() - start, 3),
+        tuple(raw_hits), web_evidence, providers,
     )

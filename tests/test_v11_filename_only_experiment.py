@@ -253,7 +253,7 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11.1-test"
+    assert VERSION == "0.11.2-test"
 
 
 
@@ -373,3 +373,58 @@ def test_default_title_backend_is_isolated(monkeypatch):
     assert r.status == "unidentified"
     assert called == ["NoProductIdGame"]
     assert not any("LookupBusy" in e for e in r.errors)
+
+
+
+def test_web_game_article_is_hint_not_official_confirmation():
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "href": "https://game-news.example.org/reviews/moon-valley",
+        "title": "Moon Valley - Gameplay impressions",
+        "body": "Review of a new PC game",
+    }])
+    assert r.status == "web_candidate"
+    assert r.candidates[0].source == "web_search"
+    assert r.is_unresolved
+    assert r.to_dict()["web_raw_results"][0]["title"].startswith("Moon Valley")
+    assert len(r.web_evidence) == 1
+
+
+def test_community_game_page_is_web_hint_not_confirmed():
+    r = identify_filename("6월의 너와 나.zip", web_search=lambda _: [{
+        "href": "https://kone.gg/s/somisoft/story",
+        "title": "[복구요청] 6월의 너와 나 - 소미소프트 | Kone",
+        "body": "자료 한글명 or 원어명 6월의 너와 나",
+    }])
+    assert r.status == "web_candidate"
+    assert r.is_unresolved
+    assert r.best_title == "6월의 너와 나"
+
+
+def test_unrelated_web_result_recorded_but_not_a_candidate():
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "href": "https://cooking.example.org/blog/moon-valley",
+        "title": "Moon Valley - Summer Recipes",
+        "body": "Breakfast recipes, no games discussed",
+    }])
+    assert r.status == "unidentified"
+    assert len(r.web_raw_results) == 1
+    assert "1건" in r.reason
+
+
+def test_no_results_report_zero_distinctly_from_filtered_results():
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [])
+    assert r.status == "unidentified"
+    assert not r.web_raw_results
+    assert "0건" in r.reason
+
+
+def test_search_provider_telemetry_survives_to_json():
+    from experiments.dlsite_detector.filename_web_search import SearchRows
+    def fake(_):
+        return SearchRows([], [
+            {"provider":"bing_rss","state":"ok","result_count":0,"seconds":0.1},
+            {"provider":"ddgs","state":"ok","result_count":0,"seconds":0.1},
+        ])
+    r = identify_filename("Moon Valley.zip", web_search=fake)
+    assert len(r.search_providers) == 2
+    assert r.to_dict()["search_providers"][0]["provider"] == "bing_rss"

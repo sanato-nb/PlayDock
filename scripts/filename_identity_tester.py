@@ -34,7 +34,7 @@ def details(result: FilenameIdentityResult) -> str:
         "추출 게임명: " + (x.game_name or "없음"),
         "추출 DLsite 품번: " + (", ".join(x.product_codes) or "없음"),
         "추출 Steam App ID: " + (", ".join(x.steam_ids) or "없음"),
-        "찾은 공식 작품: " + (result.best_title or "없음"),
+        "선택된 외부 작품/단서: " + (result.best_title or "없음"),
         "찾은 상품번호: " + (result.product_id or "없음"),
         "이유: " + result.reason, "",
         "[실제로 조회한 검색어]",
@@ -52,6 +52,21 @@ def details(result: FilenameIdentityResult) -> str:
             ]
             if c.notes:
                 out.append("   주의: " + c.notes)
+    if result.search_providers:
+        out += ["", "[실제 검색 서비스 결과]"]
+        for p in result.search_providers:
+            out.append(
+                " · " + str(p.get("provider", "?")) + " "
+                + str(p.get("state", "?")) + " / "
+                + str(p.get("result_count", 0)) + "건 / "
+                + str(p.get("seconds", 0)) + "초"
+            )
+    if result.web_raw_results:
+        out += ["", f"[웹 검색 결과 {len(result.web_raw_results)}건]"]
+        for hit in result.web_raw_results:
+            out += [" · " + hit.get("title", ""), "   " + hit.get("url", "")]
+    elif any(q.startswith("제목 ") for q in result.lookups):
+        out += ["", "[웹 검색 결과] 0건 (검색 서비스 로그 확인 필요)"]
     if result.errors:
         out += ["", "[검색 장애]"]
         out += [" · " + e for e in result.errors]
@@ -143,7 +158,7 @@ class FilenameTesterApp(tk.Tk):
             ("extracted", "추출 게임명", 205),
             ("code", "품번", 135),
             ("status", "정체 판정", 140),
-            ("official", "외부 공식 작품명", 220),
+            ("official", "외부 작품명·단서", 220),
             ("time", "검색시간", 85),
         ]
         for key, heading, width in opts:
@@ -436,7 +451,7 @@ def self_test() -> int:
             )
             assert p.returncode == 0
             assert out.read_text(encoding="utf-8") == "worker-ok"
-        print("PlayDock filename-only v0.11.1 self-test: passed", flush=True)
+        print("PlayDock filename-only v0.11.2 self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback

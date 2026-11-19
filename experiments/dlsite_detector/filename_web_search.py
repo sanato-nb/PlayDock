@@ -12,6 +12,7 @@ import json
 import os
 from pathlib import Path
 import re
+import time
 import subprocess
 import sys
 import tempfile
@@ -31,6 +32,13 @@ class SearchWorkerError(RuntimeError):
 
 class SearchWorkerTimeout(TimeoutError):
     pass
+
+
+class SearchRows(list):
+    """목록은 기존 검색 호출과 호환, 검색 공급자 계측은 별도로 보존."""
+    def __init__(self, rows, providers=()):
+        super().__init__(rows)
+        self.providers = tuple(providers)
 
 
 def _valid_url(raw: str) -> bool:
@@ -85,28 +93,41 @@ def bing_rss_search(title: str, *, timeout: float = 3.0,
     return rows
 
 
-def search_one_title(title: str) -> list[dict]:
-    """동일 게임 제목 하나에 대해 RSS → DDGS 대체 백엔드를 제한적으로 사용."""
+def search_one_title(title: str, providers: list[dict] | None = None) -> list[dict]:
+    """RSS → DDGS 한 번씩. 각 공급자의 실제 반환 수·오류를 JSON에 기록."""
     from .pipeline import fast_web_search
 
+    trace = providers if providers is not None else []
     errors = []
     bing_ok = False
+    start = time.monotonic()
     try:
         result = bing_rss_search(title)
         bing_ok = True
+        trace.append({"provider": "bing_rss", "state": "ok",
+                      "result_count": len(result),
+                      "seconds": round(time.monotonic() - start, 3)})
         if result:
             return result
     except Exception as exc:
+        trace.append({"provider": "bing_rss", "state": type(exc).__name__,
+                      "result_count": 0,
+                      "seconds": round(time.monotonic() - start, 3)})
         errors.append("BingRSS:" + type(exc).__name__)
+    start = time.monotonic()
     try:
         rows = fast_web_search(title)
+        trace.append({"provider": "ddgs", "state": "ok",
+                      "result_count": len(rows),
+                      "seconds": round(time.monotonic() - start, 3)})
         if rows:
             return list(rows)[:MAX_RESULTS]
     except Exception as exc:
+        trace.append({"provider": "ddgs", "state": type(exc).__name__,
+                      "result_count": 0,
+                      "seconds": round(time.monotonic() - start, 3)})
         errors.append("DDGS:" + type(exc).__name__)
     if bing_ok:
-        # RSS가 정상이며 결과가 없었을 때 DDGS 장애는 '찾지 못함'과 구분
-        # 어려울 수 있으므로 오판 방지 차원에서 오류로 드러낸다.
         if errors:
             raise SearchWorkerError(", ".join(errors))
         return []
@@ -120,13 +141,15 @@ def worker_main(input_path: str, output_path: str) -> int:
         query = raw.get("query", "")
         if not isinstance(query, str) or not 1 <= len(query) <= 180:
             raise ValueError("검색어 길이가 잘못되었습니다")
-        rows = search_one_title(query)
-        payload = {"ok": True, "rows": rows}
+        providers: list[dict] = []
+        rows = search_one_title(query, providers)
+        payload = {"ok": True, "rows": rows, "providers": providers}
     except Exception as exc:
         payload = {
             "ok": False,
             "error": type(exc).__name__,
             "details": str(exc)[:180],
+            "providers": locals().get("providers", []),
         }
     Path(output_path).write_text(
         json.dumps(payload, ensure_ascii=False), encoding="utf-8",
@@ -185,4 +208,7 @@ def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
         rows = payload.get("rows")
         if not isinstance(rows, list):
             raise SearchWorkerError("웹 검색 결과가 배열이 아닙니다")
-        return [row for row in rows[:MAX_RESULTS] if isinstance(row, dict)]
+        return SearchRows(
+            [row for row in rows[:MAX_RESULTS] if isinstance(row, dict)],
+            payload.get("providers", []),
+        )
