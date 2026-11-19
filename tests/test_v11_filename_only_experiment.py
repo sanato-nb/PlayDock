@@ -253,7 +253,7 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11.2-test"
+    assert VERSION == "0.11.3-test"
 
 
 
@@ -428,3 +428,103 @@ def test_search_provider_telemetry_survives_to_json():
     r = identify_filename("Moon Valley.zip", web_search=fake)
     assert len(r.search_providers) == 2
     assert r.to_dict()["search_providers"][0]["provider"] == "bing_rss"
+
+
+
+def test_irrelevant_bing_results_force_ddgs_fallback(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w
+    from experiments.dlsite_detector import pipeline
+    seen = []
+    monkeypatch.setattr(w, "bing_rss_search", lambda title: [{
+        "title": "6 - 위키백과", "href": "https://ko.wikipedia.org/wiki/6",
+        "body": "number six",
+    }] * 6)
+    def secondary(q):
+        seen.append(q)
+        return [{
+            "title": "6월의 너와 나 - 게임 소개",
+            "href": "https://game-review.example.com/6wol",
+            "body": "게임 플레이 리뷰",
+        }]
+    monkeypatch.setattr(pipeline, "fast_web_search", secondary)
+    trace = []
+    rows = w.search_one_title("6월의 너와 나", trace)
+    assert seen == ["6월의 너와 나"]
+    assert [r["title"] for r in rows] == ["6월의 너와 나 - 게임 소개"]
+    assert trace[0]["provider"] == "bing_rss"
+    assert trace[0]["state"] == "irrelevant"
+    assert trace[0]["relevant_count"] == 0
+    assert trace[1]["provider"] == "ddgs"
+    assert trace[1]["relevant_count"] == 1
+
+
+def test_official_bing_store_result_skips_ddgs(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(w, "bing_rss_search", lambda name: [{
+        "title": "PASEC by FalloutStar - itch.io",
+        "href": "https://falloutstar.itch.io/pasec",
+        "body": "Download game",
+    }])
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: (
+        _ for _ in ()).throw(AssertionError("redundant DDGS")))
+    trace = []
+    result = w.search_one_title("PASEC", trace)
+    assert len(result) == 1
+    assert len(trace) == 1
+    assert trace[0]["relevant_count"] == 1
+
+
+def test_short_title_rec_store_is_web_hint_but_not_official():
+    r = identify_filename("REC [v0.4.2.2].zip", web_search=lambda _: [{
+        "title": "REC by moondev",
+        "href": "https://moondev64.itch.io/rec",
+        "body": "Play REC game on itch.io",
+    }])
+    assert r.status in {"web_candidate", "likely"}
+    assert r.is_unresolved
+    assert r.candidates[0].source in {"web_search", "search_result"}
+
+
+def test_pasec_itch_page_recovered_as_unverified_candidate():
+    r = identify_filename("PASEC [v2.2566].zip", web_search=lambda _: [{
+        "title": "PASEC 1.5 Alpha by FalloutStar",
+        "href": "https://falloutstar.itch.io/pasec",
+        "body": "Download the game",
+    }])
+    assert r.status in {"web_candidate", "likely"}
+    assert r.is_unresolved
+
+
+def test_same_initial_word_is_not_full_game_title(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w
+    assert w._row_quality("BunnyHero", {
+        "title": "PAPAGO dashcam repair guide",
+        "href": "https://car.example.org/reviews/dashcam",
+        "body": "No video games here",
+    }) == 0
+    assert w._row_quality("Agent Feminine", {
+        "title": "Agent meaning in dictionary",
+        "href": "https://dictionary.example.org/agent",
+        "body": "English words",
+    }) == 0
+    assert w._row_quality("REC", {
+        "title": "Renewable energy certificate REC",
+        "href": "https://energy.example.com/certificate",
+        "body": "Electricity",
+    }) == 0
+
+
+def test_one_off_topic_provider_plus_ddgs_error_is_search_failure(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: [{
+        "title": "Osaka Castle - Travel Guide",
+        "href": "https://travel.example.org/castle",
+        "body": "History of Japan",
+    }])
+    monkeypatch.setattr(pipeline, "fast_web_search",
+                        lambda _: (_ for _ in ()).throw(RuntimeError("offline")))
+    try:
+        w.search_one_title("BUZAMA 2")
+        assert False, "An unreliable query is not an actual negative lookup"
+    except w.SearchWorkerError:
+        pass

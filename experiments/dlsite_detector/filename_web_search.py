@@ -16,13 +16,14 @@ import time
 import subprocess
 import sys
 import tempfile
+import unicodedata
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 MAX_RESULTS = 6
 MAX_XML_BYTES = 160_000
-WALL_SECONDS = 8.5
+WALL_SECONDS = 13.0
 _RSS_ENDPOINT = "https://www.bing.com/search"
 
 
@@ -35,7 +36,7 @@ class SearchWorkerTimeout(TimeoutError):
 
 
 class SearchRows(list):
-    """목록은 기존 검색 호출과 호환, 검색 공급자 계측은 별도로 보존."""
+    """제목 검색 결과와 공급자별 품질 진단을 함께 전달한다."""
     def __init__(self, rows, providers=()):
         super().__init__(rows)
         self.providers = tuple(providers)
@@ -93,45 +94,153 @@ def bing_rss_search(title: str, *, timeout: float = 3.0,
     return rows
 
 
+def _name_in_text(name: str, text: str) -> bool:
+    """전체 게임명을 확인한다. 단어 하나만 일치한 '6'/'Project'는 무효."""
+    def folded(raw: str) -> str:
+        return re.sub(r"[\W_]+", "", unicodedata.normalize("NFKC", raw).casefold(),
+                      flags=re.UNICODE)
+    query = folded(name)
+    if len(query) < 3:
+        return False
+    if len(query) >= 6:
+        return query in folded(text)
+    # REC/PASEC 같은 짧은 작품은 다른 단어 중간에서 우연히 일치하면 안 됨.
+    name_raw = unicodedata.normalize("NFKC", name).strip()
+    if not name_raw:
+        return False
+    return bool(re.search(
+        r"(?<!\w)" + re.escape(name_raw) + r"(?!\w)",
+        unicodedata.normalize("NFKC", text), flags=re.I,
+    ))
+
+
+_GAME_CONTEXT = re.compile(
+    r"(?i)\b(?:game|games|gameplay|visual novel|indie|rpg|steam|"
+    r"itch\.io|dlsite|walkthrough|renpy|newgrounds|"
+    r"download.*game)\b|게임|ゲーム|同人|ゲーム作品"
+)
+_GAME_STORES = (
+    "itch.io", "store.steampowered.com", "dlsite.com", "gamejolt.com",
+)
+
+
+def _store_page(url: str) -> bool:
+    parsed = urlsplit(url)
+    host = (parsed.hostname or "").casefold()
+    path = parsed.path.casefold()
+    if host == "store.steampowered.com":
+        return bool(re.match(r"^/app/\d+(?:/|$)", path))
+    if host == "www.dlsite.com" or host == "dlsite.com":
+        return "product_id/" in path
+    if host.endswith(".itch.io"):
+        return bool(path.strip("/")) and not any(
+            f"/{token}" in path for token in
+            ("comments", "collections", "profile", "community", "posts")
+        )
+    if host == "gamejolt.com" or host.endswith(".gamejolt.com"):
+        return path.startswith("/games/")
+    return False
+
+
+def _row_quality(query: str, row: dict) -> int:
+    """숫자·사전·관광 결과를 게임 후보로 반환하지 않는다."""
+    if not isinstance(row, dict):
+        return 0
+    heading = str(row.get("title") or "")
+    snippet = str(row.get("body") or row.get("snippet") or "")
+    url = str(row.get("href") or row.get("url") or "")
+    if not _valid_url(url):
+        return 0
+    if not _name_in_text(query, heading):
+        # 단순 본문 스니펫에 한 번 언급된 제목은 검색 근거가 약함.
+        return 0
+    if any(segment in urlsplit(url).path.casefold() for segment in (
+        "/comments", "/search", "/tags/", "/users/", "/topic/",
+    )):
+        return 0
+    storefront = _store_page(url)
+    context = bool(_GAME_CONTEXT.search(heading + " " + snippet))
+    if not storefront and not context:
+        return 0
+    return 4 if storefront else 2
+
+
+def _rank_relevant(query: str, rows: list[dict]) -> tuple[list[dict], list[dict], int]:
+    selected = []
+    dropped = []
+    high = 0
+    for row in list(rows)[:MAX_RESULTS * 2]:
+        score = _row_quality(query, row)
+        if score:
+            selected.append((score, row))
+            high += score >= 4
+        elif isinstance(row, dict) and len(dropped) < 3:
+            dropped.append({
+                "title": str(row.get("title") or "")[:140],
+                "url": str(row.get("href") or row.get("url") or "")[:350],
+            })
+    selected.sort(key=lambda x: x[0], reverse=True)
+    return [row for _, row in selected], dropped, high
+
+
 def search_one_title(title: str, providers: list[dict] | None = None) -> list[dict]:
-    """RSS → DDGS 한 번씩. 각 공급자의 실제 반환 수·오류를 JSON에 기록."""
+    """결과 6건이 아니라 *게임명과의 관련성*을 기준으로 DDGS 재검색.
+
+    Bing RSS에 '6월의 너와 나'를 검색해서 숫자 6의 위키백과가 뜨면
+    그것은 게임 후보 0건이다. DDGS를 다시 조회하고 결과를 합친다.
+    """
     from .pipeline import fast_web_search
 
     trace = providers if providers is not None else []
-    errors = []
-    bing_ok = False
-    start = time.monotonic()
-    try:
-        result = bing_rss_search(title)
-        bing_ok = True
-        trace.append({"provider": "bing_rss", "state": "ok",
-                      "result_count": len(result),
-                      "seconds": round(time.monotonic() - start, 3)})
-        if result:
-            return result
-    except Exception as exc:
-        trace.append({"provider": "bing_rss", "state": type(exc).__name__,
-                      "result_count": 0,
-                      "seconds": round(time.monotonic() - start, 3)})
-        errors.append("BingRSS:" + type(exc).__name__)
-    start = time.monotonic()
-    try:
-        rows = fast_web_search(title)
-        trace.append({"provider": "ddgs", "state": "ok",
-                      "result_count": len(rows),
-                      "seconds": round(time.monotonic() - start, 3)})
-        if rows:
-            return list(rows)[:MAX_RESULTS]
-    except Exception as exc:
-        trace.append({"provider": "ddgs", "state": type(exc).__name__,
-                      "result_count": 0,
-                      "seconds": round(time.monotonic() - start, 3)})
-        errors.append("DDGS:" + type(exc).__name__)
-    if bing_ok:
-        if errors:
-            raise SearchWorkerError(", ".join(errors))
+    had_success = False
+    faults = []
+    combined: dict[str, tuple[int, dict]] = {}
+    bing_strong = False
+
+    for source in ("bing_rss", "ddgs"):
+        if source == "ddgs" and bing_strong:
+            break
+        begin = time.monotonic()
+        try:
+            rows = bing_rss_search(title) if source == "bing_rss" else fast_web_search(title)
+            had_success = True
+            accepted, examples, high = _rank_relevant(title, list(rows))
+            raw_count = len(rows)
+            trace.append({
+                "provider": source,
+                "state": "relevant" if accepted else ("irrelevant" if rows else "empty"),
+                "result_count": raw_count,
+                "relevant_count": len(accepted),
+                "rejected_count": raw_count - len(accepted),
+                "discarded_examples": examples,
+                "seconds": round(time.monotonic() - begin, 3),
+            })
+            for row in accepted:
+                url = str(row.get("href") or row.get("url") or "")
+                quality = _row_quality(title, row)
+                if url not in combined or quality > combined[url][0]:
+                    combined[url] = (quality, row)
+            bing_strong = source == "bing_rss" and high > 0
+        except Exception as exc:
+            trace.append({
+                "provider": source, "state": type(exc).__name__,
+                "result_count": 0, "relevant_count": 0,
+                "rejected_count": 0,
+                "seconds": round(time.monotonic() - begin, 3),
+            })
+            faults.append(f"{source}:{type(exc).__name__}")
+    if combined:
+        return [row for _, row in sorted(
+            combined.values(), key=lambda r: r[0], reverse=True
+        )][:MAX_RESULTS]
+    if had_success and not faults:
         return []
-    raise SearchWorkerError(", ".join(errors) or "검색 제공자 응답 없음")
+    # 검색 결과가 모두 무관하고 나머지 검색 엔진이 장애를 일으킨 경우에는
+    # '게임 없음'으로 판단할 근거가 불충분하다.
+    if faults:
+        raise SearchWorkerError(", ".join(faults))
+    return []
+
 
 
 def worker_main(input_path: str, output_path: str) -> int:

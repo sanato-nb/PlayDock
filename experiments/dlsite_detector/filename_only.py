@@ -28,7 +28,7 @@ from .steam_client import SteamProduct, fetch_steam_product
 from .storefront_candidate import single_store_candidate
 from .filename_web_search import isolated_web_search
 
-VERSION = "0.11.2-test"
+VERSION = "0.11.3-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -234,12 +234,17 @@ def _web_name_candidate(local: str, evidence: tuple[WebEvidence, ...]) -> WebEvi
     프로필·검색·태그 페이지는 제외한다.
     """
     name = normalized_title(local)
-    if len(name) < 6:
+    if len(name) < 3:
         return None
     candidates = []
     for ev in evidence:
         title = normalized_title(ev.title)
-        if name not in title:
+        if len(name) < 6:
+            # PASEC, REC처럼 짧은 게임 이름은 단어 경계 기준.
+            if not re.search(r"(?<!\w)" + re.escape(local.strip())
+                             + r"(?!\w)", ev.title, flags=re.I):
+                continue
+        elif name not in title:
             continue
         parsed = urlsplit(ev.url)
         host = (parsed.hostname or "").casefold()
