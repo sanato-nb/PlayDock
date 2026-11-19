@@ -65,7 +65,7 @@ def test_confirmed_official_title_and_code_are_catalog_identity_not_file_authent
     result = analyze_identity(path, classifier=classifier)
     assert result.status == "identified"
     assert result.product_code == "RJ09999777"
-    assert seen[:2] == ["Moon Valley", "RJ09999777"]
+    assert seen == ["RJ09999777"]
     assert result.to_dict()["local_file_identity_cryptographically_verified"] is False
     assert result.to_dict()["post_identity_checks"] == "deferred"
 
@@ -375,3 +375,89 @@ def test_single_root_wrapper_can_still_be_used_as_name(tmp_path):
     }
     assert all(c.detail == "Moon Valley" for c in scan.clues
                if c.source == "root_folder")
+
+
+
+def test_confirmed_code_skips_expensive_title_search(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley [RJ09999666].zip", {
+        "Moon Valley/Moon Valley.exe": b"fake",
+    })
+    calls = []
+    def classifier(q):
+        calls.append(q)
+        if q != "RJ09999666":
+            raise AssertionError("품번 확인 후 제목 검색 호출 금지")
+        return SearchDecision(
+            "confirmed_game", q, proposed_title="Moon Valley",
+            dlsite_code="RJ09999666",
+        )
+    result = analyze_identity(path, classifier=classifier)
+    assert result.status == "identified"
+    assert result.search_queries == ("RJ09999666",)
+    assert calls == ["RJ09999666"]
+
+
+def test_one_timeout_stops_further_names_for_same_archive(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley.zip", {
+        "Different Story/file.bin": b"x",
+        "Moon Valley.exe": b"x",
+    })
+    seen = []
+    def failed(q):
+        seen.append(q)
+        return SearchDecision(
+            "lookup_unavailable", q,
+            search_state="network_error",
+        )
+    result = analyze_identity(path, classifier=failed)
+    assert result.status == "search_error"
+    assert seen == ["Moon Valley"]
+    assert result.search_queries == ("Moon Valley",)
+
+
+def test_secondary_folder_and_exe_versions_do_not_trigger_duplicate_searches(tmp_path):
+    path = make_zip(tmp_path, "BunnyHero [v0.5.2].zip", {
+        "BunnyHero-0.5.2-pc/BunnyHero.exe": b"x",
+        "BunnyHero-0.5.2-pc/BunnyHero_Data/data.bin": b"x",
+    })
+    scan = collect_identity_clues(path)
+    assert [q for q, _ in _queries(scan, 6)] == ["BunnyHero"]
+
+
+def test_english_exe_version_removed_without_losing_series_number(tmp_path):
+    path = make_zip(tmp_path, "Agent Feminine [v0.4.7].zip", {
+        "agent_feminine_0.4.7.exe": b"x",
+    })
+    scan = collect_identity_clues(path)
+    assert [q for q, _ in _queries(scan, 6)] == ["Agent Feminine"]
+
+
+def test_code_only_patched_product_is_not_identified_as_base_game(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley [RJ09999665].zip", {
+        "Moon Valley/Moon Valley.exe": b"x",
+    })
+    result = analyze_identity(path, classifier=lambda q: (
+        SearchDecision("confirmed_game", q,
+                       proposed_title="【AI번역 패치】Moon Valley",
+                       dlsite_code="RJ09999665")
+    ))
+    assert result.status == "likely"
+    assert result.is_unresolved
+    assert "번역 패치" in result.reason
+
+
+def test_two_declared_codes_one_unavailable_does_not_identify(tmp_path):
+    path = make_zip(tmp_path, "Moon Valley [RJ09999664].zip", {
+        "README.txt": b"DLsite Code: RJ09999663\n",
+    })
+    def classify(q):
+        if q == "RJ09999664":
+            return SearchDecision("confirmed_game", q,
+                                  proposed_title="Moon Valley",
+                                  dlsite_code=q)
+        return SearchDecision("lookup_unavailable", q,
+                              search_state="network_error")
+    result = analyze_identity(path, classifier=classify)
+    assert result.status == "likely"
+    assert result.is_unresolved
+    assert result.product_code == "RJ09999664"

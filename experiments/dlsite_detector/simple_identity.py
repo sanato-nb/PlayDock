@@ -149,10 +149,18 @@ def _codes(raw: str) -> tuple[str, ...]:
 def _candidate_title(raw: str, *, folder: bool = False) -> str:
     title = _interesting_title(raw, is_folder=folder)
     title = cleaned_search_title(title)
+    # 압축 내부 이름에서만 명시적인 끝 버전 및 OS 태그를 정리한다.
+    # 작품 시리즈 번호(예: BUZAMA 2)는 보존한다.
+    title = re.sub(
+        r"(?i)[\s._-]+(?:v|ver)?\d+(?:[._]\d+){1,4}"
+        r"(?:[._-]+(?:pc|windows|win64|win|linux|x64|x86))?$",
+        "", title,
+    ).strip(" -_.")
     if not title:
         return ""
     if folder and (
-        FOLDER_NOISE.match(title)
+        re.match(r"(?i)^cg(?:$|[\s_-])", title)
+        or FOLDER_NOISE.match(title)
         or re.sub(r"[\W_]+", "", title.casefold()) in ROOT_NON_GAME_FOLDERS
         or re.search(r"(?i)_?burstdebuginformation|donotship", raw)
     ):
@@ -339,7 +347,9 @@ def _queries(scan: SimpleScan, max_queries: int) -> tuple[tuple[str, str], ...]:
     result: list[tuple[str, str]] = []
     for clue in clue_rows:
         q = clue.value
-        key = " ".join(q.casefold().split())
+        # 공백/하이픈/구두점만 다른 실행파일명은 이름 검색을 반복하지 않는다.
+        key = ("code:" + q.casefold() if clue.kind == "product_code"
+               else "name:" + (_key(q) or q.casefold()))
         if key in unique:
             continue
         unique.add(key)
@@ -397,11 +407,26 @@ def analyze_identity(
     notify("이름·품번 검색 중")
     plan = _queries(local, max_queries)
     if online and classifier is None:
-        from .enhanced_search import enhanced_classify_game
-        classifier = enhanced_classify_game
+        # 제목이 없는 작품은 직접 품번 조회. 제목 검색은 단일 웹 요청만
+        # 수행해 타임아웃을 여러 번 연속 기다리지 않는다.
+        from .enhanced_search import (
+            enhanced_classify_game, fast_enhanced_classify_game,
+        )
+        def classifier(query: str) -> SearchDecision:
+            if re.fullmatch(r"(?i)(?:RJ|BJ|VJ|EJ)\d{6,8}", query):
+                return enhanced_classify_game(query)
+            return fast_enhanced_classify_game(query)
     attempts: list[SimpleAttempt] = []
     if online and classifier is not None:
-        for query, basis in plan:
+        # 이름은 로컬 식별의 1순위지만 공식 작품번호가 있으면 공식
+        # 상품을 먼저 조회해 얻은 제목을 대조한다. 충분하면 느린
+        # 동일 제목의 인터넷 검색을 반복하지 않는다.
+        code_plan = [(q, basis) for q, basis in plan
+                     if basis.endswith("/product_code")]
+        title_plan = [(q, basis) for q, basis in plan
+                      if not basis.endswith("/product_code")]
+
+        def run_query(query: str, basis: str) -> SearchDecision:
             try:
                 decision = classifier(query)
             except Exception as exc:
@@ -411,6 +436,31 @@ def analyze_identity(
                     search_state="network_error",
                 )
             attempts.append(SimpleAttempt(query, basis, decision))
+            return decision
+
+        confirmed_by_code = False
+        for query, basis in code_plan:
+            decision = run_query(query, basis)
+            if (decision.status in {"confirmed_game", "platform_confirmed_game"}
+                    and (decision.dlsite_code or decision.source_id)):
+                confirmed_by_code = True
+        if confirmed_by_code:
+            notes.append(
+                "공식 품번에서 작품명을 조회했습니다. 반복되는 제목 "
+                "인터넷 검색은 생략하고 로컬 이름과 직접 대조합니다."
+            )
+        else:
+            # 첫 검색이 통신 오류/쿨다운이면 다른 폴더·EXE 이름도
+            # 성공 가능성이 낮으므로 이번 파일은 재검사 대상으로 둔다.
+            # 독립된 보조 이름은 최대 1회만 추가 시도한다.
+            for query, basis in title_plan[:2]:
+                decision = run_query(query, basis)
+                if (decision.search_state in {"network_error", "cooldown_skipped"}
+                        or decision.status in {
+                            "confirmed_game", "platform_confirmed_game",
+                            "internet_candidate", "internet_confirmed_game",
+                        }):
+                    break
     notify("외부 작품명·품번 대조 중")
     if not online:
         return SimpleResult(
@@ -475,9 +525,11 @@ def analyze_identity(
         # 맞아야 '공식 작품 식별'로 올린다. 파일명 하나만으론 유력 후보.
         has_name_or_code_support = bool(codes) or extra_name_correlates
         # 진짜 로컬 파일 내용은 검사하지 않으므로 '공식 작품 식별'만 의미.
+        # 서로 다른 로컬 품번이 있어 한 번의 코드 조회만 성공한
+        # 경우에는 다른 상품 가능성을 배제할 수 없다.
         if matched_title and has_name_or_code_support and (
             not local.exe_ambiguous) and (
-            not local_title_conflict) and (
+            not local_title_conflict) and len(codes) <= 1 and (
             not codes or key[1].upper() in codes or
             ("Steam App ID: " + key[1]).upper() in codes
         ):
@@ -498,6 +550,15 @@ def analyze_identity(
         chosen = None
         reason = ("일부 검색이 실패했습니다. 작품이 없다는 뜻은 아닙니다."
                   if errors else "이름·품번으로 외부 작품 정체를 확인하지 못했습니다.")
+    if status == "identified" and chosen is not None and re.match(
+        r"(?i)^\s*(?:[【\[]\s*)?(?:AI\s*번역|번역\s*패치|translation\s*patch|翻訳\s*パッチ)",
+        chosen.proposed_title,
+    ):
+        status = "likely"
+        reason = (
+            "품번이 가리키는 공식 등록 상품이 번역 패치일 수 있습니다. "
+            "원작 게임 본편과 동일하다고 확정하지 않습니다."
+        )
     if local.scan_state in {"partial", "limit_exceeded", "unavailable"} and status == "identified":
         status = "likely"
         reason = "압축파일 내부 이름 목록이 불완전하므로 공식 후보 확인에 머물렀습니다."
@@ -517,6 +578,7 @@ def analyze_identity(
     ))
     return SimpleResult(
         path.name, status, best_title, product_code, reason, local,
-        tuple(attempts), alternatives, tuple(q for q, _ in plan),
+        tuple(attempts), alternatives,
+        tuple(a.query for a in attempts),
         tuple(notes), round(time.perf_counter() - begin, 3),
     )

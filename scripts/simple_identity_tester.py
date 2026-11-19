@@ -309,9 +309,15 @@ class SimpleIdentityApp(tk.Tk):
 
     def _worker_run(self, indices: tuple[int, ...], online: bool,
                     fast: bool, retry: bool) -> None:
-        search = SearchSession(
-            fast_enhanced_classify_game if fast else enhanced_classify_game,
-        ) if online else None
+        # 상세 모드에서도 제목은 한 번만 빠르게 웹 조회한다.
+        # 공식 번호 조회는 정상적인 DLsite 확인 경로를 유지한다.
+        def efficient_search(query: str) -> SearchDecision:
+            import re
+            if re.fullmatch(r"(?i)(?:RJ|BJ|VJ|EJ)\d{6,8}", query):
+                return enhanced_classify_game(query)
+            return fast_enhanced_classify_game(query)
+
+        search = SearchSession(efficient_search) if online else None
         try:
             for complete, idx in enumerate(indices):
                 if self.stop_flag.is_set():
