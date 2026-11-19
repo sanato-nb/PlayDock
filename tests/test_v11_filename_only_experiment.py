@@ -355,8 +355,8 @@ def test_search_worker_uses_only_extracted_title(tmp_path, monkeypatch):
     output_path = tmp_path / "output.json"
     input_path.write_text('{"query":"Moon Valley"}', encoding="utf-8")
     monkeypatch.setattr(filename_web_search, "search_one_title",
-                        lambda title: [{"title": title,
-                                        "href": "https://example.com/game"}])
+                        lambda title, providers=None: [{"title": title,
+                                                       "href": "https://example.com/game"}])
     assert worker_main(str(input_path), str(output_path)) == 0
     obj = json.loads(output_path.read_text(encoding="utf-8"))
     assert obj["ok"] and obj["rows"][0]["title"] == "Moon Valley"
@@ -404,7 +404,7 @@ def test_unrelated_web_result_recorded_but_not_a_candidate():
     r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
         "href": "https://cooking.example.org/blog/moon-valley",
         "title": "Moon Valley - Summer Recipes",
-        "body": "Breakfast recipes, no games discussed",
+        "body": "Breakfast, sugar, and fruit recipes",
     }])
     assert r.status == "unidentified"
     assert len(r.web_raw_results) == 1
