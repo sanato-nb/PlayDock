@@ -247,7 +247,7 @@ def _web_name_candidate(local: str, evidence: tuple[WebEvidence, ...]) -> WebEvi
         if (
             any(f"/{x}" in path for x in (
                 "comments", "comment", "profile", "users", "search",
-                "tags", "collections", "discussion", "reviews",
+                "tags", "collections", "discussion",
             ))
             or host in {"www.google.com", "www.bing.com"}
         ):
