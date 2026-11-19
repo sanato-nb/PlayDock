@@ -103,7 +103,10 @@ def test_official_catalog_code_only_does_not_certify_game_filename():
         web_search=fail_web,
     )
     assert r.extracted.game_name == ""
-    assert r.status == "likely"
+    assert r.status == "catalog_found"
+    assert r.best_title == "Moon Valley"
+    assert not r.is_unresolved
+    assert r.to_dict()["local_game_files_verified"] is False
 
 
 def test_lookup_returning_different_id_rejected():
@@ -250,4 +253,123 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11-test"
+    assert VERSION == "0.11.1-test"
+
+
+
+def test_korean_file_title_japanese_official_title_catalog_found():
+    r = identify_filename(
+        "미라와 이상한 연금술 [RJ09999108].zip",
+        dlsite_lookup=lambda code: product(code, "ミラと不思議な錬金術"),
+        web_search=fail_web,
+    )
+    assert r.status == "catalog_found"
+    assert not r.candidates[0].name_matches
+    assert r.product_id == "RJ09999108"
+    assert r.is_unresolved is False
+
+
+def test_unrelated_english_name_not_catalog_found():
+    r = identify_filename(
+        "Moon Valley [RJ09999107].zip",
+        dlsite_lookup=lambda code: product(code, "Unrelated Story"),
+        web_search=fail_web,
+    )
+    assert r.status == "likely"
+    assert r.is_unresolved
+
+
+def test_patch_and_non_game_not_promoted_to_catalog_found():
+    for title, kind in (("【AI번역 패치】Moon Valley", "ADV"),
+                        ("Moon Valley", "SOU")):
+        r = identify_filename(
+            "RJ09999106.zip",
+            dlsite_lookup=lambda code, title=title, kind=kind: product(
+                code, title, kind
+            ),
+            web_search=fail_web,
+        )
+        assert r.status == "likely", (title, kind, r)
+
+
+def test_bing_rss_parsing_and_untrusted_html_not_mistaken_for_no_results():
+    from io import BytesIO
+    from experiments.dlsite_detector.filename_web_search import (
+        SearchWorkerError, bing_rss_search,
+    )
+    xml = b"""<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0"><channel><item>
+    <title>Moon Valley - Steam</title>
+    <link>https://store.steampowered.com/app/1234567/</link>
+    <description>Test game</description>
+    </item><item>
+    <title>Not HTTPS</title><link>http://notsecure.example/a</link>
+    </item></channel></rss>"""
+    found = bing_rss_search("Moon Valley", opener=lambda req, timeout: BytesIO(xml))
+    assert len(found) == 1
+    assert found[0]["href"] == "https://store.steampowered.com/app/1234567/"
+    try:
+        bing_rss_search("Moon Valley", opener=lambda req, timeout: BytesIO(
+            b"<html><body>Bot challenge</body></html>"
+        ))
+        assert False, "HTML content must be considered provider error"
+    except SearchWorkerError:
+        pass
+
+
+def test_child_timeout_does_not_poison_next_title_lookup():
+    import subprocess
+    from pathlib import Path
+    from experiments.dlsite_detector.filename_web_search import (
+        SearchWorkerTimeout, isolated_web_search
+    )
+    count = []
+    def mocked_subprocess(cmd, **options):
+        count.append(cmd)
+        if len(count) == 1:
+            raise subprocess.TimeoutExpired(cmd, timeout=options["timeout"])
+        assert cmd[1:3] == ["-m", "scripts.filename_identity_tester"]
+        Path(cmd[-1]).write_text(
+            '{"ok":true,"rows":[{"title":"Moon Valley","href":'
+            '"https://store.steampowered.com/app/1234567/"}]}',
+            encoding="utf-8"
+        )
+        return subprocess.CompletedProcess(cmd, 0)
+    try:
+        isolated_web_search("Moon Valley", timeout=0.5,
+                            runner=mocked_subprocess)
+        assert False, "worker timeout expected"
+    except SearchWorkerTimeout:
+        pass
+    rows = isolated_web_search("Another Game", timeout=0.5,
+                               runner=mocked_subprocess)
+    assert rows and rows[0]["title"] == "Moon Valley"
+    assert len(count) == 2
+
+
+def test_search_worker_uses_only_extracted_title(tmp_path, monkeypatch):
+    from experiments.dlsite_detector.filename_web_search import worker_main
+    from experiments.dlsite_detector import filename_web_search
+    import json
+    input_path = tmp_path / "input.json"
+    output_path = tmp_path / "output.json"
+    input_path.write_text('{"query":"Moon Valley"}', encoding="utf-8")
+    monkeypatch.setattr(filename_web_search, "search_one_title",
+                        lambda title: [{"title": title,
+                                        "href": "https://example.com/game"}])
+    assert worker_main(str(input_path), str(output_path)) == 0
+    obj = json.loads(output_path.read_text(encoding="utf-8"))
+    assert obj["ok"] and obj["rows"][0]["title"] == "Moon Valley"
+
+
+def test_default_title_backend_is_isolated(monkeypatch):
+    from experiments.dlsite_detector import filename_only as engine
+    called = []
+    def fake_isolated(q):
+        called.append(q)
+        return []
+    monkeypatch.setattr(engine, "isolated_web_search", fake_isolated)
+    r = identify_filename("NoProductIdGame.zip")
+    assert r.status == "unidentified"
+    assert called == ["NoProductIdGame"]
+    assert not any("LookupBusy" in e for e in r.errors)
