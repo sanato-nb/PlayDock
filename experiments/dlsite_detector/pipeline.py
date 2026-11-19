@@ -190,9 +190,17 @@ def examine_web_results(query: str, records: list[dict]) -> tuple[WebEvidence, .
         seen.add(url)
         heading = str(row.get("title") or "").strip()[:300]
         snippet = str(row.get("body") or row.get("snippet") or "")[:900]
-        is_exact = _heading_matches(local, heading)
+        # ddgs가 여러 사이트 제목을 연결해서 반환하는 경우가 있다.
+        # 어느 제목이 실제 URL의 제목인지 분리할 수 없으므로
+        # 검색 근거는 보존하되 정확한 제목/게임 페이지 판정에는 사용하지 않는다.
+        contaminated = (len(heading) > 160
+                        or sum(heading.casefold().count(s) for s in (
+                            "mobygames", "steamdb", "kotaku", " - itch.io",
+                            "on steam", "youtube", "wikipedia",
+                        )) >= 3)
+        is_exact = not contaminated and _heading_matches(local, heading)
         trusted = _is_trusted(host)
-        context = bool(GAME_WORDS.search(heading + " " + snippet))
+        context = not contaminated and bool(GAME_WORDS.search(heading + " " + snippet))
         collected.append(WebEvidence(heading, url, _source_group(host),
                                      is_exact, context, trusted))
     return tuple(collected)

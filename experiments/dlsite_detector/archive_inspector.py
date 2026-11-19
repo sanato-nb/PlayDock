@@ -29,6 +29,10 @@ GENERIC_EXECUTABLES = frozenset({
     "notification_helper.exe", "editor", "editor.exe", "databasecleanuptool",
     "databasecleanuptool.exe", "common.extprotocol.executor",
     "eztransxp.extprotocol", "lec.extprotocol", "crashhandler",
+    "player", "player.exe", "python", "pythonw", "python.exe", "pythonw.exe",
+    "zsync", "zsyncmake", "createdump", "crashreportclient", "dxwebsetup",
+    "opensavefolder", "resetconfig", "uninstaller", "uninstaller.exe",
+    "reportcrash", "errorreporter", "engineconfig", "settings", "settings.exe",
 })
 GENERIC_FOLDERS = frozenset({
     "game", "games", "data", "assets", "bin", "binaries", "content",
@@ -37,6 +41,9 @@ GENERIC_FOLDERS = frozenset({
     "image", "images", "icon", "icons", "effects", "export", "resources",
     "save", "saves", "dictionaries", "dataex", "cache", "logs",
     "translations", "tools", "runtime", "package.nw",
+    "bepinex", "monobleedingedge", "mono", "engine",
+    "extracted", "manual", "manuals", "readme", "lib", "python",
+    "cg", "gallery", "bonus", "save files", "saves",
 })
 DISPLAY_EXTENSIONS = (".exe", ".ini", ".json", ".rpa", ".pck", ".pak", ".dll", ".wolf")
 
@@ -95,10 +102,15 @@ def _clean_candidate(value: str) -> str:
 
 def _interesting_title(name: str, *, is_folder: bool = False) -> str:
     value = _clean_candidate(name)
-    normalized = value.casefold().replace(" ", "").replace("_", "")
+    normalized = re.sub(r"[^\w]", "", value.casefold())
     excluded = GENERIC_FOLDERS if is_folder else GENERIC_EXECUTABLES
+    excluded_keys = {re.sub(r"[^\w]", "", s.casefold()) for s in excluded}
+    # Unity의 *_Data, 공통 런타임, 보너스/CG/세이브 폴더는 작품명이 아니다.
+    if is_folder and (re.search(r"(?i)(?:_data|[- ]data)$", name)
+                      or re.match(r"(?i)^(?:cg|save files?|bonus|manual|おまけ|【特典】)\b?", name)):
+        return ""
     if (not 3 <= len(value) <= 160 or not any(ch.isalpha() for ch in value)
-            or normalized in excluded
+            or normalized in excluded_keys
             or value.casefold().endswith((".dll", ".pck", ".pak", ".exe", ".json"))):
         return ""
     return value
@@ -119,7 +131,15 @@ def _is_helper_executable(parts: tuple[str, ...]) -> bool:
                  "eztransxpextprotocol", "lecextprotocol",
                  "commonextprotocolexecutor"}):
         return True
-    return any(part in HELPER_DIRS for part in lowered[:-1])
+    if any(part in HELPER_DIRS for part in lowered[:-1]):
+        return True
+    # 게임 자체는 Engine/Binaries 밖의 Shipping 바이너리일 수 있다.
+    # Engine, lib, redist, 지원 도구 폴더 아래의 실행기는 제목 후보가 아니다.
+    return bool(set(lowered[:-1]) & {
+        "engine", "lib", "redist", "redistributables", "support",
+        "dependencies", "tools", "runtime", "python", "dotnet",
+        "thirdparty", "mono", "bepinex",
+    })
 
 
 def _list_archive(path: Path, suffix: str):
@@ -196,6 +216,10 @@ def inspect_archive(
     package: set[str] = set()
     localization: set[str] = set()
     seen_paths: set[str] = set()
+    exe_entries: list[tuple[tuple[str, ...], int]] = []
+    unity_data_roots: set[str] = set()
+    archive_title = _clean_candidate(archive.stem)
+    archive_key = re.sub(r"[^\w]", "", archive_title.casefold())
 
     try:
         for filename, size, is_dir, protected in _list_archive(archive, suffix):
@@ -216,6 +240,9 @@ def inspect_archive(
             if lowered in seen_paths:
                 continue
             seen_paths.add(lowered)
+            for depth, part in enumerate(parts):
+                if part.casefold().endswith("_data"):
+                    unity_data_roots.add("/".join(parts[:depth + 1]).casefold())
 
             code = extract_code(joined)
             if code and code not in codes and len(codes) < MAX_WORK_CODES:
@@ -249,11 +276,7 @@ def inspect_archive(
                     r"(?:^|/)(?:korean|ko-kr|ko_kr|한국어)(?:/|$)", lowered):
                 localization.add("한국어 번역 파일/폴더 경로 단서")
             if extension == ".exe":
-                exe_title = "" if _is_helper_executable(parts) else _interesting_title(stem)
-                if exe_title and len(titles) < 64:
-                    titles[exe_title] = max(titles.get(exe_title, 0), 3)
-                    if len(evidence) < MAX_REPORTED:
-                        evidence.append(FileEvidence(joined, "게임 제목 후보가 될 수 있는 EXE 이름", size))
+                exe_entries.append((parts, size))
             # 엔진 정보는 게임의 정체와 다르므로 별도 단서로만 보관한다.
             engine = None
             if re.search(r"[^/]+_data/", lowered) or basename.casefold() in ("unityplayer.dll", "gameassembly.dll"):
@@ -293,6 +316,35 @@ def inspect_archive(
         note += f" 위험하거나 잘못된 내부 경로 {invalid}개는 무시했습니다."
     if encrypted:
         note += " 암호 보호된 내용은 읽지 않았습니다."
+    # 먼저 전체 파일 경로를 확보한 후 EXE의 역할과 데이터 폴더 연결을 평가.
+    # 실행파일 하나만 있더라도 파이썬 런타임·오류 보고·설정 도구는 검색하지 않는다.
+    for parts, size in exe_entries:
+        stem = Path(parts[-1]).stem
+        shipping = re.sub(r"(?i)[-_]win64[-_]shipping$", "", stem)
+        exe_title = _interesting_title(shipping)
+        if not exe_title or _is_helper_executable(parts):
+            continue
+        parent = "/".join(parts[:-1]).casefold()
+        data_root = (parent + "/" if parent else "") + stem.casefold() + "_data"
+        paired = data_root in unity_data_roots
+        normalized = re.sub(r"[^\w]", "", exe_title.casefold())
+        if re.search(r"(?i)[-_]win64[-_]shipping$", stem):
+            # Unreal 게임 바이너리는 게임 타이틀과 다를 수 있으므로 약한 후보.
+            priority = 2 if "binaries" in (s.casefold() for s in parts[:-1]) else 1
+        elif paired:
+            priority = 4
+        elif len(parts) <= 2:
+            priority = 3 if normalized == archive_key else 2
+        else:
+            # 콘텐츠 하위 경로의 실행기는 주 실행파일이라는 근거가 없다.
+            continue
+        if len(titles) < 64 or exe_title in titles:
+            titles[exe_title] = max(titles.get(exe_title, 0), priority)
+        if len(evidence) < MAX_REPORTED:
+            reason = ("Unity 데이터 폴더와 연결된 게임 EXE 후보"
+                      if paired else
+                      "게임 실행파일 후보 (주 실행파일 여부 미확정)")
+            evidence.append(FileEvidence("/".join(parts), reason, size))
     ordered_titles = sorted(titles, key=lambda title: (-titles[title], title.casefold()))
     return ArchiveInspection(
         archive.name, fmt, state, count, listed, total, encrypted,

@@ -127,9 +127,11 @@ def _candidate_official_ids(
     """서로 다른 외부 후보 사이에서 공식 작품번호가 섞이지 않도록 보존."""
     dlsite: set[str] = set()
     steam: set[str] = set()
-    key = title_key(title)
+    # normalized_title은 버전 표기 등을 제거한다. 다른 상품 두 개가
+    # 정규화 과정에서 같은 키가 되더라도 공식 번호를 서로 복사하면 안 된다.
+    exact = title.strip().casefold()
     for group in group_external_attempts(report.attempts):
-        if title_key(representative(group).decision.proposed_title) != key:
+        if representative(group).decision.proposed_title.strip().casefold() != exact:
             continue
         for attempt in group:
             d = attempt.decision
