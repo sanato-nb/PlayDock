@@ -1,12 +1,9 @@
 name: PlayDock 게임 정체 판독기 Windows 검증판 빌드
 
-# 사용자의 v0.11.1 파일명 전용 검색기 1회성 Windows 검증 빌드.
-# EXE 자체 진단 및 ZIP 생성 완료 후 기존 수동 빌드 정책으로 복원.
+# EXE 자동 빌드 금지: 사용자가 명시적으로 필요할 때만 Actions에서 수동 실행.
+# 소스 테스트는 python-tests.yml의 PR CI에서 별도로 검증.
 on:
   workflow_dispatch:
-  push:
-    branches: [experiment-dlsite-game-detector-20261117]
-    paths: [.github/workflows/identity-tester-windows.yml]
 
 permissions:
   contents: read
