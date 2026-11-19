@@ -28,6 +28,21 @@ MAX_MEMBERS = 120_000
 MAX_SEARCHES_FAST = 3
 MAX_SEARCHES_DETAILED = 6
 MAX_VISIBLE_CLUES = 30
+# 첫 화면에 보이는 폴더라도 게임 배포물의 공통 리소스 디렉터리는 제목이 아니다.
+# 의미 없는 폴더명을 웹 검색하는 일이 쿨다운을 유발해 실제 게임명 검색을 방해했다.
+ROOT_NON_GAME_FOLDERS = frozenset({
+    "audio", "bgm", "bgs", "css", "data", "effects", "fonts", "font",
+    "icon", "icons", "img", "image", "images", "js", "javascript",
+    "locales", "locale", "save", "saves", "swiftshader", "www",
+    "plugins", "plugin", "resources", "resource", "assets", "asset",
+    "movies", "movie", "video", "videos", "music", "sound", "sounds",
+    "models", "model", "texture", "textures", "config", "configs",
+    "core", "managed", "embeddedruntime", "embedruntime", "d3d12",
+    "backup", "logs", "log", "tmp", "temp", "streamingassets",
+    "sprites", "characters", "faces", "pictures", "tilesets",
+    "titles1", "titles2", "animations", "script", "scripts", "lua",
+    "libs", "lib", "documentation", "docs", "tools", "bin", "x64", "x86",
+})
 # 접두사만 그럴듯한 게임 이름처럼 보이는 폴더/실행 파일 제외.
 FOLDER_NOISE = re.compile(
     r"(?i)^(?:cg(?:[\s_-]|$)|save(?:s|[\s_-]files?)?(?:[\s_-]|$)|"
@@ -136,7 +151,11 @@ def _candidate_title(raw: str, *, folder: bool = False) -> str:
     title = cleaned_search_title(title)
     if not title:
         return ""
-    if folder and FOLDER_NOISE.match(title):
+    if folder and (
+        FOLDER_NOISE.match(title)
+        or re.sub(r"[\W_]+", "", title.casefold()) in ROOT_NON_GAME_FOLDERS
+        or re.search(r"(?i)_?burstdebuginformation|donotship", raw)
+    ):
         return ""
     if not folder and EXEC_NOISE.fullmatch(title):
         return ""
@@ -224,17 +243,12 @@ def collect_identity_clues(path: Path) -> SimpleScan:
                         data_dirs.add("/".join(parts[:i+1]).casefold())
             if parts[0].casefold().endswith("_data"):
                 data_dirs.add(parts[0].casefold())
-            # 최상위 폴더 한두 단계만 게임 이름 후보로 사용.
-            if len(parts) > 1:
-                for depth in range(min(2, len(parts)-1)):
-                    p = parts[depth]
-                    if p not in folders:
-                        folders[p] = "/".join(parts[:depth+1])
+            # '압축파일 열기' 직후 첫 화면에 보이는 최상위 폴더만 수집.
+            # plugins/codec, audio/bgm, img/characters 같은 안쪽 폴더는
+            # 작품명 후보도 검색어도 될 수 없다. 압축 내 경로를 열지 않는다.
+            if (len(parts) > 1 or is_dir) and parts[0] not in folders:
+                folders[parts[0]] = parts[0]
             if is_dir:
-                for depth in range(min(2, len(parts))):
-                    p = parts[depth]
-                    if p not in folders:
-                        folders[p] = "/".join(parts[:depth+1])
                 continue
             if parts[-1].lower().endswith(".exe"):
                 exes.append((parts, member))

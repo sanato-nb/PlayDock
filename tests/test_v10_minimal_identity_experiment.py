@@ -300,3 +300,78 @@ def test_no_local_code_but_archive_and_main_exe_name_agree_can_be_identified(tmp
     ))
     assert result.status == "identified"
     assert result.product_code == "RJ09999765"
+
+
+
+def test_only_first_archive_page_folder_names_can_be_search_candidates(tmp_path):
+    """압축을 처음 열 때 보이는 첫 화면의 폴더만 사용한다."""
+    path = make_zip(tmp_path, "Moon Valley.zip", {
+        "audio/bgm/track.ogg": b"x",
+        "plugins/codec/deep.dll": b"x",
+        "plugins/audio_filter/filter.dll": b"x",
+        "img/characters/hero.png": b"x",
+        "Resources/animations/hero.dat": b"x",
+        "Game Companion/readme.bin": b"x",
+        "Another Story/Inner Title/thing.bin": b"x",
+        "Moon Valley.exe": b"MZ",
+    })
+    scan = collect_identity_clues(path)
+    folders = [(c.value, c.detail) for c in scan.clues
+               if c.source == "root_folder"]
+    assert ("Game Companion", "Game Companion") in folders
+    assert ("Another Story", "Another Story") in folders
+    assert all("/" not in detail and "\\" not in detail for _, detail in folders)
+    bad = {"codec", "audio filter", "bgm", "characters", "animations",
+           "Inner Title", "audio", "plugins", "img", "Resources"}
+    assert not bad.intersection(c.value for c in scan.clues)
+    assert not bad.intersection(q for q, _ in _queries(scan, 6))
+
+
+def test_first_page_all_generic_folders_produces_only_archive_name_query(tmp_path):
+    """실제 스크린샷처럼 audio/css/data/... 가 첫 화면에 있어도 검색하지 않는다."""
+    path = make_zip(tmp_path, "Summer Nights.zip", {
+        "audio/bgm/track.ogg": b"x",
+        "css/style.css": b"x",
+        "data/System.json": b"x",
+        "effects/Model/m.bin": b"x",
+        "fonts/font.ttf": b"x",
+        "icon/icon.png": b"x",
+        "img/characters/hero.png": b"x",
+        "js/libs/plugin.js": b"x",
+        "locales/ko/messages": b"x",
+        "save/save01.sav": b"x",
+        "swiftshader/libEGL.dll": b"x",
+        "www/movies/intro.webm": b"x",
+    })
+    scan = collect_identity_clues(path)
+    assert not any(c.source == "root_folder" for c in scan.clues)
+    assert [q for q, _ in _queries(scan, 6)] == ["Summer Nights"]
+    assert scan.scan_state == "ok"
+
+
+def test_nested_game_named_folders_are_never_used_even_if_plausible(tmp_path):
+    path = make_zip(tmp_path, "Unknown Release.zip", {
+        "assets/Legendary Saga/game.bin": b"x",
+        "plugins/Very Special Game/mod.dll": b"x",
+        "data/RJ09998888/file.bin": b"x",
+    })
+    scan = collect_identity_clues(path)
+    assert [q for q, _ in _queries(scan, 6)] == ["Unknown Release"]
+    assert not any(c.value == "RJ09998888" for c in scan.clues)
+    assert not any(c.value in {"Legendary Saga", "Very Special Game"}
+                   for c in scan.clues)
+
+
+def test_single_root_wrapper_can_still_be_used_as_name(tmp_path):
+    """최상위 단일 게임 폴더명은 1단계 근거로 유지한다."""
+    path = make_zip(tmp_path, "Unknown.zip", {
+        "Moon Valley/Moon Valley.exe": b"x",
+        "Moon Valley/Moon Valley_Data/data.unity3d": b"x",
+        "Moon Valley/data/scene.dat": b"x",
+    })
+    scan = collect_identity_clues(path)
+    assert ("Moon Valley", "root_folder") in {
+        (c.value, c.source) for c in scan.clues
+    }
+    assert all(c.detail == "Moon Valley" for c in scan.clues
+               if c.source == "root_folder")
