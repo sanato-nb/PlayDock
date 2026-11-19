@@ -107,7 +107,7 @@ def _interesting_title(name: str, *, is_folder: bool = False) -> str:
     excluded_keys = {re.sub(r"[^\w]", "", s.casefold()) for s in excluded}
     # Unity의 *_Data, 공통 런타임, 보너스/CG/세이브 폴더는 작품명이 아니다.
     if is_folder and (re.search(r"(?i)(?:_data|[- ]data)$", name)
-                      or re.match(r"(?i)^(?:cg|save files?|bonus|manual|おまけ|【特典】)\b?", name)):
+                      or re.match(r"(?i)^(?:cg\b|save files?\b|bonus\b|manual\b|おまけ|【特典】)", name)):
         return ""
     if (not 3 <= len(value) <= 160 or not any(ch.isalpha() for ch in value)
             or normalized in excluded_keys
