@@ -1,4 +1,4 @@
-# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.8)
+# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.9)
 
 > **시작점:** [인수인계](HANDOFF_2026-11-19_KO.md) · [새 채팅 프롬프트](NEXT_CHAT_PROMPT_KO.md) · [회귀 체크리스트](REGRESSION_CHECKLIST_KO.md).
 >
@@ -64,6 +64,7 @@ experiments/dlsite_detector/
 ├── V06_IMPLEMENTATION_2026-11-19_KO.md — v0.6 실제 구현·테스트·남은 한계
 ├── V07_IMPLEMENTATION_2026-11-19_KO.md — v0.7 파일명·내부 구조·README 기반 실제 개발 기록
 ├── V08_ACCURACY_2026-11-19_KO.md — v0.8 오인 차단·후보별 공식 ID 근거 분리 및 검증
+├── V09_ACCURACY_2026-11-19_KO.md — v0.9 다중 EXE 역할 필터·상품 관계·웹 제목 판정 강화
 ├── HANDOFF_2026-11-19_KO.md  — 현재 상태·실측 검증·다음 작업·제약사항
 ├── FILE_MAP_KO.md            — 현재 파일·폴더 및 호출 경로 설명
 ├── REGRESSION_CHECKLIST_KO.md — 새 버전 기능·안전성 검증 기준
