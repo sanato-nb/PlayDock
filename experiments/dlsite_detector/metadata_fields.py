@@ -22,7 +22,7 @@ class ExtractedField:
 
 
 CODE_FIELD = re.compile(
-    r"(?i)^(?:dlsite_?(?:code|id)?|work_?(?:no|id)|product_?id|품번|品番)$"
+    r"(?i)^(?:dlsite[\s_-]*(?:code|id)?|work[\s_-]*(?:no|id)|product[\s_-]*id|품번|品番)$"
 )
 CODE_PATTERN = re.compile(r"(?i)^(?:RJ|VJ|BJ|EJ)\d{6,8}$")
 STEAM_FIELD = re.compile(r"(?i)^(?:steam_?app_?id|steam\s*app\s*id|steamappid)$")
