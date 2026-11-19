@@ -1,4 +1,15 @@
-# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.9)
+# v0.10 간소화 코드 위치
+
+- `experiments/dlsite_detector/simple_identity.py` — 압축 이름·주요 EXE·README에서 게임 이름과 상품번호만 수집하고 외부 정체 후보 판독
+- `scripts/simple_identity_tester.py` — 별도 Windows GUI, 미확인 탭·미확인 재검사·JSON 저장
+- `tests/test_v10_minimal_identity_experiment.py` — 합성 ZIP을 사용한 안전·정확도 테스트
+- `.github/workflows/identity-tester-windows.yml` — v0.10 독립 EXE 수동 빌드
+- `experiments/dlsite_detector/V10_SIMPLIFIED_IDENTITY_2026-11-19_KO.md` — v0.10 구현·검증·주의사항
+- `scripts/game_identity_tester.py` — 이전 v0.9 GUI (배포 대상 아님, 기존 회귀 보존)
+
+---
+
+# PlayDock 소스·파일·폴더별 역할 (실험 브랜치 v0.10)
 
 > **시작점:** [인수인계](HANDOFF_2026-11-19_KO.md) · [새 채팅 프롬프트](NEXT_CHAT_PROMPT_KO.md) · [회귀 체크리스트](REGRESSION_CHECKLIST_KO.md).
 >

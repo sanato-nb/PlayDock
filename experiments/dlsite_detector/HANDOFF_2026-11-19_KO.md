@@ -1,5 +1,8 @@
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-19)
 
+> **v0.10 간소화 독립 판독기 (2026-11-19):** 이번 실험의 **실행 EXE 진입점은 `scripts/simple_identity_tester.py`**이며, 엔진은 `experiments/dlsite_detector/simple_identity.py`입니다. 기존 v0.9 `scripts/game_identity_tester.py`와 복잡한 6단계 엔진은 회귀 호환용으로만 남겼습니다. 새 실행판은 압축파일명·최상위 폴더·복수 EXE 역할 확인·README의 명시적인 **게임 이름/작품번호만** 수집하고, 검색 실패/복수 후보/유력 후보는 별도 미확인 탭 및 JSON `unresolved`에 보관합니다. 버전/한국어/엔진/DLC 검사는 후속 단계로 제외했습니다. [v0.10 상세](V10_SIMPLIFIED_IDENTITY_2026-11-19_KO.md).
+
+
 > **현재 소스 v0.9-test — 정확도 중심 재감사 (2026-11-19):** v0.8의 129개 실제 검사 JSON에서 찾은 후보 오염을 중심으로 다중 EXE 역할 필터(보조 도구/엔진 런타임 제거, Unreal Shipping 구분), 공통·보너스 폴더 검색 억제, 이어 붙은 웹 결과 제목의 오인 방지, 후보별 공식 ID 정확한 분리, **별도 등록된 본편과 번역 패치의 '연관 가능성' 표시**를 추가했습니다. 본편·번역 패치 상품은 절대 자동 병합하지 않으며 내부 본문 읽기 정책도 유지합니다. README 일본어 '品番'을 지원합니다. [v0.9 개발 기록](V09_ACCURACY_2026-11-19_KO.md)을 우선 읽으세요. CI 전체 테스트 **621개 통과**: https://github.com/sanato-nb/PlayDock/actions/runs/44453760922. v0.9의 실제 129개 정확도는 아직 측정하지 않았습니다.
 
 
