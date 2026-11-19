@@ -58,9 +58,13 @@ def details(result: FilenameIdentityResult) -> str:
             out.append(
                 " · " + str(p.get("provider", "?")) + " "
                 + str(p.get("state", "?")) + " / "
-                + str(p.get("result_count", 0)) + "건 / "
+                + str(p.get("result_count", 0)) + "건 중 관련 "
+                + str(p.get("relevant_count", "?")) + "건 / 제외 "
+                + str(p.get("rejected_count", "?")) + "건 / "
                 + str(p.get("seconds", 0)) + "초"
             )
+            for ignored in p.get("discarded_examples", [])[:2]:
+                out.append("   제외: " + str(ignored.get("title", ""))[:140])
     if result.web_raw_results:
         out += ["", f"[웹 검색 결과 {len(result.web_raw_results)}건]"]
         for hit in result.web_raw_results:
@@ -377,7 +381,7 @@ class FilenameTesterApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="판독 결과 저장",
-            initialfile="PlayDock_Filename_Identity_v0.11.2.json",
+            initialfile="PlayDock_Filename_Identity_v0.11.3.json",
             defaultextension=".json", filetypes=[("JSON", "*.json")],
         )
         if not path:
@@ -456,7 +460,7 @@ def self_test() -> int:
             )
             assert p.returncode == 0
             assert out.read_text(encoding="utf-8") == "worker-ok"
-        print("PlayDock filename-only v0.11.2 self-test: passed", flush=True)
+        print("PlayDock filename-only v0.11.3 self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback
