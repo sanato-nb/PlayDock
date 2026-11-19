@@ -1,7 +1,7 @@
 # v0.11 신규 파일(현재 Windows 배포 대상)
 
 - `experiments/dlsite_detector/filename_only.py`: 압축파일명에서 이름·품번 추출, 공식 상품 조회, 품번 발견 별도 상태
-- `experiments/dlsite_detector/filename_web_search.py`: Bing RSS/ DDGS 순차 검색, 자식 프로세스 8.5초 강제 종료, 전역 검색 잠금 제거
+- `experiments/dlsite_detector/filename_web_search.py`: Bing RSS/DDGS 순차 검색, 자식 프로세스 8.5초 강제 종료, 검색 서비스별 반환 건수·응답 시간 진단
 - `scripts/filename_identity_tester.py`: 파일명 직접 붙여넣기/파일 선택 UI, 판정·검색장애 표시, JSON 저장
 - `tests/test_v11_filename_only_experiment.py`: 파일명 기반 21개 합성 회귀 테스트
 - `scripts/Filename-Tester-README_KO.txt`: 배포용 한글 사용법

@@ -1,4 +1,16 @@
-# PlayDock v0.11.1 파일명 전용 최소 정체 판독기 — 인수인계
+# PlayDock v0.11.2 파일명 전용 최소 정체 판독기 — 인수인계
+
+## v0.11.2: 129개 실제 사용자 결과에서 '검색했는데 미발견' 진단
+- v0.11.1 검사 129건 중 `official_match` 9건, `catalog_found` 72건, `likely` 6건, `multiple` 1건, `unidentified` 41건. 90개 파일명에 DLsite/Steam ID가 있으며 39개는 ID 없음.
+- 무품번 39개가 모두 `unidentified`였으나 통신 오류는 없고 파일당 0.25~0.36초만 소요. JSON이 원본 검색 목록을 저장하지 않으므로 원인은 **검색 공급자 0건 반환 또는 후보 판단에서 전부 제외** 중 하나로 구분되지 않았음.
+- 직접 수동 웹 검색에서는 `6월의 너와 나`, `BunnyHero`, `BUZAMA 2`의 관련 자료가 확인됨. 다만 이 결과는 웹 검색 일반 서비스의 것이며 Windows 프로그램의 Bing RSS/DDGS 결과를 직접 증명하지 않음.
+- `filename_web_search.py`에서 Bing RSS·DDGS 검색별 `state`, `result_count`, `seconds` 추적(동일 기존 조회에 추가 통신 불필요).
+- `filename_only.py`에서 `web_raw_results`, `web_evidence`, `search_providers` 기록. 공식 페이지뿐 아니라 제목·게임 문맥이 관련된 웹 검색 페이지를 `web_candidate`로 보관, 게임 콘텐츠 자동 확정하지 않음.
+- `scripts/filename_identity_tester.py` 상세 화면에 결과 제목/URL 및 검색 공급자 시간/건수 노출, JSON 집계 추가. 파일명 이외의 아카이브 내부는 열지 않음.
+- `tests/test_v11_filename_only_experiment.py` 검색 웹 단서/무관 페이지/0건 응답/공급자 통계를 확인하는 합성 회귀 추가.
+- 사용자의 개인 JSON과 압축파일은 공개 저장소에 넣지 않음. v0.11.2 실제 129개 파일의 재측정 이전에는 실사용 정확도 향상을 주장하지 않음.
+
+
 
 ## 2026-11-19 v0.11.1: 129개 실측 JSON을 근거로 수정
 - 업로드 `PlayDock_Filename_Identity_v0.11.json`: 129개 중 `official_match` 9, `likely` 78, `search_error` 38, `multiple` 1, `unidentified` 3.

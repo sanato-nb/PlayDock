@@ -338,11 +338,12 @@ class FilenameTesterApp(tk.Tk):
                     ) else "disabled")
                     match = sum(r.status == "official_match" for r in self.results.values())
                     catalog = sum(r.status == "catalog_found" for r in self.results.values())
+                    web = sum(r.status == "web_candidate" for r in self.results.values())
                     remain = sum(r.is_unresolved for r in self.results.values())
                     self.status.set(
-                        f"완료: 공식 이름 일치 {match}개 · 품번으로 상품 발견 "
-                        f"{catalog}개 · 보류/미확인 {remain}개 "
-                        "(실제 게임 파일의 진위 미인증)"
+                        f"완료: 공식 이름 일치 {match}개 · 품번 상품 발견 "
+                        f"{catalog}개 · 웹 단서 {web}개 · 보류/미확인 "
+                        f"{remain}개 (압축파일 내용 미인증)"
                     )
         except Empty:
             pass
@@ -376,7 +377,7 @@ class FilenameTesterApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="판독 결과 저장",
-            initialfile="PlayDock_Filename_Identity_v0.11.json",
+            initialfile="PlayDock_Filename_Identity_v0.11.2.json",
             defaultextension=".json", filetypes=[("JSON", "*.json")],
         )
         if not path:
@@ -395,6 +396,10 @@ class FilenameTesterApp(tk.Tk):
                     r["status"] == "official_match" for r in records),
                 "catalog_found_by_id": sum(
                     r["status"] == "catalog_found" for r in records),
+                "web_name_candidates": sum(
+                    r["status"] == "web_candidate" for r in records),
+                "web_raw_result_total": sum(
+                    len(r["web_raw_results"]) for r in records),
                 "unresolved": sum(r["is_unresolved"] for r in records),
             },
             "privacy": "개인 검사 결과. 공개 저장소에 업로드하지 않습니다.",
