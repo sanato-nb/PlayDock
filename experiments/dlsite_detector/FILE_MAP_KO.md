@@ -1,3 +1,15 @@
+# v0.11 신규 파일(현재 Windows 배포 대상)
+
+- `experiments/dlsite_detector/filename_only.py`: 압축파일명을 문자열로 받아 이름·품번 추출, 공식 코드/제목 최소 검색
+- `scripts/filename_identity_tester.py`: 파일명 직접 붙여넣기/파일 선택 UI, 판정·검색장애 표시, JSON 저장
+- `tests/test_v11_filename_only_experiment.py`: 파일명 기반 21개 합성 회귀 테스트
+- `scripts/Filename-Tester-README_KO.txt`: 배포용 한글 사용법
+- `experiments/dlsite_detector/V11_FILENAME_ONLY_2026-11-19_KO.md`: 새 판독기 인수인계
+- `.github/workflows/identity-tester-windows.yml`: 새 UI 독립 Windows EXE로 빌드
+- `scripts/simple_identity_tester.py`: v0.10.2 이전 GUI. 배포 대상 아님, 회귀 보존
+
+---
+
 # v0.10 간소화 코드 위치
 
 - `experiments/dlsite_detector/simple_identity.py` — 압축 이름·주요 EXE·README에서 게임 이름과 상품번호만 수집하고 외부 정체 후보 판독
