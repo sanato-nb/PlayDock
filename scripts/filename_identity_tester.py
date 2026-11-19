@@ -16,6 +16,7 @@ from tkinter import filedialog, messagebox, ttk
 from experiments.dlsite_detector.filename_only import (
     VERSION, FilenameIdentityResult, extract_filename_clues, identify_filename,
 )
+from experiments.dlsite_detector.filename_web_search import worker_main
 from experiments.dlsite_detector.detector import Product
 
 FILT = [
@@ -321,9 +322,11 @@ class FilenameTesterApp(tk.Tk):
                         r.is_unresolved for r in self.results.values()
                     ) else "disabled")
                     match = sum(r.status == "official_match" for r in self.results.values())
+                    catalog = sum(r.status == "catalog_found" for r in self.results.values())
                     remain = sum(r.is_unresolved for r in self.results.values())
                     self.status.set(
-                        f"완료: 공식 상품명 일치 {match}개 · 보류/미확인 {remain}개 "
+                        f"완료: 공식 이름 일치 {match}개 · 품번으로 상품 발견 "
+                        f"{catalog}개 · 보류/미확인 {remain}개 "
                         "(실제 게임 파일의 진위 미인증)"
                     )
         except Empty:
@@ -375,6 +378,8 @@ class FilenameTesterApp(tk.Tk):
                 "tested": len(records),
                 "official_name_matches": sum(
                     r["status"] == "official_match" for r in records),
+                "catalog_found_by_id": sum(
+                    r["status"] == "catalog_found" for r in records),
                 "unresolved": sum(r["is_unresolved"] for r in records),
             },
             "privacy": "개인 검사 결과. 공개 저장소에 업로드하지 않습니다.",
@@ -424,6 +429,9 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
+    # PyInstaller --windowed 실행 시에도 UI 없이 별도 검색 워커를 기동.
+    if len(sys.argv) == 4 and sys.argv[1] == "--filename-web-worker":
+        sys.exit(worker_main(sys.argv[2], sys.argv[3]))
     if "--self-test" in sys.argv:
         sys.exit(self_test())
     FilenameTesterApp().mainloop()

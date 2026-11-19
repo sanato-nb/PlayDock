@@ -26,8 +26,9 @@ from .pipeline import examine_web_results, fast_web_search
 from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product
 from .storefront_candidate import single_store_candidate
+from .filename_web_search import isolated_web_search
 
-VERSION = "0.11-test"
+VERSION = "0.11.1-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -129,12 +130,15 @@ class FilenameIdentityResult:
 
     @property
     def is_unresolved(self) -> bool:
-        return self.status != "official_match"
+        # 품번으로 공식 등록 작품을 확인한 건은 미발견과 별개로 집계한다.
+        # 이 결과도 게임 파일 내용·버전의 인증은 아니다.
+        return self.status not in {"official_match", "catalog_found"}
 
     @property
     def label(self) -> str:
         return {
             "official_match": "공식 상품명 일치",
+            "catalog_found": "품번으로 공식 상품 발견 · 제목 미검증",
             "likely": "후보 · 추가 검증 필요",
             "multiple": "복수 상품 후보",
             "unidentified": "정체 미확인",
@@ -214,8 +218,9 @@ def _direct_steam_lookup(sid: str) -> SteamProduct | None:
 
 
 def _single_title_search(title: str) -> list[dict]:
-    # DDGS 1회, 일반 검색어 1개. 여러 백엔드 시도는 하지 않는다.
-    return fast_web_search(title)[:MAX_WEB_RESULTS]
+    # 제목 검색은 별도 프로세스를 강제 종료할 수 있는 독립 워커에서.
+    # 기본 DDGS 글로벌 잠금/남은 백엔드 스레드로 인한 LookupBusy 방지.
+    return isolated_web_search(title)[:MAX_WEB_RESULTS]
 
 
 def identify_filename(
@@ -270,9 +275,16 @@ def identify_filename(
         if not (clues.product_codes or clues.steam_ids) and clues.game_name:
             looked.append("제목 " + clues.game_name)
             try:
-                rows = _TITLE_GATE.call(
-                    lambda: web_search(clues.game_name), web_timeout
-                )
+                if web_search is _single_title_search:
+                    # 기본 검색은 자식 프로세스 자체가 제한시간 후 완전히
+                    # 종료된다. 전역 스레드 잠금을 사용하지 않는다.
+                    rows = web_search(clues.game_name)
+                else:
+                    # 테스트/플러그인에서 주입한 임의 콜백은 여전히
+                    # bounded thread에서 처리하되 기본 서비스와 분리한다.
+                    rows = _TITLE_GATE.call(
+                        lambda: web_search(clues.game_name), web_timeout
+                    )
                 evidence = examine_web_results(clues.game_name, list(rows))
                 # 정확한 DLsite 작품별 공식 URL만 조회. 다른 사이트 제목은
                 # 제품번호의 근거가 되지 않는다.
@@ -331,6 +343,27 @@ def identify_filename(
         status = "official_match"
         reason = ("공식 카탈로그에서 작품번호·작품명과 게임 유형을 확인했습니다. "
                   "압축파일의 내용 자체는 검사하거나 인증하지 않았습니다.")
+    elif (
+        len(candidates) == 1
+        and (clues.product_codes or clues.steam_ids)
+        and candidates[0].source == "official_api"
+        and candidates[0].work_type in GAME_TYPES | {"game"}
+        and not candidates[0].notes
+        and (
+            not clues.game_name
+            or bool(re.search(r"[가-힣ぁ-んァ-ヶ一-龯]", clues.game_name))
+                != bool(re.search(r"[가-힣ぁ-んァ-ヶ一-龯]",
+                                  candidates[0].title))
+            or (bool(re.search(r"[가-힣]", clues.game_name))
+                and bool(re.search(r"[ぁ-んァ-ヶ]", candidates[0].title)))
+        )
+    ):
+        status = "catalog_found"
+        reason = (
+            "파일명에 적힌 품번으로 공식 등록 상품을 찾았습니다. "
+            "제목이 없거나 언어가 달라 이름 일치는 검증되지 않았고, "
+            "실제 압축파일 내용의 정체도 아직 확인하지 않았습니다."
+        )
     elif candidates:
         status = "likely"
         reason = ("공식 상품은 발견했지만 이름이 다르거나 별도 패치 상품이거나 "
