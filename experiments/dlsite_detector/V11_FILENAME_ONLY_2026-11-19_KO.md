@@ -1,4 +1,16 @@
-# PlayDock v0.11 파일명 전용 최소 정체 판독기 — 인수인계
+# PlayDock v0.11.1 파일명 전용 최소 정체 판독기 — 인수인계
+
+## 2026-11-19 v0.11.1: 129개 실측 JSON을 근거로 수정
+- 업로드 `PlayDock_Filename_Identity_v0.11.json`: 129개 중 `official_match` 9, `likely` 78, `search_error` 38, `multiple` 1, `unidentified` 3.
+- 품번 없는 파일 39개 중 `LookupBusy` 32, `LookupTimedOut` 5, `RuntimeError` 1, 조회 후 후보 미발견 1. 8초 제한을 넘긴 DDGS 백엔드가 실행 중인 상태로 전역 잠금을 계속 보유해 나머지 검색을 막았다.
+- `filename_web_search.py`: Bing RSS 형식 검증 → DDGS 대체 시도. 기본 게임명 검색을 **자식 프로세스**로 분리, 약 8.5초 강제 종료하여 다음 조회를 오염시키지 않음. 부정확한 RSS/차단 HTML은 검색 결과 없음으로 처리하지 않음.
+- `filename_only.py`: 기존 `_TITLE_GATE` 대신 격리 워커를 사용. 제품 ID가 공식 조회되었으나 파일명에 게임 이름이 없거나 다국어 제목 차이로 비교가 불가하면 `catalog_found` (품번 공식 상품 발견·이름 미검증)으로 따로 보고. **실제 게임 콘텐츠 식별 완료로 표시하지 않음.**
+- `filename_identity_tester.py`: PyInstaller EXE에서 별도 프로세스가 실행 가능하도록 워커/자가 진단 옵션 추가. GUI/JSON에서 `catalog_found` 집계.
+- 파일명 외의 압축 내부는 열지 않음. 이전 사용자 개인 검사 JSON, 사용자 고유 게임 목록, API 키는 공개 저장소에 포함하지 않음.
+- Python 합성 회귀 679개 통과 (새 빌드 완료 이후 최종 검증 상태 별도 기록).
+- 실사용 네트워크 검색 성공률·전체 소요시간의 개선 여부는 사용자가 새 검사 JSON을 업로드해야 비교할 수 있음.
+
+
 
 ## 사용자 의도
 사용자가 반복 지적한 검색 타임아웃·정확도 저하를 분리 진단하기 위해

@@ -420,7 +420,23 @@ def self_test() -> int:
         )
         assert no_code.status == "unidentified"
         assert no_code.extracted.game_name == "BunnyHero"
-        print("PlayDock filename-only v0.11 self-test: passed", flush=True)
+        # 실제 PyInstaller 패키징 환경에서도 별도 워커 프로세스가
+        # GUI를 다시 띄우지 않고 정상 기동하는지 무인터넷 검증.
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "worker_probe.txt"
+            cmd = ([sys.executable, "--filename-worker-probe", str(out)]
+                   if getattr(sys, "frozen", False)
+                   else [sys.executable, "-m", "scripts.filename_identity_tester",
+                         "--filename-worker-probe", str(out)])
+            p = subprocess.run(
+                cmd, timeout=20, stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, check=False,
+            )
+            assert p.returncode == 0
+            assert out.read_text(encoding="utf-8") == "worker-ok"
+        print("PlayDock filename-only v0.11.1 self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback
@@ -429,6 +445,9 @@ def self_test() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--filename-worker-probe":
+        Path(sys.argv[2]).write_text("worker-ok", encoding="utf-8")
+        sys.exit(0)
     # PyInstaller --windowed 실행 시에도 UI 없이 별도 검색 워커를 기동.
     if len(sys.argv) == 4 and sys.argv[1] == "--filename-web-worker":
         sys.exit(worker_main(sys.argv[2], sys.argv[3]))

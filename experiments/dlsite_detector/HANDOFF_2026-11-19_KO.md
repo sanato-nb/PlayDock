@@ -1,5 +1,8 @@
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-19)
 
+> **v0.11.1:** 사용자의 129개 파일명 검사에서 품번 없는 39개 중 32개가 `LookupBusy`로 실검색도 못한 원인 규명. `filename_web_search.py`에서 제한시간 이후 **검색 자식 프로세스를 종료**해 연쇄 실패 차단, RSS→DDGS 대체 지원. 품번만 등록된 파일은 `catalog_found` 분류 추가. 새 EXE 진입점 여전히 `scripts/filename_identity_tester.py`, 저장소 실험 브랜치 Draft PR #2 유지. 사용자 파일명 JSON은 공개 저장소 업로드 금지.
+
+
 > **v0.11 파일명 전용 독립 검증판:** 이번에는 실제 압축파일 내부를 열지 않으며 EXE·README·폴더를 검사하지 않습니다. `experiments/dlsite_detector/filename_only.py`와 `scripts/filename_identity_tester.py` 신규 작성. 파일명에서 게임명과 공식 번호만 뽑아 직접 조회하거나 단일 웹 제목 검색합니다. 파일명을 붙여넣기만 해도 판독 가능합니다. 상세 `V11_FILENAME_ONLY_2026-11-19_KO.md` 읽기. 이전 0.10.2 GUI는 회귀 보존합니다. 원본 게임 파일/개인 JSON 공개 금지.
 
 
