@@ -216,7 +216,12 @@ def _product_to_candidate(p: Product, local: str) -> Candidate:
 
 
 def _steam_to_candidate(p: SteamProduct, local: str) -> Candidate:
-    note = "" if p.item_type == "game" else "Steam 상품 유형이 본편 게임이 아닙니다"
+    note = (
+        "" if p.item_type == "game" else
+        "공식 공개 HTML에서 Steam 상품 유형은 미검증"
+        if p.item_type == "unknown" else
+        "Steam 상품 유형이 본편 게임이 아닙니다"
+    )
     return Candidate(p.title, "steam", p.app_id, p.url, "official_api",
                      _title_matches(local, p.title), p.item_type, note)
 
@@ -467,7 +472,8 @@ def identify_filename(
                             lambda sid=sid: steam_lookup(sid), steam_timeout
                         )
                         if (p is not None and p.app_id == sid
-                                and p.item_type == "game"
+                                and (p.item_type == "game" or
+                                     (no_api and p.item_type == "unknown"))
                                 and _title_matches(clues.game_name, p.title)):
                             found[("steam", sid)] = official_candidate(
                                 _steam_to_candidate(p, clues.game_name)

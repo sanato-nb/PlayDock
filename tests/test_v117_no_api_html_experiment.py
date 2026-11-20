@@ -180,3 +180,39 @@ def test_worker_no_api_flag_skips_all_json_services(tmp_path: Path):
 def test_html_search_has_fixed_allowed_provider_list():
     with pytest.raises(ValueError):
         search_public_html("My Game", "http://example.com/api")
+
+
+def test_html_only_steam_search_keeps_title_when_kind_unverified():
+    from experiments.dlsite_detector.filename_web_search import SearchRows
+    from experiments.dlsite_detector.steam_client import SteamProduct
+    rows = SearchRows([{
+        "title": "My Example Game on Steam",
+        "href": "https://store.steampowered.com/app/123456/My_Example_Game/",
+        "body": "Game",
+    }], [{"provider": "steam_html", "state": "relevant"}])
+    product = SteamProduct("123456", "My Example Game", "unknown",
+                           "https://store.steampowered.com/app/123456/")
+    with (
+        patch("experiments.dlsite_detector.filename_only.isolated_web_search",
+              return_value=rows),
+        patch("experiments.dlsite_detector.filename_only.fetch_steam_html",
+              return_value=product) as html,
+        patch("experiments.dlsite_detector.filename_only.fetch_steam_product",
+              side_effect=AssertionError("Steam JSON API forbidden")),
+    ):
+        result = identify_filename("My Example Game [v1.1].zip", no_api=True)
+    assert html.called
+    assert result.status == "likely"
+    assert result.best_title == "My Example Game"
+    assert result.candidates[0].source == "official_html"
+    assert result.rejected_pages == ()
+    assert "미검증" in result.candidates[0].notes
+
+
+def test_dlsite_agegate_is_not_accepted_as_work():
+    def opener(req, timeout):
+        return Response(req.full_url, (
+            '<meta property="og:title" content="Age Verification - DLsite">'
+            '<body>RJ123456</body>'
+        ))
+    assert fetch_dlsite_html("RJ123456", opener=opener) is None

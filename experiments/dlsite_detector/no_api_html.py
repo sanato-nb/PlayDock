@@ -214,8 +214,15 @@ def fetch_dlsite_html(code: str, *, timeout: float = 2.5,
             continue
         if code not in body.upper():
             continue
+        facts = _facts(body)
+        if not (facts.meta.get("og:title") or facts.meta.get("twitter:title")
+                or facts.heading):
+            continue
         title = _store_title(body)
-        if not title or "dlsite" == title.casefold():
+        if (not title or title.casefold() == "dlsite"
+                or any(word in title.casefold() for word in (
+                    "age verification", "access denied", "年齢認証", "年齢確認"
+                ))):
             continue
         # HTML alone doesn't reliably prove game type; don't infer it.
         return Product(code, title, "", category, url)
