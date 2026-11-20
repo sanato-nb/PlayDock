@@ -1,0 +1,91 @@
+name: PlayDock 게임 정체 판독기 Windows 검증판 빌드
+
+# 사용자 요청에 따른 일회성 빌드 후 자동 실행 비활성화.
+# main 변경 없음 · 실험 브랜치 전용.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-identity-tester:
+    name: Windows EXE 검증 및 다운로드 패키지
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 판독기와 빌드 의존성 설치
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.11,<7" "py7zr>=1.1.4,<2" "rarfile>=4.5,<5" "ddgs>=9,<11" pytest
+
+      - name: 파이썬 전체 문법 검사
+        shell: pwsh
+        run: |
+          python -m compileall -q experiments scripts/game_identity_tester.py scripts/simple_identity_tester.py scripts/filename_identity_tester.py
+
+      - name: 정체 교차검증 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m pytest -q tests/test_identity_verification_stage6_experiment.py tests/test_metadata_evidence_stage5_experiment.py tests/test_v05_search_and_catalog_experiment.py tests/test_fast_combined_scan_v04_experiment.py tests/test_v10_minimal_identity_experiment.py tests/test_v11_filename_only_experiment.py tests/test_v117_no_api_html_experiment.py
+
+      - name: 공개 검색 HTML 1회 실접속 확인 (API/키 없음 · 실패 비치명)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          @'
+          from experiments.dlsite_detector.no_api_html import search_public_html, fetch_steam_html
+          for provider in ("ddg_html", "itch_html", "mojeek_html", "steam_html"):
+              try:
+                  hits = search_public_html("Stardew Valley", provider, timeout=3.0)
+                  print("HTML_SMOKE", provider, "ok", len(hits), flush=True)
+              except Exception as error:
+                  print("HTML_SMOKE", provider, type(error).__name__, ascii(str(error))[:180], flush=True)
+          try:
+              item = fetch_steam_html("413150", timeout=3.0)
+              print("HTML_SMOKE", "steam_product_html", ascii(item.title) if item else "no_title", flush=True)
+          except Exception as error:
+              print("HTML_SMOKE", "steam_product_html", type(error).__name__, ascii(str(error))[:180], flush=True)
+          '@ | python -
+
+      - name: PyInstaller GUI EXE 생성
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-Identity-Tester --paths . --exclude-module ddgs scripts/filename_identity_tester.py
+
+      - name: 패키징 EXE 자체 진단 (인터넷 미사용)
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist/PlayDock-Identity-Tester.exe").Path
+          $p = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) {
+            throw "EXE 자체 진단 실패: $($p.ExitCode)"
+          }
+
+      - name: 독립 배포 파일 준비 (사용자 자료 제외)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "identity_tester_release" | Out-Null
+          Copy-Item "dist/PlayDock-Identity-Tester.exe" "identity_tester_release/"
+          Copy-Item "scripts/Filename-Tester-README_KO.txt" "identity_tester_release/사용법_먼저_읽기.txt"
+          Get-ChildItem "identity_tester_release" | Select-Object Name,Length
+          Get-FileHash -Algorithm SHA256 "identity_tester_release/PlayDock-Identity-Tester.exe" | Format-List Algorithm,Hash,Path
+          if ((Get-ChildItem "identity_tester_release" -File).Count -ne 2) {
+            throw "배포 목록이 예상과 다릅니다."
+          }
+
+      - name: 검증판 다운로드 제공
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Game-Identity-Tester-Windows
+          path: identity_tester_release/
+          if-no-files-found: error
+          retention-days: 30
