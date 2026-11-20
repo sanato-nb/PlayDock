@@ -1,10 +1,8 @@
 name: PlayDock 게임 정체 판독기 Windows 검증판 빌드
 
-# API 없는 HTML 검색 실접속 점검 출력 인코딩 수정, 1회 빌드.
-# 시작 확인 후 수동 전용으로 복원.
+# 사용자 요청에 따라 1회성 Windows EXE 빌드 후 수동 전용 복원.
+# 실험 브랜치 전용이며 main 병합/본체 연동 없음.
 on:
-  push:
-    branches: [experiment-dlsite-game-detector-20261117]
   workflow_dispatch:
 
 permissions:
