@@ -1,0 +1,92 @@
+name: PlayDock 이름-품번 양방향 검색기 Windows 검증판
+
+# 실험 브랜치에서 두 독립 EXE를 확인하고 이후 수동 실행으로 복원.
+on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths:
+      - "experiments/dlsite_detector/reverse_lookup.py"
+      - "scripts/lookup_window.py"
+      - "scripts/title_to_code_tester.py"
+      - "scripts/code_to_title_tester.py"
+      - "tests/test_reverse_lookup_no_api_experiment.py"
+      - ".github/workflows/bidirectional-lookup-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python 3.12 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 최소 의존성 설치
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.11,<7" pytest
+
+      - name: 문법 및 자동 회귀 검사
+        shell: pwsh
+        run: |
+          python -m compileall -q experiments scripts/lookup_window.py scripts/title_to_code_tester.py scripts/code_to_title_tester.py
+          python -m pytest -q tests/test_reverse_lookup_no_api_experiment.py tests/test_v117_no_api_html_experiment.py
+
+      - name: 공식 검색 HTML 실접속 진단 (실패 비치명)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          @'
+          from experiments.dlsite_detector.reverse_lookup import search_catalog_html
+          try:
+              rows = search_catalog_html("Stardew Valley", "maniax", timeout=3.0)
+              print("DLSITE_HTML_SMOKE", "ok", len(rows), flush=True)
+          except Exception as exc:
+              print("DLSITE_HTML_SMOKE", type(exc).__name__, ascii(str(exc))[:160], flush=True)
+          '@ | python -
+
+      - name: 이름에서 품번 검색 EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-Name-to-Code --paths . --exclude-module ddgs scripts/title_to_code_tester.py
+
+      - name: 품번에서 이름 검색 EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-Code-to-Name --paths . --exclude-module ddgs scripts/code_to_title_tester.py
+
+      - name: Windows 패키지 자체 진단 (인터넷 없음)
+        shell: pwsh
+        run: |
+          foreach ($exe in @("PlayDock-Name-to-Code", "PlayDock-Code-to-Name")) {
+            $path = (Resolve-Path "dist/$exe.exe").Path
+            $p = Start-Process -FilePath $path -ArgumentList "--self-test" -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "$exe 자체 진단 실패: $($p.ExitCode)" }
+          }
+
+      - name: 배포 ZIP 구성 및 파일 해시
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "two_way_release" | Out-Null
+          Copy-Item "dist/PlayDock-Name-to-Code.exe" "two_way_release/"
+          Copy-Item "dist/PlayDock-Code-to-Name.exe" "two_way_release/"
+          Copy-Item "scripts/Two-Way-Lookup-README_KO.txt" "two_way_release/사용법_먼저_읽기.txt"
+          if ((Get-ChildItem "two_way_release" -File).Count -ne 3) { throw "예상치 못한 배포 파일" }
+          Get-ChildItem "two_way_release" | Select-Object Name,Length
+          Get-FileHash "two_way_release/*.exe" -Algorithm SHA256
+
+      - name: 두 프로그램 동시 다운로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Two-Way-Lookup-No-API-Windows
+          path: two_way_release/
+          if-no-files-found: error
+          retention-days: 30
