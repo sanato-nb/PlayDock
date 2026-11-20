@@ -355,7 +355,7 @@ def test_search_worker_uses_only_extracted_title(tmp_path, monkeypatch):
     output_path = tmp_path / "output.json"
     input_path.write_text('{"query":"Moon Valley"}', encoding="utf-8")
     monkeypatch.setattr(filename_web_search, "search_one_title",
-                        lambda title, providers=None: [{"title": title,
+                        lambda title, providers=None, **kwargs: [{"title": title,
                                                        "href": "https://example.com/game"}])
     assert worker_main(str(input_path), str(output_path)) == 0
     obj = json.loads(output_path.read_text(encoding="utf-8"))
@@ -782,7 +782,7 @@ def test_serper_google_response_mapped_and_key_not_in_request_body():
     assert request.get_method() == "POST"
     assert request.get_header("X-api-key") == secret
     assert timeout <= 4.0
-    assert b'"Goblin Nest"' in request.data
+    assert json.loads(request.data)["q"] == '"Goblin Nest" game'
     assert secret not in request.full_url
     assert secret.encode() not in request.data
     assert secret not in str(rows)
