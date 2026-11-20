@@ -9,7 +9,7 @@
 1. 파일명에 DLsite 품번 또는 Steam ID가 있으면 해당 공식 조회만 실행.
 2. 품번이 없으면 독립 워커에서 DDGS `duckduckgo` 백엔드 1회.
 3. 품질이 낮은 게임 기사/오류/0건만 있을 때 Bing RSS 1회 보조. 정확한 스토어 게임 페이지가 있으면 검색 종료.
-4. 모은 제목/URL의 작품명·페이지 slug·챕터를 검증하며 URL 추적 파라미터를 무시해 중복 제거.
+4. 모은 제목/URL의 작품명·페이지 slug·챕터를 검증하며 URL 추적 파라미터를 무시해 중복 제거. Steam URL에 제목 slug가 없어도 검색 제목이 완전히 같으면 공식 Steam API 재검증 단계로 전달. DLsite 공식 작품 URL은 관련 기사를 대신해 조기 종료 가능.
 5. 검색에서 발견한 공식 DLsite URL 품번 및 제3자 검색 제목/URL에 나온 품번을 제한적으로 공식 카탈로그와 재대조. 제3자 품번은 `search_official_recheck`로 보존하며 **공식 파일명 일치로 자동 확정하지 않음**.
 6. Steam 후보는 기존과 같이 Steam 공식 상품명·유형 검증. DLC/모드/패치/서버팩/합본 등 파일명 힌트가 있으면 본편으로 확정하지 않음.
 
@@ -33,7 +33,7 @@
 - `experiments/dlsite_detector/HANDOFF_2026-11-19_KO.md` — 최신 버전 명시
 
 ## 테스트 및 빌드 확인
-- 전체 Python 회귀: **723 passed**, 2026-11-20 GitHub Actions [성공 #44676783968](https://github.com/sanato-nb/PlayDock/actions/runs/44676783968). Python 3.12, Ubuntu 러너 기준.
+- 전체 Python 회귀 최초: **723 passed**, 2026-11-20 GitHub Actions [성공 #44676783968](https://github.com/sanato-nb/PlayDock/actions/runs/44676783968). Python 3.12, Ubuntu 러너 기준.
 - 첫 CI(#44676673765)는 챕터별 itch.io URL 일치 테스트 1건 실패(1 failed/722 passed). `filename_page_rank.py`의 정확한 챕터 슬러그 허용 로직 수정 후 최종 CI 모두 성공.
 - Windows 독립 EXE v0.11.6: **미생성/미검증**. 이전 v0.11.5 빌드 결과를 새 버전의 성공으로 표기하지 않음.
 - EXE Actions는 `workflow_dispatch` 수동 전용을 유지함.

@@ -149,8 +149,19 @@ def page_score(local: str, heading: str, url: str, *,
                 return 75
             return 25
         if kind == "steam":
-            # Steam URL slug가 제목과 다르면 Son of Nor != NOR.
-            return 115 if exact_slug else 0
+            if exact_slug:
+                return 115
+            # 검색 결과가 /app/숫자/ 형태로 반환되기도 한다.
+            # URL에 제목 slug가 없을 때는 검색 제목 전체가 정확히
+            # 같아야만 공식 Steam API로 재검증하는 후보로 허용한다.
+            if not slug and len(title_key(local)) >= 5:
+                heading_name = re.sub(
+                    r"(?i)\s*(?:[-–—|]\s*)?(?:on\s+steam|steam)\s*$",
+                    "", heading,
+                )
+                if title_key(heading_name) == title_key(local):
+                    return 95
+            return 0
         if kind == "gamejolt":
             return 105 if exact_slug else 0
         if len(title_key(local)) < 5:
@@ -174,7 +185,7 @@ def page_score(local: str, heading: str, url: str, *,
 def steam_app_id(local: str, heading: str, url: str, *,
                  local_filename: str = "") -> str:
     """검색에 보인 실제 Steam 상품 URL이 정확히 게임명에 부합할 때만."""
-    if page_score(local, heading, url, local_filename=local_filename) < 100:
+    if page_score(local, heading, url, local_filename=local_filename) < 90:
         return ""
     parsed = urlsplit(url)
     if (parsed.hostname or "").casefold() != "store.steampowered.com":

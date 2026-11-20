@@ -96,6 +96,7 @@ def bing_rss_search(title: str, *, timeout: float = 3.0,
 
 
 from .filename_page_rank import page_score
+from .detector import product_page_candidate
 from .serper_client import serper_google_search
 
 
@@ -103,13 +104,19 @@ def _row_quality(query: str, row: dict, *, local_filename: str = "") -> int:
     """전체 제목과 작품 URL이 부합하는 결과만 채택한다."""
     if not isinstance(row, dict):
         return 0
-    return page_score(
+    url = str(row.get("href") or row.get("url") or "")
+    quality = page_score(
         query,
         str(row.get("title") or ""),
-        str(row.get("href") or row.get("url") or ""),
+        url,
         snippet=str(row.get("body") or row.get("snippet") or ""),
         local_filename=local_filename,
     )
+    # 제목이 맞는 공식 DLsite 작품별 URL은 게임 기사보다 높은
+    # 우선순위로 취급한다. 이후에는 실제 공식 상품 응답을 재검증.
+    if quality and product_page_candidate(url):
+        return max(quality, 105)
+    return quality
 
 
 def _rank_relevant(query: str, rows: list[dict], *,

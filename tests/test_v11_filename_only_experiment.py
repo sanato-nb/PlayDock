@@ -1108,3 +1108,49 @@ def test_official_code_on_direct_url_keeps_original_behavior(monkeypatch):
     assert r.status == "official_match"
     assert r.web_code_hints[0]["origin"] == "official_product_url"
 
+
+
+
+def test_dlsite_product_page_skips_redundant_rss(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Moon Valley - DLsite game",
+        "href": "https://www.dlsite.com/maniax/work/=/product_id/"
+                "RJ09999906.html",
+        "body": "Game",
+    }])
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: (
+        _ for _ in ()).throw(AssertionError("redundant RSS call")))
+    trace = []
+    rows = w.search_one_title("Moon Valley", trace)
+    assert len(rows) == 1
+    assert trace[0]["strong_page_count"] == 1
+    assert len(trace) == 1
+
+
+def test_steam_link_without_slug_requires_full_title_and_catalog_recheck():
+    seen = []
+    r = identify_filename(
+        "Moon Valley.zip",
+        web_search=lambda _: [{
+            "title": "Moon Valley on Steam",
+            "href": "https://store.steampowered.com/app/1234567/",
+            "body": "PC Game",
+        }],
+        steam_lookup=lambda sid: (
+            seen.append(sid) or SteamProduct(
+                sid, "Moon Valley", "game",
+                "https://store.steampowered.com/app/" + sid + "/",
+            )
+        ),
+    )
+    assert seen == ["1234567"]
+    assert r.status == "official_match"
+
+
+def test_steam_slugless_short_partial_title_is_not_verified():
+    from experiments.dlsite_detector.filename_page_rank import steam_app_id
+    assert not steam_app_id(
+        "NOR", "Son of Nor on Steam",
+        "https://store.steampowered.com/app/264000/",
+    )
