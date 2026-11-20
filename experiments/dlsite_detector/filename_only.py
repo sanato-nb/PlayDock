@@ -8,7 +8,7 @@ ZIP/7z/RAR을 열거나 내용/내부 경로/README/EXE를 검사하지 않는�
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from queue import Empty, Queue
 import re
@@ -28,9 +28,10 @@ from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product
 from .storefront_candidate import single_store_candidate
 from .filename_web_search import isolated_web_search
+from .no_api_html import fetch_dlsite_html, fetch_steam_html
 from .filename_page_rank import page_score, steam_app_id, chapter_number
 
-VERSION = "0.11.6-test"
+VERSION = "0.11.7-no-api-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -265,9 +266,24 @@ def identify_filename(
     steam_timeout: float = STEAM_LIMIT_SECONDS,
     online: bool = True,
     serper_api_key: str = "",
+    no_api: bool = False,
 ) -> FilenameIdentityResult:
     start = time.monotonic()
     clues = extract_filename_clues(filename)
+    if no_api:
+        # Strict standalone mode: no JSON API endpoints or paid searches.
+        # Injected callbacks remain available to offline unit tests only.
+        if dlsite_lookup is _direct_dlsite_lookup:
+            dlsite_lookup = fetch_dlsite_html
+        if steam_lookup is _direct_steam_lookup:
+            steam_lookup = fetch_steam_html
+
+    def official_candidate(candidate: Candidate) -> Candidate:
+        if not no_api:
+            return candidate
+        note = candidate.notes or "공식 공개 HTML 페이지에서 게임 유형은 미검증"
+        return replace(candidate, source="official_html", notes=note)
+
     found: dict[tuple[str, str], Candidate] = {}
     looked: list[str] = []
     errors: list[str] = []
@@ -282,7 +298,9 @@ def identify_filename(
         try:
             product = _CODE_GATE.call(lambda: dlsite_lookup(code), code_timeout)
             if product is not None and product.code.upper() == code.upper():
-                found[("dlsite", code)] = _product_to_candidate(product, clues.game_name)
+                found[("dlsite", code)] = official_candidate(
+                    _product_to_candidate(product, clues.game_name)
+                )
             elif product is not None:
                 errors.append("공식 조회에서 다른 상품번호가 반환됨: " + code)
         except (LookupTimedOut, LookupBusy, Exception) as exc:
@@ -294,7 +312,9 @@ def identify_filename(
         try:
             product = _STEAM_GATE.call(lambda: steam_lookup(sid), steam_timeout)
             if product is not None and product.app_id == sid:
-                found[("steam", sid)] = _steam_to_candidate(product, clues.game_name)
+                found[("steam", sid)] = official_candidate(
+                    _steam_to_candidate(product, clues.game_name)
+                )
             elif product is not None:
                 errors.append("Steam에서 다른 App ID가 반환됨: " + sid)
         except Exception as exc:
@@ -318,9 +338,11 @@ def identify_filename(
                     chapter = chapter_number(clues.archive_name)
                     rows = (
                         isolated_web_search(
-                            clues.game_name, serper_api_key=serper_api_key,
+                            clues.game_name,
+                            serper_api_key="" if no_api else serper_api_key,
+                            no_api=no_api,
                             **({"chapter_hint": chapter} if chapter else {}),
-                        ) if (serper_api_key or chapter)
+                        ) if (no_api or serper_api_key or chapter)
                         else web_search(clues.game_name)
                     )
                 else:
@@ -382,6 +404,8 @@ def identify_filename(
                     }
                     try:
                         def verify_code(code=code, category=category):
+                            if no_api:
+                                return fetch_dlsite_html(code, timeout=2.5)
                             if category:
                                 return fetch_product(
                                     code, categories=(category,), timeout=2.0
@@ -401,7 +425,9 @@ def identify_filename(
                             })
                         else:
                             record["state"] = "official_title_verified"
-                            c = _product_to_candidate(p, clues.game_name)
+                            c = official_candidate(
+                                _product_to_candidate(p, clues.game_name)
+                            )
                             if not is_official_url:
                                 # 검색 기사에서 발견한 번호는 파일명에 직접
                                 # 적힌 번호와 다르므로 단독 확정으로 승격 금지.
@@ -441,8 +467,8 @@ def identify_filename(
                         if (p is not None and p.app_id == sid
                                 and p.item_type == "game"
                                 and _title_matches(clues.game_name, p.title)):
-                            found[("steam", sid)] = _steam_to_candidate(
-                                p, clues.game_name
+                            found[("steam", sid)] = official_candidate(
+                                _steam_to_candidate(p, clues.game_name)
                             )
                         elif p is not None and p.app_id == sid:
                             excluded_urls.add(ev.url)
@@ -516,6 +542,16 @@ def identify_filename(
         status = "official_match"
         reason = ("공식 카탈로그에서 작품번호·작품명과 게임 유형을 확인했습니다. "
                   "압축파일의 내용 자체는 검사하거나 인증하지 않았습니다.")
+    elif (
+        no_api and len(candidates) == 1
+        and (clues.product_codes or clues.steam_ids)
+        and candidates[0].source == "official_html"
+    ):
+        status = "catalog_found"
+        reason = (
+            "공식 사이트의 공개 HTML 페이지에서 파일명에 적힌 상품번호를 "
+            "확인했습니다. 상품명·게임 유형·파일 내용은 별도 검증이 필요합니다."
+        )
     elif (
         len(candidates) == 1
         and (clues.product_codes or clues.steam_ids)
