@@ -308,7 +308,13 @@ def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
                        "--filename-web-worker", str(incoming), str(outgoing)]
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         options = {}
-        if serper_api_key and not no_api:
+        if no_api:
+            # Never pass a legacy key inherited from the parent process to
+            # the HTML-only worker, even if present in the shell environment.
+            child_env = os.environ.copy()
+            child_env.pop("PLAYDOCK_SERPER_API_KEY", None)
+            options["env"] = child_env
+        elif serper_api_key:
             child_env = os.environ.copy()
             child_env["PLAYDOCK_SERPER_API_KEY"] = serper_api_key
             options["env"] = child_env

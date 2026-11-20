@@ -418,7 +418,7 @@ class FilenameTesterApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="판독 결과 저장",
-            initialfile="PlayDock_Filename_Identity_v0.11.6.json",
+            initialfile="PlayDock_Filename_Identity_v0.11.7_no_api.json",
             defaultextension=".json", filetypes=[("JSON", "*.json")],
         )
         if not path:
@@ -481,6 +481,12 @@ def self_test() -> int:
         assert result.extracted.game_name == "Moon Valley"
         assert calls == ["RJ09999123"]
         assert result.to_dict()["archive_contents_inspected"] is False
+        strict = identify_filename(
+            "Moon Valley [RJ09999123].zip", dlsite_lookup=fake_lookup,
+            no_api=True,
+        )
+        assert strict.status == "catalog_found", strict
+        assert strict.candidates[0].source == "official_html"
         no_code = identify_filename(
             "BunnyHero [v0.5.2].zip", web_search=lambda _: [],
         )
@@ -512,7 +518,7 @@ def self_test() -> int:
             )
             assert p.returncode == 0
             assert out.read_text(encoding="utf-8") == "worker-ok"
-        print("PlayDock filename-only v0.11.6 self-test: passed", flush=True)
+        print("PlayDock filename-only v0.11.7 no-API self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback
