@@ -106,6 +106,8 @@ class FilenameTesterApp(tk.Tk):
         self.stop_signal = threading.Event()
         self.status = tk.StringVar(value="압축파일을 선택하거나 파일명 목록을 붙여넣으세요.")
         self.current = tk.StringVar(value="0개 선택")
+        self.serper_key = tk.StringVar(value="")
+        self._active_serper_key = ""
         self._setup_style()
         self._layout()
         self.after(100, self._poll)
@@ -147,6 +149,17 @@ class FilenameTesterApp(tk.Tk):
         self.export = ttk.Button(bar, text="JSON 저장",
                                  command=self.export_json, state="disabled")
         self.export.pack(side="right")
+        google = ttk.Frame(root)
+        google.pack(fill="x", pady=(3, 1))
+        ttk.Label(
+            google, text="Google 검색 (선택 · Serper.dev API 키 · 저장 안 함):"
+        ).pack(side="left", padx=(0, 7))
+        ttk.Entry(
+            google, textvariable=self.serper_key, show="*", width=48
+        ).pack(side="left")
+        ttk.Label(
+            google, text="미입력 시 기존 DDGS/Bing · 키 입력 시 Google 우선"
+        ).pack(side="left", padx=8)
         ttk.Label(root, textvariable=self.current).pack(anchor="w", pady=(10, 3))
         self.progress = ttk.Progressbar(root, maximum=100, value=0)
         self.progress.pack(fill="x")
@@ -265,10 +278,18 @@ class FilenameTesterApp(tk.Tk):
         if not self.items:
             messagebox.showwarning("파일명 필요", "압축파일 이름을 먼저 추가하세요.")
             return
+        google_notice = (
+            "Serper.dev를 통해 Google 검색을 우선 이용하며, 계정의 "
+            "검색 크레딧이 차감될 수 있습니다.\n"
+            if self.serper_key.get().strip() else
+            "Google 키 미입력: DDGS/Bing RSS만 사용합니다.\n"
+        )
         if not messagebox.askyesno(
             "인터넷 조회 동의",
             "압축파일명에서 추출한 게임 이름과 품번만 인터넷 검색에 사용합니다.\n"
-            "압축파일을 열거나 전체 로컬 경로·파일 내용은 전송하지 않습니다.\n"
+            + google_notice
+            + "압축파일을 열거나 전체 로컬 경로·파일 내용은 전송하지 않습니다.\n"
+            "API 키는 앱 종료 후 저장되지 않고, 결과 JSON에도 포함되지 않습니다.\n"
             "검색 결과는 게임 바이너리의 진위 확인이 아닙니다.\n\n시작할까요?",
         ):
             return
@@ -285,6 +306,7 @@ class FilenameTesterApp(tk.Tk):
 
     def _start_worker(self, indices):
         self.active = True
+        self._active_serper_api_key = self.serper_key.get().strip()
         self.stop_signal.clear()
         self._count = len(indices)
         self.progress.configure(value=0)
@@ -309,7 +331,10 @@ class FilenameTesterApp(tk.Tk):
                     break
                 self.queue.put(("status", self.items[i] + " 검색 중"))
                 try:
-                    result = identify_filename(self.items[i])
+                    result = identify_filename(
+                        self.items[i],
+                        serper_api_key=self._active_serper_api_key,
+                    )
                     self.queue.put(("result", i, result))
                 except Exception as exc:
                     self.queue.put(("error", i, type(exc).__name__))
@@ -343,6 +368,7 @@ class FilenameTesterApp(tk.Tk):
                     self.current.set(f"{item[1]}/{item[2]}개 검색 완료")
                 elif kind == "done":
                     self.active = False
+                    self._active_serper_api_key = ""
                     for c in (self.go, self.browse, self.paste, self.clear):
                         c.configure(state="normal")
                     self.stop.configure(state="disabled")
@@ -391,7 +417,7 @@ class FilenameTesterApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="판독 결과 저장",
-            initialfile="PlayDock_Filename_Identity_v0.11.4.json",
+            initialfile="PlayDock_Filename_Identity_v0.11.5.json",
             defaultextension=".json", filetypes=[("JSON", "*.json")],
         )
         if not path:
@@ -485,7 +511,7 @@ def self_test() -> int:
             )
             assert p.returncode == 0
             assert out.read_text(encoding="utf-8") == "worker-ok"
-        print("PlayDock filename-only v0.11.4 self-test: passed", flush=True)
+        print("PlayDock filename-only v0.11.5 self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback
