@@ -1,9 +1,10 @@
-# v0.11 신규 파일(현재 Windows 배포 대상)
+# v0.11.4 파일명 전용 판독기(현재 Windows 배포 대상)
 
 - `experiments/dlsite_detector/filename_only.py`: 압축파일명에서 이름·품번 추출, 공식 상품 조회, 품번 발견 별도 상태
-- `experiments/dlsite_detector/filename_web_search.py`: Bing RSS 게임명 관련성 검사 후 DDGS 조건부 대체, 자식 프로세스 13초 강제 종료, 공급자별 반환/선별/제외 건수·응답 시간 진단
+- `experiments/dlsite_detector/filename_page_rank.py`: 공식 작품 URL slug·시리즈 챕터·게임 제목 일치 판정, 개발자 프로필·타 게임 경로 제외
+- `experiments/dlsite_detector/filename_web_search.py`: DDGS 우선/Bing RSS 조건부 보조, 13초 독립 프로세스 제한, 공급자 오류 상세 추적
 - `scripts/filename_identity_tester.py`: 파일명 직접 붙여넣기/파일 선택 UI, 판정·검색장애 표시, JSON 저장
-- `tests/test_v11_filename_only_experiment.py`: 파일명 기반 21개 합성 회귀 테스트
+- `tests/test_v11_filename_only_experiment.py`: 파일명·검색·안전성 합성 회귀 테스트 53개 이상
 - `scripts/Filename-Tester-README_KO.txt`: 배포용 한글 사용법
 - `experiments/dlsite_detector/V11_FILENAME_ONLY_2026-11-19_KO.md`: 새 판독기 인수인계
 - `.github/workflows/identity-tester-windows.yml`: 새 UI 독립 Windows EXE로 빌드

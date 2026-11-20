@@ -1,5 +1,8 @@
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-19)
 
+> **v0.11.4 최신:** 사용자 129개 v0.11.3 JSON에서 웹 후보 17개 중 개발자 홈·다른 챕터·다른 작품명 일부 일치 오탐과 검색 장애 18건을 확인. `filename_page_rank.py` 신규 구현으로 게임 작품 URL slug·챕터·제목 전체 대조, `filename_web_search.py` DDGS 우선 + Bing RSS 보조, `filename_only.py` 공식 Steam ID/제목 재검증 및 불일치 결과 제외, `filename_identity_tester.py` 공급자 오류·제외 근거 상세/JSON 기록. 파일명 이외의 압축 내용은 여전히 읽지 않음. 상세 `V11_FILENAME_ONLY_2026-11-19_KO.md` 및 tests 참조. 실사용 정확도는 재검사 전 미측정.
+
+
 > **v0.11.3:** 129개 사용자의 v0.11.2 결과에서 품번 없는 39개의 Bing RSS 결과가 전부 무관함에도 RSS 결과 '6건 존재'만으로 DDGS 검색이 0회라는 원인 확인. `filename_web_search.py`에서 이름 전체+게임 문맥+판매 페이지 품질 확인 후 관련 없으면 DDGS 재검색, 제공자별 유효/제외 건수 기록. `filename_only.py`의 REC/PASEC 6글자 제한을 완화하되 미검증 후보로만 둠. 신규 테스트 6개, 총 690개 통과. 새 파일명 판독기는 압축파일 내부를 절대 열지 않음.
 
 

@@ -63,6 +63,8 @@ def details(result: FilenameIdentityResult) -> str:
                 + str(p.get("rejected_count", "?")) + "건 / "
                 + str(p.get("seconds", 0)) + "초"
             )
+            if p.get("error"):
+                out.append("   검색 오류: " + str(p.get("error", ""))[:200])
             for ignored in p.get("discarded_examples", [])[:2]:
                 out.append("   제외: " + str(ignored.get("title", ""))[:140])
     if result.web_raw_results:
@@ -71,6 +73,14 @@ def details(result: FilenameIdentityResult) -> str:
             out += [" · " + hit.get("title", ""), "   " + hit.get("url", "")]
     elif any(q.startswith("제목 ") for q in result.lookups):
         out += ["", "[웹 검색 결과] 0건 (검색 서비스 로그 확인 필요)"]
+    if result.rejected_pages:
+        out += ["", "[공식 정보 대조 후 제외된 페이지]"]
+        for page in result.rejected_pages:
+            out += [
+                " · " + page.get("reason", "제외"),
+                "   공식 이름: " + page.get("official_title", "미확인"),
+                "   " + page.get("url", ""),
+            ]
     if result.errors:
         out += ["", "[검색 장애]"]
         out += [" · " + e for e in result.errors]
@@ -381,7 +391,7 @@ class FilenameTesterApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="판독 결과 저장",
-            initialfile="PlayDock_Filename_Identity_v0.11.3.json",
+            initialfile="PlayDock_Filename_Identity_v0.11.4.json",
             defaultextension=".json", filetypes=[("JSON", "*.json")],
         )
         if not path:
@@ -404,6 +414,11 @@ class FilenameTesterApp(tk.Tk):
                     r["status"] == "web_candidate" for r in records),
                 "web_raw_result_total": sum(
                     len(r["web_raw_results"]) for r in records),
+                "rejected_official_pages": sum(
+                    len(r.get("rejected_pages", [])) for r in records),
+                "provider_errors": sum(
+                    p.get("state") == "error" for r in records
+                    for p in r["search_providers"]),
                 "unresolved": sum(r["is_unresolved"] for r in records),
             },
             "privacy": "개인 검사 결과. 공개 저장소에 업로드하지 않습니다.",
@@ -444,6 +459,16 @@ def self_test() -> int:
         )
         assert no_code.status == "unidentified"
         assert no_code.extracted.game_name == "BunnyHero"
+        from experiments.dlsite_detector.filename_page_rank import page_score
+        # 합성 데이터로 짧은 제목 오인과 개발자 홈 제외를 자체 진단.
+        assert page_score(
+            "NOR", "Son of Nor on Steam",
+            "https://store.steampowered.com/app/264000/Son_of_Nor/"
+        ) == 0
+        assert page_score(
+            "Moon Valley", "moonvalley - itch.io",
+            "https://moonvalley.itch.io/"
+        ) == 0
         # 실제 PyInstaller 패키징 환경에서도 별도 워커 프로세스가
         # GUI를 다시 띄우지 않고 정상 기동하는지 무인터넷 검증.
         import subprocess
@@ -460,7 +485,7 @@ def self_test() -> int:
             )
             assert p.returncode == 0
             assert out.read_text(encoding="utf-8") == "worker-ok"
-        print("PlayDock filename-only v0.11.3 self-test: passed", flush=True)
+        print("PlayDock filename-only v0.11.4 self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback
