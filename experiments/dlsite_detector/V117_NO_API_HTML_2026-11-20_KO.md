@@ -32,6 +32,10 @@
 - 공개 GitHub에는 개인 129개 전체 파일명, 개인 JSON, API 키를 업로드하지 않음.
 - 연구는 `experiment-dlsite-game-detector-20261117` 실험 브랜치 / Draft PR #2 한정. `main` 병합 금지.
 
+## 추가 안전 수정
+- 단순 Steam 상품 HTML은 게임 본편 유형을 증명하지 못함. 제목이 맞아도 잘못 '다른 작품/유형'이라며 제외하던 오류를 수정하여 `official_html` 후보의 유형 미검증으로 보존.
+- DLsite의 연령 확인 화면을 작품 등록으로 인정하지 않음. 두 가지 모의 회귀 사례 추가.
+
 ## 회귀 검사
-- 전체 Ubuntu Python 3.12: **739 passed**, [CI #44739859816](https://github.com/sanato-nb/PlayDock/actions/runs/44739859816). 과거 727건 + HTML 모의 응답 12건.
+- 전체 Ubuntu Python 3.12: **741 passed**, [CI #44741105893](https://github.com/sanato-nb/PlayDock/actions/runs/44741105893). 과거 727건 + HTML 모의 응답 14건.
 - Windows EXE 실행 결과·다운로드 아티팩트는 별도 빌드 완료 후 기록.

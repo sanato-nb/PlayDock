@@ -1,7 +1,7 @@
 # v0.11.7 API 없는 HTML 기반 파일명 검색기 (현재 Windows 배포 대상)
 
 - `experiments/dlsite_detector/no_api_html.py`: 공개 검색 HTML과 DLsite/Steam 개별 작품 HTML 파서, API 키·JSON API 미사용
-- `tests/test_v117_no_api_html_experiment.py`: 공개 검색·URL·카탈로그 HTML 모의 테스트 12건
+- `tests/test_v117_no_api_html_experiment.py`: 공개 검색·URL·카탈로그 HTML 모의 테스트 14건
 - `experiments/dlsite_detector/V117_NO_API_HTML_2026-11-20_KO.md`: 129개 이전판 실측 비교와 신규 API 미사용 모드 설명
 - `scripts/filename_identity_tester.py`: 독립 GUI 기본 `no_api=True`, Serper 입력란 없음
 

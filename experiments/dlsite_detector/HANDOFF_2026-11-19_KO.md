@@ -1,4 +1,4 @@
-> **v0.11.7-no-api 추가(2026-11-20):** 사용자 요청으로 독립 GUI에서 Serper 키 UI를 제거하고 공개 HTML 검색으로 전환. DLsite/Steam JSON API를 사용하지 않는 검증판 `no_api=True` 구현. 전체 합성/모의 회귀 739개 통과([Actions #44739859816](https://github.com/sanato-nb/PlayDock/actions/runs/44739859816)). v0.11.6 실제 129개: 키 없는 검사 검색 장애 38건, Serper 검사 8건; 새 HTML 기반 v0.11.7 실제 온라인 정확도는 재검사 전 **미측정**. [v0.11.7 개발 기록](V117_NO_API_HTML_2026-11-20_KO.md) 참조. 뒤의 v0.11.6 기록은 역사 정보.
+> **v0.11.7-no-api 추가(2026-11-20):** 사용자 요청으로 독립 GUI에서 Serper 키 UI를 제거하고 공개 HTML 검색으로 전환. DLsite/Steam JSON API를 사용하지 않는 검증판 `no_api=True` 구현. 전체 합성/모의 회귀 741개 통과([Actions #44741105893](https://github.com/sanato-nb/PlayDock/actions/runs/44741105893)). v0.11.6 실제 129개: 키 없는 검사 검색 장애 38건, Serper 검사 8건; 새 HTML 기반 v0.11.7 실제 온라인 정확도는 재검사 전 **미측정**. [v0.11.7 개발 기록](V117_NO_API_HTML_2026-11-20_KO.md) 참조. 뒤의 v0.11.6 기록은 역사 정보.
 
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-20)
 
