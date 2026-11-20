@@ -87,11 +87,17 @@ def _slug_agrees(local: str, slug: str, heading: str, kind: str) -> bool:
         tail = actual[len(target):]
         if tail in {"full", "demo", "game", "windows", "pc", "beta", "alpha"}:
             return True
-    # Elena's Story/elenastory처럼 소유격 -s가 URL에는 남고
-    # 제목에만 아포스트로피로 표시된 경우에 한해 허용.
-    if (kind == "itch" and len(target) >= 8 and title_mentioned(local, heading)
-            and actual == target.replace("astory", "asstory")):
-        return True
+    # Elena's Story/elenastory 같은 소유격은 URL에 s가 남을
+    # 수 있다. 작품 제목이 먼저 정확히 맞은 경우에만, slug의
+    # 한 단어 끝 s를 하나 제거한 형태가 제목과 같은지 검사.
+    if kind == "itch" and len(target) >= 8 and title_mentioned(local, heading):
+        words = [w for w in re.split(r"[^a-z0-9]+", slug.casefold()) if w]
+        for i, word in enumerate(words[:-1]):
+            if len(word) >= 4 and word.endswith("s"):
+                changed = words.copy()
+                changed[i] = word[:-1]
+                if "".join(changed) == target:
+                    return True
     return False
 
 

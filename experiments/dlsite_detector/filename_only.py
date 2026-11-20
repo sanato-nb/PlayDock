@@ -131,6 +131,7 @@ class FilenameIdentityResult:
     web_raw_results: tuple[dict, ...] = ()
     web_evidence: tuple[WebEvidence, ...] = ()
     search_providers: tuple[dict, ...] = ()
+    rejected_pages: tuple[dict, ...] = ()
 
     @property
     def is_unresolved(self) -> bool:
@@ -268,6 +269,7 @@ def identify_filename(
     raw_hits: list[dict] = []
     web_evidence: tuple[WebEvidence, ...] = ()
     providers: tuple[dict, ...] = ()
+    rejected_pages: list[dict] = []
 
     def check_code(code: str) -> None:
         looked.append("DLsite " + code)
@@ -341,15 +343,23 @@ def identify_filename(
                             ), code_timeout
                         )
                         if p is not None and p.code.upper() == code.upper():
-                            found[("dlsite", code)] = _product_to_candidate(
-                                p, clues.game_name
-                            )
+                            if _title_matches(clues.game_name, p.title):
+                                found[("dlsite", code)] = _product_to_candidate(
+                                    p, clues.game_name
+                                )
+                            else:
+                                rejected_pages.append({
+                                    "url": p.url, "reason":
+                                    "DLsite 상품 이름이 압축파일명과 다릅니다",
+                                    "official_title": p.title[:160],
+                                })
                     except Exception as exc:
                         errors.append("DLsite 후보 검증 실패: " + type(exc).__name__)
                 # 검색 결과에 실제 작품 URL이 있으면 그 slug를 먼저
                 # 대조한다. Steam 후보의 제목은 검색 스니펫이 아닌
                 # 공식 Steam 조회 결과로 재검증한다.
                 checked_steam = set()
+                excluded_urls = set()
                 for ev in evidence:
                     sid = steam_app_id(
                         clues.game_name, ev.title, ev.url,
@@ -369,6 +379,13 @@ def identify_filename(
                             found[("steam", sid)] = _steam_to_candidate(
                                 p, clues.game_name
                             )
+                        elif p is not None and p.app_id == sid:
+                            excluded_urls.add(ev.url)
+                            rejected_pages.append({
+                                "url": ev.url, "reason":
+                                "Steam 공식 상품 이름/상품 유형이 파일명과 다릅니다",
+                                "official_title": p.title[:160],
+                            })
                     except Exception as exc:
                         errors.append(
                             "Steam 웹 후보 " + sid + ": "
@@ -378,7 +395,12 @@ def identify_filename(
                         break
                 if not found:
                     clue = _web_name_candidate(
-                        clues.game_name, evidence, filename=clues.archive_name
+                        clues.game_name,
+                        tuple(ev for ev in evidence
+                              if ev.url not in excluded_urls
+                              and not any(x["url"] == ev.url
+                                          for x in rejected_pages)),
+                        filename=clues.archive_name,
                     )
                     if clue is not None:
                         score = page_score(
@@ -459,7 +481,12 @@ def identify_filename(
         reason = "외부 조회 실패 또는 제한시간 초과. 게임이 없다는 뜻이 아닙니다."
     else:
         status = "unidentified"
-        if raw_hits:
+        if rejected_pages:
+            reason = (
+                "검색한 공식 상품의 제목이나 유형이 압축파일명과 달라 "
+                "후보에서 제외했습니다."
+            )
+        elif raw_hits:
             reason = (
                 f"웹 검색 결과 {len(raw_hits)}건은 받았지만 "
                 "공식 작품 또는 이름이 일치하는 유력 단서를 선정하지 못했습니다."
@@ -477,4 +504,5 @@ def identify_filename(
         reason, candidates, tuple(looked), tuple(errors),
         round(time.monotonic() - start, 3),
         tuple(raw_hits), web_evidence, providers,
+        tuple(rejected_pages),
     )

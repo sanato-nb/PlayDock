@@ -676,8 +676,9 @@ def test_steam_store_wrong_official_title_is_never_accepted():
             f"https://store.steampowered.com/app/{sid}/"
         ),
     )
-    assert r.status == "web_candidate"
-    assert not any(c.source == "official_api" for c in r.candidates)
+    assert r.status == "unidentified"
+    assert not r.candidates
+    assert r.rejected_pages[0]["official_title"] == "Another Valley"
 
 
 def test_worker_error_retains_provider_failure_details(tmp_path):
@@ -715,3 +716,43 @@ def test_identify_error_preserves_providers_for_json():
     assert r.search_providers[0]["provider"] == "ddgs"
     assert "provider is blocked" in r.errors[0]
     assert r.to_dict()["search_providers"][0]["error"] == "connection blocked"
+
+
+
+def test_mismatching_dlsite_search_result_is_rejected_not_promoted(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    from experiments.dlsite_detector import detector
+    fake_code = "RJ09999555"
+    def fake_catalog(code, **kwargs):
+        return product(code, "Different Game")
+    monkeypatch.setattr(identity, "fetch_product", fake_catalog)
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "title": "Moon Valley - DLsite",
+        "href": "https://www.dlsite.com/maniax/work/=/product_id/"
+                + fake_code + ".html",
+        "body": "RPG game",
+    }])
+    assert not r.candidates
+    assert r.status == "unidentified"
+    assert r.rejected_pages
+    assert "다릅니다" in r.rejected_pages[0]["reason"]
+
+
+def test_wrong_chapter_not_suggested_by_store_page():
+    r = identify_filename("Garden Story [Chap.1].zip",
+                          web_search=lambda _: [{
+        "title": "Garden Story Chapter 2 by MoonDev",
+        "href": "https://moondev.itch.io/garden-story-chapter-2",
+        "body": "Game Chapter 2",
+    }])
+    assert r.status == "unidentified"
+    assert not r.candidates
+
+
+def test_multiple_possessive_names_are_not_hardcoded_to_story():
+    from experiments.dlsite_detector.filename_page_rank import page_score
+    rank = page_score(
+        "AuroraDream", "Aurora's Dream by Creator",
+        "https://author.itch.io/auroras-dream",
+    )
+    assert rank > 0
