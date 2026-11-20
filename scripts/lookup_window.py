@@ -11,6 +11,10 @@ import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import webbrowser
+from urllib.parse import urlencode
+
+from experiments.dlsite_detector.detector import EXACT_CODE
+from experiments.dlsite_detector.search_terms import cleaned_search_title
 
 from experiments.dlsite_detector.reverse_lookup import (
     Lookup, lookup_code, lookup_title, parse_catalog_links,
@@ -74,6 +78,8 @@ class LookupWindow(tk.Tk):
         self.stop.pack(side="left", padx=(6, 0))
         ttk.Button(controls, text="입력 지우기",
                    command=lambda: self.input.delete("1.0", "end")).pack(side="left", padx=6)
+        ttk.Button(controls, text="브라우저에서 직접 찾기",
+                   command=self.open_browser_search).pack(side="left", padx=6)
         self.json_btn = ttk.Button(controls, text="JSON 저장", command=self.save_json, state="disabled")
         self.json_btn.pack(side="right")
         self.csv_btn = ttk.Button(controls, text="CSV 저장", command=self.save_csv, state="disabled")
@@ -171,7 +177,7 @@ class LookupWindow(tk.Tk):
                     self.json_btn.configure(state="normal" if self.results else "disabled")
                     self.csv_btn.configure(state="normal" if self.results else "disabled")
                     self.status.set(f"검색 완료: {len(self.results)}개 · "
-                                    f"공식 제목 일치 {sum(any(m.confidence == 'exact_title' for m in r.matches) for r in self.results)}개"
+                                    f"공식 제목 일치 {sum(any(m.confidence in ('exact_title', 'official_code') for m in r.matches) for r in self.results)}개"
                                     + (" · 중단됨" if self.cancel.is_set() else ""))
         except Empty:
             pass
@@ -205,6 +211,36 @@ class LookupWindow(tk.Tk):
             link = self.selection_urls.get(selection[0], "")
             if link.startswith("https://www.dlsite.com/"):
                 webbrowser.open(link)
+
+    def open_browser_search(self):
+        """HTML 자동 검색이 차단될 때 사용자 브라우저로 일반 페이지를 엶."""
+        selection = self.table.selection()
+        if selection:
+            values = self.table.item(selection[0], "values")
+            value = str(values[0]) if values else ""
+        else:
+            value = next((line.strip() for line in self.input.get("1.0", "end").splitlines()
+                          if line.strip()), "")
+        if not value:
+            messagebox.showwarning("입력 없음", "먼저 게임 이름이나 품번을 입력하세요.")
+            return
+        if self.mode == "title_to_code":
+            query = cleaned_search_title(value)
+            if not query:
+                messagebox.showwarning("검색어 없음", "게임 이름을 입력하세요.")
+                return
+            url = "https://www.google.com/search?" + urlencode({
+                "q": 'site:dlsite.com "' + query + '"'
+            })
+        else:
+            code = value.upper()
+            if not EXACT_CODE.fullmatch(code):
+                messagebox.showwarning("품번 형식 오류", "RJ/VJ/BJ/EJ + 숫자 6~8자리로 입력하세요.")
+                return
+            section = {"RJ": "maniax", "VJ": "soft", "BJ": "girls",
+                       "EJ": "girls"}.get(code[:2], "maniax")
+            url = (f"https://www.dlsite.com/{section}/work/=/product_id/{code}.html")
+        webbrowser.open(url)
 
     def save_json(self):
         if not self.results:
