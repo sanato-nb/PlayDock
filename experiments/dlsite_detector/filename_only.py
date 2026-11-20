@@ -205,7 +205,9 @@ def _title_matches(local: str, official: str) -> bool:
 def _product_to_candidate(p: Product, local: str) -> Candidate:
     is_game = p.work_type in GAME_TYPES
     match = _title_matches(local, p.title)
-    note = ("공식 등록 상품이 게임 유형이 아닙니다"
+    note = ("공식 상품 페이지에서 게임 유형은 미검증"
+            if not p.work_type else
+            "공식 등록 상품이 게임 유형이 아닙니다"
             if not is_game else
             "공식 상품명에 번역 패치 표기가 있습니다"
             if PATCH_PREFIX.match(p.title) else "")

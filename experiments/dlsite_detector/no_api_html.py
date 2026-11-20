@@ -195,7 +195,13 @@ def fetch_dlsite_html(code: str, *, timeout: float = 2.5,
     code = str(code).upper()
     if not EXACT_CODE.fullmatch(code):
         raise ValueError("DLsite 작품번호 형식이 잘못됨")
-    for category in CATEGORIES:
+    # Limit the number of HTML pages visited; never loop through all five
+    # categories when the official site is blocking automated access.
+    categories = {
+        "RJ": ("maniax", "home"), "VJ": ("soft", "maniax"),
+        "BJ": ("girls", "maniax"), "EJ": ("girls", "maniax"),
+    }.get(code[:2], ("maniax",))
+    for category in categories:
         url = f"https://www.dlsite.com/{category}/work/=/product_id/{code}.html"
         try:
             final, body = _fetch_html(url, timeout=timeout, opener=opener)
