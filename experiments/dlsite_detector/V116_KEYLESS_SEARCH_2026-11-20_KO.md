@@ -35,6 +35,10 @@
 ## 테스트 및 빌드 확인
 - 전체 Python 회귀 최종: **727 passed**, 2026-11-20 GitHub Actions [성공 #44677221287](https://github.com/sanato-nb/PlayDock/actions/runs/44677221287). Python 3.12, Ubuntu 러너 기준.
 - 첫 CI(#44676673765)는 챕터별 itch.io URL 일치 테스트 1건 실패(1 failed/722 passed). `filename_page_rank.py`의 정확한 챕터 슬러그 허용 로직 수정 후 최종 CI 모두 성공.
-- Windows 독립 EXE v0.11.6: **미생성/미검증**. 이전 v0.11.5 빌드 결과를 새 버전의 성공으로 표기하지 않음.
-- EXE Actions는 `workflow_dispatch` 수동 전용을 유지함.
-- **수동 EXE 실행 제약:** `.github/workflows/identity-tester-windows.yml`은 현재 실험 브랜치에만 있고 `main`에는 존재하지 않는다. GitHub `workflow_dispatch`는 워크플로 정의가 기본 브랜치에 있어야 수동 실행할 수 있다. 사용자 지시대로 `main`에는 파일을 추가하지 않고, 일회성 push 트리거로 자동 빌드하지 않았다. 따라서 이번 v0.11.6 Windows EXE는 아직 생성되지 않았다. Windows 빌드 성공 보고 금지.
+- Windows 독립 EXE v0.11.6: **최종 빌드 성공**. [GitHub Actions #44679272814](https://github.com/sanato-nb/PlayDock/actions/runs/44679272814) / [배포 ZIP (Artifact #14603762061)](https://github.com/sanato-nb/PlayDock/actions/runs/44679272814/artifacts/14603762061).
+- Windows Python 3.12: 관련 회귀 **202개 통과**, PyInstaller 1파일 EXE 빌드 성공, 실제 EXE `--self-test` 성공. 아티팩트에는 EXE와 한국어 README **2개 파일만** 포함.
+- EXE SHA-256: `2ffcad111b39ab4831a985861d0a43b44f2033d7df435e4c389c96764c3c2e35`.
+- ZIP SHA-256: `9d38af4eee0f53e0489accbbe1938a1cdc447f4db00514e21e27b459d48fecc3`.
+- Artifacts 다운로드 보존 기한: **2026-12-20**. Windows 러너의 자체 진단은 실행 확인이며 사용자 실사용 온라인 정확도는 보증하지 않는다.
+- GitHub `main`에는 빌드 워크플로가 없어 수동 `workflow_dispatch`는 직접 사용할 수 없음. 사용자 요청에 따라 **실험 브랜치 push 빌드를 일회성 실행한 직후 트리거를 수동 전용으로 복원**했으며 `main` 미수정. 향후 EXE 자동 빌드는 수행하지 않음.
+- 사용자의 비공개 `v0.11.5-test` JSON **129개**를 로컬 분석: `official_match 12`, `catalog_found 72`, `web_candidate 28`, `likely 6`, `multiple 1`, `unidentified 4`, `search_error 6`. 코드 없는 파일 39개, DDGS 공급자 오류 총 6건. 이 자료는 **이전 버전의 측정**이며 GitHub에 원본·개별 파일명을 포함하지 않음. v0.11.6 재검사 결과는 아직 없음.
