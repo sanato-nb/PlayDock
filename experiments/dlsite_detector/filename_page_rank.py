@@ -125,6 +125,14 @@ def page_score(local: str, heading: str, url: str, *,
             return 0
         kind, slug, parts = _page_slug(url)
         exact_slug = _slug_agrees(local, slug, heading, kind)
+        # 작품명 슬러그에 챕터가 붙은 경우, 파일명에서 요구하는
+        # 챕터 번호가 같을 때만 동일 챕터의 작품 페이지로 인정한다.
+        # (다른 챕터는 _chapter_compatible에서 이미 제외된다.)
+        required_chapter = chapter_number(local_filename)
+        if (kind == "itch" and not exact_slug and required_chapter
+                and title_key(slug) ==
+                title_key(local) + "chapter" + required_chapter):
+            exact_slug = True
         mentioned = title_mentioned(local, heading)
         if not (exact_slug or mentioned):
             return 0
