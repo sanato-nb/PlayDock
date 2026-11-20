@@ -1,8 +1,10 @@
 name: PlayDock 게임 정체 판독기 Windows 검증판 빌드
 
-# EXE는 사용자 요청에 따라서만 빌드한다. 자동 빌드는 실행하지 않는다.
-# 실험 브랜치 전용이며 main 병합/본체 연동 없음.
+# 사용자 요청의 v0.11.7 API 없는 독립 EXE를 1회 빌드한다.
+# 실행 확인 후 workflow_dispatch 전용으로 반드시 되돌린다.
 on:
+  push:
+    branches: [experiment-dlsite-game-detector-20261117]
   workflow_dispatch:
 
 permissions:
@@ -35,12 +37,12 @@ jobs:
       - name: 정체 교차검증 회귀 테스트
         shell: pwsh
         run: |
-          python -m pytest -q tests/test_identity_verification_stage6_experiment.py tests/test_metadata_evidence_stage5_experiment.py tests/test_v05_search_and_catalog_experiment.py tests/test_fast_combined_scan_v04_experiment.py tests/test_v10_minimal_identity_experiment.py tests/test_v11_filename_only_experiment.py
+          python -m pytest -q tests/test_identity_verification_stage6_experiment.py tests/test_metadata_evidence_stage5_experiment.py tests/test_v05_search_and_catalog_experiment.py tests/test_fast_combined_scan_v04_experiment.py tests/test_v10_minimal_identity_experiment.py tests/test_v11_filename_only_experiment.py tests/test_v117_no_api_html_experiment.py
 
       - name: PyInstaller GUI EXE 생성
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-Identity-Tester --paths . --collect-all ddgs scripts/filename_identity_tester.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-Identity-Tester --paths . --exclude-module ddgs scripts/filename_identity_tester.py
 
       - name: 패키징 EXE 자체 진단 (인터넷 미사용)
         shell: pwsh
