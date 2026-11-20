@@ -10,7 +10,7 @@ from html import unescape
 from html.parser import HTMLParser
 import re
 from typing import Callable
-from urllib.parse import quote, urljoin, urlsplit
+from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit
 
 from .detector import EXACT_CODE, Product, normalized_title, product_page_candidate
 from .no_api_html import PublicHtmlUnavailable, _fetch_html, fetch_dlsite_html, search_public_html
@@ -57,6 +57,10 @@ class _CatalogLinks(HTMLParser):
         props = dict(attrs)
         if tag == "a":
             href = urljoin(self.base, unescape(props.get("href") or ""))
+            parts = urlsplit(href)
+            # Google 일반 검색 HTML의 /url?q=... 링크만 안전하게 풀어냄.
+            if parts.hostname in ("google.com", "www.google.com") and parts.path == "/url":
+                href = parse_qs(parts.query).get("q", [""])[0]
             # 출처가 진짜 DLsite 작품 페이지인지 반드시 URL 검증.
             if product_page_candidate(href):
                 self.current = {"href": href, "texts": [props.get("title") or ""]}
@@ -114,6 +118,27 @@ def search_catalog_html(title: str, category: str, *, timeout: float = 3.0,
     return parse_catalog_links(html, final)
 
 
+def search_engine_html(title: str, provider: str, *, timeout: float = 2.8,
+                       opener=None) -> list[dict]:
+    """Bing/Google 일반 검색 HTML에서 DLsite 공식 작품 링크만 수집."""
+    endpoints = {"bing_html": "https://www.bing.com/search",
+                 "google_html": "https://www.google.com/search"}
+    if provider not in endpoints:
+        raise ValueError("허용하지 않은 검색 사이트")
+    query = 'site:dlsite.com "' + title + '"'
+    url = endpoints[provider] + "?" + urlencode({"q": query})
+    kwargs = {"timeout": timeout}
+    if opener is not None:
+        kwargs["opener"] = opener
+    final, body = _fetch_html(url, **kwargs)
+    host = (urlsplit(final).hostname or "").casefold()
+    valid = {"bing_html": ("www.bing.com", "bing.com"),
+             "google_html": ("www.google.com", "google.com")}[provider]
+    if host not in valid:
+        raise PublicHtmlUnavailable("일반 검색 페이지가 외부 사이트로 이동")
+    return parse_catalog_links(body, final)
+
+
 def _match_score(query: str, title: str) -> int:
     left, right = normalized_title(query), normalized_title(title)
     if not left or not right or len(left) < 3:
@@ -148,6 +173,7 @@ def lookup_title(
     raw_title: str, *,
     catalog_search: Callable[[str, str], list[dict]] = search_catalog_html,
     external_search: Callable[[str, str], list[dict]] = search_public_html,
+    engine_search: Callable[[str, str], list[dict]] = search_engine_html,
     fetcher: Callable[[str], Product | None] = fetch_dlsite_html,
 ) -> Lookup:
     title = cleaned_search_title(str(raw_title or ""))
@@ -189,9 +215,12 @@ def lookup_title(
 
     # 공식 검색에서 링크를 찾지 못한 때만 일반 HTML 검색에 'DLsite' 제한어 사용.
     if not hits:
-        for provider in ("ddg_html", "mojeek_html"):
+        for provider in ("bing_html", "google_html", "ddg_html", "mojeek_html"):
             try:
-                results = external_search('site:dlsite.com "' + title + '"', provider) or []
+                if provider in ("bing_html", "google_html"):
+                    results = engine_search(title, provider) or []
+                else:
+                    results = external_search('site:dlsite.com "' + title + '"', provider) or []
                 providers.append({"provider": provider, "state": "ok",
                                   "count": len(results)})
                 for item in results[:12]:
