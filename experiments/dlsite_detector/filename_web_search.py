@@ -96,6 +96,7 @@ def bing_rss_search(title: str, *, timeout: float = 3.0,
 
 
 from .filename_page_rank import page_score
+from .serper_client import serper_google_search
 
 
 def _row_quality(query: str, row: dict) -> int:
@@ -128,27 +129,31 @@ def _rank_relevant(query: str, rows: list[dict]) -> tuple[list[dict], list[dict]
     return [row for _, row in selected], dropped, high
 
 
-def search_one_title(title: str, providers: list[dict] | None = None) -> list[dict]:
-    """DDGS 우선, 무관한/실패한 경우에만 Bing RSS 보조 조회.
-
-    검색 결과 수가 아닌 파일명과 작품별 URL의 부합성을 기준으로 한다.
-    """
+def search_one_title(title: str, providers: list[dict] | None = None,
+                     *, serper_api_key: str = "") -> list[dict]:
+    """Google 키 제공 시 Serper 우선; 결과 부적합/오류 시 DDGS → Bing RSS."""
     from .pipeline import fast_web_search
 
     trace = providers if providers is not None else []
     had_success = False
     faults = []
     combined: dict[str, tuple[int, dict]] = {}
-    ddgs_relevant = False
+    sources = (("google_serper", "ddgs", "bing_rss") if serper_api_key
+               else ("ddgs", "bing_rss"))
 
-    for source in ("ddgs", "bing_rss"):
-        if source == "bing_rss" and ddgs_relevant:
+    for source in sources:
+        if combined:
             break
         begin = time.monotonic()
         try:
-            rows = fast_web_search(title) if source == "ddgs" else bing_rss_search(title)
+            if source == "google_serper":
+                rows = serper_google_search(title, serper_api_key)
+            elif source == "ddgs":
+                rows = fast_web_search(title)
+            else:
+                rows = bing_rss_search(title)
             had_success = True
-            accepted, examples, high = _rank_relevant(title, list(rows))
+            accepted, examples, _ = _rank_relevant(title, list(rows))
             raw_count = len(rows)
             trace.append({
                 "provider": source,
@@ -164,9 +169,11 @@ def search_one_title(title: str, providers: list[dict] | None = None) -> list[di
                 quality = _row_quality(title, row)
                 if url not in combined or quality > combined[url][0]:
                     combined[url] = (quality, row)
-            ddgs_relevant = source == "ddgs" and bool(accepted)
         except Exception as exc:
+            # 제3자 API 키는 검색 오류·결과 기록에도 남기지 않는다.
             detail = type(exc).__name__ + ": " + str(exc)[:140]
+            if serper_api_key:
+                detail = detail.replace(serper_api_key, "[REDACTED]")
             trace.append({
                 "provider": source, "state": "error",
                 "error": detail, "result_count": 0, "relevant_count": 0,
@@ -179,8 +186,6 @@ def search_one_title(title: str, providers: list[dict] | None = None) -> list[di
             combined.values(), key=lambda r: r[0], reverse=True
         )][:MAX_RESULTS]
     if faults:
-        # 한쪽 서비스에서 응답이 비어 있었고 다른 서비스가 실패한 경우,
-        # '검색 결과 없음'으로 확정하지 않는다.
         raise SearchWorkerError("; ".join(faults), providers=trace)
     if had_success:
         return []
@@ -196,7 +201,10 @@ def worker_main(input_path: str, output_path: str) -> int:
         if not isinstance(query, str) or not 1 <= len(query) <= 180:
             raise ValueError("검색어 길이가 잘못되었습니다")
         providers: list[dict] = []
-        rows = search_one_title(query, providers)
+        rows = search_one_title(
+            query, providers,
+            serper_api_key=os.environ.get("PLAYDOCK_SERPER_API_KEY", ""),
+        )
         payload = {"ok": True, "rows": rows, "providers": providers}
     except Exception as exc:
         payload = {
@@ -212,7 +220,8 @@ def worker_main(input_path: str, output_path: str) -> int:
 
 
 def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
-                        runner=subprocess.run) -> list[dict]:
+                        runner=subprocess.run,
+                        serper_api_key: str = "") -> list[dict]:
     """제한시간 초과 시 subprocess.run이 자식 프로세스를 kill/wait한다.
 
     추가 검색에도 이전 검색이 잠금을 잡고 남지 않는다.
@@ -233,13 +242,18 @@ def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
             command = [sys.executable, "-m", "scripts.filename_identity_tester",
                        "--filename-web-worker", str(incoming), str(outgoing)]
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+        options = {}
+        if serper_api_key:
+            child_env = os.environ.copy()
+            child_env["PLAYDOCK_SERPER_API_KEY"] = serper_api_key
+            options["env"] = child_env
         try:
             # Linux/Windows 모두 timeout 이후 자식 종료를 기다림. 프로그램
             # 내부 스레드 잠금과 달리 다음 파일 검색이 막히지 않는다.
             finished = runner(
                 command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, timeout=timeout,
-                creationflags=flags,
+                creationflags=flags, **options,
             )
         except subprocess.TimeoutExpired as exc:
             raise SearchWorkerTimeout(
