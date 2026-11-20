@@ -46,7 +46,13 @@ jobs:
         shell: pwsh
         run: |
           @'
-          from experiments.dlsite_detector.reverse_lookup import search_catalog_html
+          from experiments.dlsite_detector.reverse_lookup import search_catalog_html, search_engine_html
+          for provider in ("bing_html", "google_html"):
+              try:
+                  matches = search_engine_html("RPG", provider, timeout=3.0)
+                  print("ENGINE_HTML_SMOKE", provider, "ok", len(matches), flush=True)
+              except Exception as exc:
+                  print("ENGINE_HTML_SMOKE", provider, type(exc).__name__, ascii(str(exc))[:160], flush=True)
           try:
               rows = search_catalog_html("Stardew Valley", "maniax", timeout=3.0)
               print("DLSITE_HTML_SMOKE", "ok", len(rows), flush=True)
