@@ -253,7 +253,7 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11.4-test"
+    assert VERSION == "0.11.5-test"
 
 
 
@@ -756,3 +756,191 @@ def test_multiple_possessive_names_are_not_hardcoded_to_story():
         "https://author.itch.io/auroras-dream",
     )
     assert rank > 0
+
+
+
+def test_serper_google_response_mapped_and_key_not_in_request_body():
+    from io import BytesIO
+    import json
+    from experiments.dlsite_detector.serper_client import serper_google_search
+    secret = "SUPERSECRET-TOKEN-DO-NOT-STORE"
+    seen = []
+    def opener(request, timeout):
+        seen.append((request, timeout))
+        return BytesIO(json.dumps({"organic": [
+            {"title": "Goblin Nest by BadColor",
+             "link": "https://badcolor.itch.io/goblin-nest",
+             "snippet": "PC game from creator"},
+            {"title": "insecure",
+             "link": "http://bad.example.org/test",
+             "snippet": "no"},
+        ]}).encode())
+    rows = serper_google_search("Goblin Nest", secret, opener=opener)
+    assert len(rows) == 1
+    assert rows[0]["href"] == "https://badcolor.itch.io/goblin-nest"
+    request, timeout = seen[0]
+    assert request.get_method() == "POST"
+    assert request.get_header("X-api-key") == secret
+    assert timeout <= 4.0
+    assert b'"Goblin Nest"' in request.data
+    assert secret not in request.full_url
+    assert secret.encode() not in request.data
+    assert secret not in str(rows)
+
+
+def test_serper_invalid_key_http_error_sanitized():
+    import urllib.error
+    from experiments.dlsite_detector.serper_client import (
+        serper_google_search, SerperSearchError
+    )
+    secret = "MY-PRIVATE-KEY"
+    def invalid(_request, timeout):
+        raise urllib.error.HTTPError(
+            "https://google.serper.dev/search", 401,
+            "MY-PRIVATE-KEY is unauthorized", None, None
+        )
+    try:
+        serper_google_search("Moon Valley", secret, opener=invalid)
+        assert False, "Serper invalid key should fail explicitly"
+    except SerperSearchError as exc:
+        assert "401" in str(exc)
+        assert secret not in str(exc)
+
+
+def test_serper_preferred_and_skips_ddgs_bing(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    calls = []
+    def fake_google(title, key):
+        calls.append(("google", title, key))
+        return [{"title": "Goblin Nest by BadColor",
+                 "href": "https://badcolor.itch.io/goblin-nest",
+                 "body": "PC game"}]
+    monkeypatch.setattr(w, "serper_google_search", fake_google)
+    monkeypatch.setattr(pipeline, "fast_web_search",
+                        lambda _: (_ for _ in ()).throw(
+                            AssertionError("unexpected DDGS search")))
+    monkeypatch.setattr(w, "bing_rss_search",
+                        lambda _: (_ for _ in ()).throw(
+                            AssertionError("unexpected Bing search")))
+    trace = []
+    rows = w.search_one_title("Goblin Nest", trace, serper_api_key="test-key")
+    assert len(rows) == 1
+    assert [x["provider"] for x in trace] == ["google_serper"]
+    assert trace[0]["relevant_count"] == 1
+    assert calls == [("google", "Goblin Nest", "test-key")]
+
+
+def test_serper_bad_key_falls_back_to_ddgs_and_masks_key(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    secret = "KEY-MUST-BE-REDACTED"
+    def bad_google(_title, _key):
+        raise RuntimeError("bad token " + secret)
+    monkeypatch.setattr(w, "serper_google_search", bad_google)
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Goblin Nest by BadColor",
+        "href": "https://badcolor.itch.io/goblin-nest",
+        "body": "PC game",
+    }])
+    trace = []
+    rows = w.search_one_title("Goblin Nest", trace, serper_api_key=secret)
+    assert len(rows) == 1
+    assert [x["provider"] for x in trace] == ["google_serper", "ddgs"]
+    assert trace[0]["state"] == "error"
+    assert secret not in str(trace)
+    assert "[REDACTED]" in str(trace)
+
+
+def test_serper_irrelevant_falls_back_to_ddgs(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(w, "serper_google_search", lambda *_: [{
+        "title": "Different Game",
+        "href": "https://different.itch.io/game",
+        "body": "PC game",
+    }])
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Goblin Nest by BadColor",
+        "href": "https://badcolor.itch.io/goblin-nest",
+        "body": "PC game",
+    }])
+    trace = []
+    rows = w.search_one_title("Goblin Nest", trace, serper_api_key="key")
+    assert len(rows) == 1
+    assert trace[0]["state"] == "irrelevant"
+    assert trace[1]["provider"] == "ddgs"
+
+
+def test_serper_not_used_without_explicit_key(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(w, "serper_google_search",
+                        lambda *_: (_ for _ in ()).throw(
+                            AssertionError("Google requires opt-in")))
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Goblin Nest by BadColor",
+        "href": "https://badcolor.itch.io/goblin-nest",
+        "body": "PC game",
+    }])
+    assert w.search_one_title("Goblin Nest")[0]["title"].startswith("Goblin")
+
+
+def test_worker_api_key_in_env_only_and_json_remains_private():
+    import json
+    import subprocess
+    from pathlib import Path
+    from experiments.dlsite_detector.filename_web_search import (
+        isolated_web_search
+    )
+    secret = "DO-NOT-EXPORT-MY-KEY"
+    def runner(command, **kwargs):
+        assert secret not in " ".join(command)
+        assert kwargs["env"]["PLAYDOCK_SERPER_API_KEY"] == secret
+        request = json.loads(Path(command[-2]).read_text(encoding="utf-8"))
+        assert request == {"query": "Goblin Nest"}
+        assert secret not in str(request)
+        Path(command[-1]).write_text(json.dumps({
+            "ok": True,
+            "rows": [{"title":"Goblin Nest by BadColor",
+                      "href":"https://badcolor.itch.io/goblin-nest"}],
+            "providers": [{"provider":"google_serper","state":"relevant"}],
+        }), encoding="utf-8")
+        return subprocess.CompletedProcess(command, 0)
+    rows = isolated_web_search("Goblin Nest", runner=runner,
+                               serper_api_key=secret)
+    assert rows[0]["title"] == "Goblin Nest by BadColor"
+    assert rows.providers[0]["provider"] == "google_serper"
+    assert secret not in str(rows)
+    assert secret not in str(rows.providers)
+
+
+def test_filename_identity_serper_key_never_in_export(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    from experiments.dlsite_detector.filename_web_search import SearchRows
+    secret = "PRIVATE-KEY-NOT-IN-RESULT"
+    captured = []
+    def fake_search(title, *, serper_api_key=""):
+        captured.append((title, serper_api_key))
+        return SearchRows([{
+            "title": "Goblin Nest by BadColor",
+            "href": "https://badcolor.itch.io/goblin-nest",
+            "body": "Game",
+        }], [{"provider": "google_serper",
+              "state": "relevant", "result_count": 1}])
+    monkeypatch.setattr(identity, "isolated_web_search", fake_search)
+    r = identify_filename("Goblin Nest [v1.36].zip", serper_api_key=secret)
+    assert r.status == "web_candidate"
+    assert captured == [("Goblin Nest", secret)]
+    assert secret not in str(r.to_dict())
+    assert r.search_providers[0]["provider"] == "google_serper"
+
+
+def test_serper_not_called_for_code_with_direct_official_lookup(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    monkeypatch.setattr(identity, "isolated_web_search",
+                        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+                            AssertionError("code lookup must not use Google")))
+    r = identify_filename(
+        "Moon Valley [RJ09999101].zip",
+        dlsite_lookup=lambda code: product(code, "Moon Valley"),
+        serper_api_key="TEST-ONLY-KEY",
+    )
+    assert r.status == "official_match"
+    assert "TEST-ONLY-KEY" not in str(r.to_dict())
