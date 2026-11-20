@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 from .detector import CATEGORIES, EXACT_CODE, Product
 from .steam_client import STEAM_ID, SteamProduct
 
-MAX_HTML_BYTES = 600_000
+MAX_HTML_BYTES = 2_500_000
 SEARCH_LIMIT = 12
 SEARCH_ENDPOINTS = {
     "ddg_html": "https://html.duckduckgo.com/html/",

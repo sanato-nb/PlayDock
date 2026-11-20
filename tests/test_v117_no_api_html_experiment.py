@@ -137,9 +137,9 @@ def test_strict_search_never_invokes_old_json_provider():
     ):
         providers = []
         rows = search_one_title("My Example Game", providers, no_api=True)
-    assert calls == ["ddg_html"]
+    assert calls == ["itch_html"]
     assert len(rows) == 1
-    assert providers[0]["provider"] == "ddg_html"
+    assert providers[0]["provider"] == "itch_html"
 
 
 def test_explicit_code_in_strict_mode_uses_only_html():
@@ -174,7 +174,7 @@ def test_worker_no_api_flag_skips_all_json_services(tmp_path: Path):
     assert html.called
     result = json.loads(outbound.read_text(encoding="utf-8"))
     assert result["ok"] is True
-    assert result["providers"][0]["provider"] == "ddg_html"
+    assert result["providers"][0]["provider"] == "itch_html"
 
 
 def test_html_search_has_fixed_allowed_provider_list():

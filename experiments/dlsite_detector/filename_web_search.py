@@ -177,7 +177,7 @@ def search_one_title(title: str, providers: list[dict] | None = None,
     faults = []
     combined: dict[str, tuple[int, dict]] = {}
     sources = (
-        ("ddg_html", "itch_html", "mojeek_html", "steam_html")
+        ("itch_html", "steam_html", "ddg_html", "mojeek_html")
         if no_api else
         (("google_serper", "ddgs", "bing_rss") if serper_api_key
          else ("ddgs", "bing_rss"))
