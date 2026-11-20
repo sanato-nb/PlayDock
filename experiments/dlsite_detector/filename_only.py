@@ -19,7 +19,8 @@ from urllib.parse import urlsplit
 
 from .catalog_aliases import DISTRIBUTION_PREFIX, explicit_title_keys
 from .detector import (
-    GAME_TYPES, Product, fetch_product, normalized_title, product_page_candidate,
+    CODE_PATTERN, GAME_TYPES, Product, fetch_product, normalized_title,
+    product_page_candidate,
 )
 from .identity_hints import extract_hints
 from .pipeline import WebEvidence, examine_web_results, fast_web_search
@@ -27,9 +28,9 @@ from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product
 from .storefront_candidate import single_store_candidate
 from .filename_web_search import isolated_web_search
-from .filename_page_rank import page_score, steam_app_id
+from .filename_page_rank import page_score, steam_app_id, chapter_number
 
-VERSION = "0.11.5-test"
+VERSION = "0.11.6-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -96,6 +97,7 @@ class FilenameClues:
     product_codes: tuple[str, ...]
     steam_ids: tuple[str, ...]
     source: str = "archive_filename_only"
+    archive_kind: str = "unknown"
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -132,6 +134,7 @@ class FilenameIdentityResult:
     web_evidence: tuple[WebEvidence, ...] = ()
     search_providers: tuple[dict, ...] = ()
     rejected_pages: tuple[dict, ...] = ()
+    web_code_hints: tuple[dict, ...] = ()
 
     @property
     def is_unresolved(self) -> bool:
@@ -175,6 +178,7 @@ def extract_filename_clues(value: str) -> FilenameClues:
         name, title,
         tuple(dict.fromkeys(code.upper() for code in hint.dlsite_codes))[:MAX_CODES],
         tuple(dict.fromkeys(hint.steam_app_ids))[:MAX_CODES],
+        archive_kind=hint.archive_kind,
     )
 
 
@@ -271,6 +275,7 @@ def identify_filename(
     web_evidence: tuple[WebEvidence, ...] = ()
     providers: tuple[dict, ...] = ()
     rejected_pages: list[dict] = []
+    web_codes: list[dict] = []
 
     def check_code(code: str) -> None:
         looked.append("DLsite " + code)
@@ -310,10 +315,13 @@ def identify_filename(
                 if web_search is _single_title_search:
                     # 기본 검색은 자식 프로세스 자체가 제한시간 후 완전히
                     # 종료된다. 전역 스레드 잠금을 사용하지 않는다.
+                    chapter = chapter_number(clues.archive_name)
                     rows = (
                         isolated_web_search(
-                            clues.game_name, serper_api_key=serper_api_key
-                        ) if serper_api_key else web_search(clues.game_name)
+                            clues.game_name, serper_api_key=serper_api_key,
+                            **({"chapter_hint": chapter} if chapter else {}),
+                        ) if (serper_api_key or chapter)
+                        else web_search(clues.game_name)
                     )
                 else:
                     # 테스트/플러그인에서 주입한 임의 콜백은 여전히
@@ -332,34 +340,86 @@ def identify_filename(
                 providers = tuple(getattr(rows, "providers", ()))
                 evidence = examine_web_results(clues.game_name, list(rows))
                 web_evidence = evidence
-                # 정확한 DLsite 작품별 공식 URL만 조회. 다른 사이트 제목은
-                # 제품번호의 근거가 되지 않는다.
+                # 먼저 공식 DLsite 작품별 URL만 검증한다. 일반 검색
+                # 결과의 품번은 보조 힌트이며, 공식 조회 전에는 후보가 아니다.
                 official_hits = []
+                third_party = []
+                seen_codes = set()
                 for ev in evidence:
+                    if not page_score(
+                        clues.game_name, ev.title, ev.url,
+                        local_filename=clues.archive_name,
+                        snippet="game" if ev.game_context else "",
+                    ):
+                        continue
                     hit = product_page_candidate(ev.url)
-                    if hit and hit[0] not in [h[0] for h in official_hits]:
-                        official_hits.append(hit)
-                for code, category in official_hits[:MAX_WEB_CODES]:
-                    looked.append("DLsite 후보 " + code)
+                    if hit:
+                        code, category = hit
+                        if code not in seen_codes:
+                            official_hits.append((code, category, ev.url))
+                            seen_codes.add(code)
+                        continue
+                    # 설명문만의 품번은 해당 게임과의 연결이 약해 제외한다.
+                    # 제목 또는 URL에 드러난 품번만 공식 카탈로그로 재검증.
+                    for code in CODE_PATTERN.findall(ev.title + " " + ev.url):
+                        code = code.upper()
+                        if code not in seen_codes:
+                            third_party.append((code, None, ev.url))
+                            seen_codes.add(code)
+                for code, category, evidence_url in (
+                    official_hits + third_party
+                )[:MAX_WEB_CODES]:
+                    is_official_url = category is not None
+                    looked.append(
+                        ("DLsite 공식 페이지 " if is_official_url else
+                         "웹 품번 공식 재검증 ") + code
+                    )
+                    record = {
+                        "code": code, "evidence_url": evidence_url,
+                        "origin": "official_product_url" if is_official_url else
+                                  "third_party_search_result",
+                        "state": "unverified",
+                    }
                     try:
-                        p = _CODE_GATE.call(
-                            lambda code=code, category=category: fetch_product(
-                                code, categories=(category,), timeout=2.0
-                            ), code_timeout
-                        )
-                        if p is not None and p.code.upper() == code.upper():
-                            if _title_matches(clues.game_name, p.title):
-                                found[("dlsite", code)] = _product_to_candidate(
-                                    p, clues.game_name
+                        def verify_code(code=code, category=category):
+                            if category:
+                                return fetch_product(
+                                    code, categories=(category,), timeout=2.0
                                 )
-                            else:
-                                rejected_pages.append({
-                                    "url": p.url, "reason":
-                                    "DLsite 상품 이름이 압축파일명과 다릅니다",
-                                    "official_title": p.title[:160],
-                                })
+                            return fetch_product(code, timeout=2.0)
+                        p = _CODE_GATE.call(verify_code, code_timeout)
+                        if p is None:
+                            record["state"] = "catalog_not_verified"
+                        elif p.code.upper() != code:
+                            record["state"] = "id_mismatch"
+                        elif not _title_matches(clues.game_name, p.title):
+                            record["state"] = "title_mismatch"
+                            rejected_pages.append({
+                                "url": evidence_url, "reason":
+                                "공식 상품 이름이 압축파일명과 다릅니다",
+                                "official_title": p.title[:160],
+                            })
+                        else:
+                            record["state"] = "official_title_verified"
+                            c = _product_to_candidate(p, clues.game_name)
+                            if not is_official_url:
+                                # 검색 기사에서 발견한 번호는 파일명에 직접
+                                # 적힌 번호와 다르므로 단독 확정으로 승격 금지.
+                                c = Candidate(
+                                    c.title, c.platform, c.product_id, c.url,
+                                    "search_official_recheck", c.name_matches,
+                                    c.work_type,
+                                    "제3자 검색 결과의 품번을 공식 카탈로그에서 "
+                                    "재조회함. 파일 내용 및 상품 동일성 미검증.",
+                                )
+                            found[("dlsite", code)] = c
                     except Exception as exc:
-                        errors.append("DLsite 후보 검증 실패: " + type(exc).__name__)
+                        record["state"] = "lookup_error"
+                        record["error"] = type(exc).__name__
+                        errors.append(
+                            "DLsite 웹 품번 검증 실패: " + type(exc).__name__
+                        )
+                    web_codes.append(record)
                 # 검색 결과에 실제 작품 URL이 있으면 그 slug를 먼저
                 # 대조한다. Steam 후보의 제목은 검색 스니펫이 아닌
                 # 공식 Steam 조회 결과로 재검증한다.
@@ -434,11 +494,17 @@ def identify_filename(
         looked.append("오프라인: 외부 검색 미실행")
 
     candidates = tuple(found.values())
+    # 본편이 아닌 별도 파일이라는 명시적 이름 단서는
+    # 공식 게임 상품명과 같더라도 본편으로 단독 확정하지 않는다.
+    distinct_package = clues.archive_kind in {
+        "patch_candidate", "dlc_candidate", "modpack_candidate",
+        "server_package_candidate", "bundle_candidate",
+    }
     strong = [
         c for c in candidates
         if (c.source == "official_api" and c.name_matches
             and c.work_type in GAME_TYPES | {"game"}
-            and not c.notes)
+            and not c.notes and not distinct_package)
     ]
     if not online:
         status = "unidentified"
@@ -456,6 +522,7 @@ def identify_filename(
         and candidates[0].source == "official_api"
         and candidates[0].work_type in GAME_TYPES | {"game"}
         and not candidates[0].notes
+        and not distinct_package
         and (
             not clues.game_name
             or bool(re.search(r"[가-힣ぁ-んァ-ヶ一-龯]", clues.game_name))
@@ -479,8 +546,11 @@ def identify_filename(
         )
     elif candidates:
         status = "likely"
-        reason = ("공식 상품은 발견했지만 이름이 다르거나 별도 패치 상품이거나 "
-                  "웹 검색 결과만 확인되어 수동 검토가 필요합니다.")
+        reason = (
+            "파일명에 DLC·모드·패치·서버팩·합본 표기가 있어 본편과 동일시할 "
+            "수 없습니다. " if distinct_package else ""
+        ) + ("공식 상품은 발견했지만 이름이 다르거나 별도 패치 상품이거나 "
+             "웹 검색 결과만 확인되어 수동 검토가 필요합니다.")
     elif errors:
         status = "search_error"
         reason = "외부 조회 실패 또는 제한시간 초과. 게임이 없다는 뜻이 아닙니다."
@@ -509,5 +579,5 @@ def identify_filename(
         reason, candidates, tuple(looked), tuple(errors),
         round(time.monotonic() - start, 3),
         tuple(raw_hits), web_evidence, providers,
-        tuple(rejected_pages),
+        tuple(rejected_pages), tuple(web_codes),
     )

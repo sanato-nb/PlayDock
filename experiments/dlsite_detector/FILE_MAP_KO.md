@@ -1,9 +1,10 @@
-# v0.11.5 파일명 전용 판독기(현재 Windows 배포 대상)
+# v0.11.6 파일명 전용 판독기(현재 Windows 배포 대상)
 
 - `experiments/dlsite_detector/filename_only.py`: 압축파일명에서 이름·품번 추출, 공식 상품 조회, 품번 발견 별도 상태
 - `experiments/dlsite_detector/filename_page_rank.py`: 공식 작품 URL slug·시리즈 챕터·게임 제목 일치 판정, 개발자 프로필·타 게임 경로 제외
 - `experiments/dlsite_detector/serper_client.py`: 사용자의 Serper 키로 Google organic 검색, API 키 노출 방지·응답 크기·시간 제한
-- `experiments/dlsite_detector/filename_web_search.py`: Serper(키 있을 때) 우선 → DDGS → Bing RSS, 13초 격리 검색 워커, 공급자 오류 추적
+- `experiments/dlsite_detector/filename_web_search.py`: Serper(키 있을 때) 우선, 기본 DuckDuckGo(DDGS) → Bing RSS, 작품 페이지 판단·챕터 단서·중복 제거·13초 격리 워커·공급자 오류 추적
+- `experiments/dlsite_detector/V116_KEYLESS_SEARCH_2026-11-20_KO.md`: API 키 없는 검색 경로, 구현·테스트·남은 한계
 - `scripts/filename_identity_tester.py`: 파일명 직접 붙여넣기/파일 선택 UI, 판정·검색장애 표시, JSON 저장
 - `tests/test_v11_filename_only_experiment.py`: 파일명·검색·Google 연동·API 키 보안 회귀 테스트 62개 이상
 - `scripts/Filename-Tester-README_KO.txt`: 배포용 한글 사용법

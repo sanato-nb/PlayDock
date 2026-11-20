@@ -171,7 +171,11 @@ def fast_web_search(query: str) -> list[dict]:
         qualifier = "game"
     try:
         with DDGS(timeout=6) as client:
-            return list(client.text(f'"{clean}" {qualifier}', max_results=6) or [])[:6]
+            # DDGS 'auto'는 비공개 검색 엔진 구현을 자동 선택할 수 있다.
+            # 파일명 검증판에서는 Google HTML 자동 수집을 사용하지 않는다.
+            return list(client.text(f'"{clean}" {qualifier}',
+                                    max_results=6,
+                                    backend="duckduckgo") or [])[:6]
     except Exception as exc:
         raise RuntimeError("빠른 웹 검색 오류: " + type(exc).__name__) from exc
 

@@ -34,6 +34,7 @@ def details(result: FilenameIdentityResult) -> str:
         "추출 게임명: " + (x.game_name or "없음"),
         "추출 DLsite 품번: " + (", ".join(x.product_codes) or "없음"),
         "추출 Steam App ID: " + (", ".join(x.steam_ids) or "없음"),
+        "파일명 추정 배포 유형: " + x.archive_kind,
         "선택된 외부 작품/단서: " + (result.best_title or "없음"),
         "찾은 상품번호: " + (result.product_id or "없음"),
         "이유: " + result.reason, "",
@@ -60,7 +61,8 @@ def details(result: FilenameIdentityResult) -> str:
                 + str(p.get("state", "?")) + " / "
                 + str(p.get("result_count", 0)) + "건 중 관련 "
                 + str(p.get("relevant_count", "?")) + "건 / 제외 "
-                + str(p.get("rejected_count", "?")) + "건 / "
+                + str(p.get("rejected_count", "?")) + "건 / 작품 페이지 "
+                + str(p.get("strong_page_count", "?")) + "건 / "
                 + str(p.get("seconds", 0)) + "초"
             )
             if p.get("error"):
@@ -73,6 +75,15 @@ def details(result: FilenameIdentityResult) -> str:
             out += [" · " + hit.get("title", ""), "   " + hit.get("url", "")]
     elif any(q.startswith("제목 ") for q in result.lookups):
         out += ["", "[웹 검색 결과] 0건 (검색 서비스 로그 확인 필요)"]
+    if result.web_code_hints:
+        out += ["", "[웹 품번 → 공식 카탈로그 재검증]"]
+        for hint in result.web_code_hints:
+            out += [
+                " · " + hint.get("code", "") + " / "
+                + hint.get("state", "unverified") + " / "
+                + hint.get("origin", ""),
+                "   " + hint.get("evidence_url", ""),
+            ]
     if result.rejected_pages:
         out += ["", "[공식 정보 대조 후 제외된 페이지]"]
         for page in result.rejected_pages:
@@ -282,7 +293,7 @@ class FilenameTesterApp(tk.Tk):
             "Serper.dev를 통해 Google 검색을 우선 이용하며, 계정의 "
             "검색 크레딧이 차감될 수 있습니다.\n"
             if self.serper_key.get().strip() else
-            "Google 키 미입력: DDGS/Bing RSS만 사용합니다.\n"
+            "API 키 미입력: DuckDuckGo(DDGS) → Bing RSS 무료 검색을 사용합니다.\n"
         )
         if not messagebox.askyesno(
             "인터넷 조회 동의",
@@ -417,7 +428,7 @@ class FilenameTesterApp(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="판독 결과 저장",
-            initialfile="PlayDock_Filename_Identity_v0.11.5.json",
+            initialfile="PlayDock_Filename_Identity_v0.11.6.json",
             defaultextension=".json", filetypes=[("JSON", "*.json")],
         )
         if not path:
@@ -511,7 +522,7 @@ def self_test() -> int:
             )
             assert p.returncode == 0
             assert out.read_text(encoding="utf-8") == "worker-ok"
-        print("PlayDock filename-only v0.11.5 self-test: passed", flush=True)
+        print("PlayDock filename-only v0.11.6 self-test: passed", flush=True)
         return 0
     except Exception:
         import traceback

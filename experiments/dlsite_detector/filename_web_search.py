@@ -16,7 +16,7 @@ import time
 import subprocess
 import sys
 import tempfile
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -99,7 +99,7 @@ from .filename_page_rank import page_score
 from .serper_client import serper_google_search
 
 
-def _row_quality(query: str, row: dict) -> int:
+def _row_quality(query: str, row: dict, *, local_filename: str = "") -> int:
     """전체 제목과 작품 URL이 부합하는 결과만 채택한다."""
     if not isinstance(row, dict):
         return 0
@@ -108,18 +108,20 @@ def _row_quality(query: str, row: dict) -> int:
         str(row.get("title") or ""),
         str(row.get("href") or row.get("url") or ""),
         snippet=str(row.get("body") or row.get("snippet") or ""),
+        local_filename=local_filename,
     )
 
 
-def _rank_relevant(query: str, rows: list[dict]) -> tuple[list[dict], list[dict], int]:
+def _rank_relevant(query: str, rows: list[dict], *,
+                   local_filename: str = "") -> tuple[list[dict], list[dict], int]:
     selected = []
     dropped = []
     high = 0
     for row in list(rows)[:MAX_RESULTS * 2]:
-        score = _row_quality(query, row)
+        score = _row_quality(query, row, local_filename=local_filename)
         if score:
             selected.append((score, row))
-            high += score >= 4
+            high += score >= 75
         elif isinstance(row, dict) and len(dropped) < 3:
             dropped.append({
                 "title": str(row.get("title") or "")[:140],
@@ -129,9 +131,26 @@ def _rank_relevant(query: str, rows: list[dict]) -> tuple[list[dict], list[dict]
     return [row for _, row in selected], dropped, high
 
 
+def _canonical_url(url: str) -> str:
+    """추적 파라미터·후행 슬래시만 다른 동일 결과는 한 번만 보관."""
+    try:
+        parts = urlsplit(url)
+        return urlunsplit((
+            parts.scheme.lower(), parts.netloc.lower(),
+            parts.path.rstrip("/") or "/", "", "",
+        ))
+    except ValueError:
+        return url
+
+
 def search_one_title(title: str, providers: list[dict] | None = None,
-                     *, serper_api_key: str = "") -> list[dict]:
-    """Google 키 제공 시 Serper 우선; 결과 부적합/오류 시 DDGS → Bing RSS."""
+                     *, serper_api_key: str = "",
+                     chapter_hint: str = "") -> list[dict]:
+    """API 키 없이 DDGS → Bing RSS. 작품별 판매 페이지를 찾으면 중단.
+
+    일반 게임 기사만 나온 경우 RSS를 한 번 더 확인한다. 파일명 전체가
+    아니라 작품명 및 편/챕터 번호(있다면)만 워커로 전달한다.
+    """
     from .pipeline import fast_web_search
 
     trace = providers if providers is not None else []
@@ -141,8 +160,11 @@ def search_one_title(title: str, providers: list[dict] | None = None,
     sources = (("google_serper", "ddgs", "bing_rss") if serper_api_key
                else ("ddgs", "bing_rss"))
 
+    # 기사 등 약한 웹 단서만 있을 때는 공식 작품 페이지를 더 찾아본다.
+    local_filename = (title + " Chapter " + chapter_hint
+                      if chapter_hint.isdigit() else "")
     for source in sources:
-        if combined:
+        if any(score >= 75 for score, _ in combined.values()):
             break
         begin = time.monotonic()
         try:
@@ -153,22 +175,28 @@ def search_one_title(title: str, providers: list[dict] | None = None,
             else:
                 rows = bing_rss_search(title)
             had_success = True
-            accepted, examples, _ = _rank_relevant(title, list(rows))
+            accepted, examples, strong_count = _rank_relevant(
+                title, list(rows), local_filename=local_filename
+            )
             raw_count = len(rows)
             trace.append({
                 "provider": source,
                 "state": "relevant" if accepted else ("irrelevant" if rows else "empty"),
                 "result_count": raw_count,
                 "relevant_count": len(accepted),
+                "strong_page_count": strong_count,
                 "rejected_count": raw_count - len(accepted),
                 "discarded_examples": examples,
                 "seconds": round(time.monotonic() - begin, 3),
             })
             for row in accepted:
                 url = str(row.get("href") or row.get("url") or "")
-                quality = _row_quality(title, row)
-                if url not in combined or quality > combined[url][0]:
-                    combined[url] = (quality, row)
+                quality = _row_quality(
+                    title, row, local_filename=local_filename
+                )
+                key = _canonical_url(url)
+                if key not in combined or quality > combined[key][0]:
+                    combined[key] = (quality, row)
         except Exception as exc:
             # 제3자 API 키는 검색 오류·결과 기록에도 남기지 않는다.
             detail = type(exc).__name__ + ": " + str(exc)[:140]
@@ -177,7 +205,7 @@ def search_one_title(title: str, providers: list[dict] | None = None,
             trace.append({
                 "provider": source, "state": "error",
                 "error": detail, "result_count": 0, "relevant_count": 0,
-                "rejected_count": 0,
+                "rejected_count": 0, "strong_page_count": 0,
                 "seconds": round(time.monotonic() - begin, 3),
             })
             faults.append(f"{source}: {detail}")
@@ -201,9 +229,13 @@ def worker_main(input_path: str, output_path: str) -> int:
         if not isinstance(query, str) or not 1 <= len(query) <= 180:
             raise ValueError("검색어 길이가 잘못되었습니다")
         providers: list[dict] = []
+        chapter_hint = str(raw.get("chapter") or "")
+        if not re.fullmatch(r"\d{1,3}", chapter_hint):
+            chapter_hint = ""
         rows = search_one_title(
             query, providers,
             serper_api_key=os.environ.get("PLAYDOCK_SERPER_API_KEY", ""),
+            chapter_hint=chapter_hint,
         )
         payload = {"ok": True, "rows": rows, "providers": providers}
     except Exception as exc:
@@ -221,7 +253,8 @@ def worker_main(input_path: str, output_path: str) -> int:
 
 def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
                         runner=subprocess.run,
-                        serper_api_key: str = "") -> list[dict]:
+                        serper_api_key: str = "",
+                        chapter_hint: str = "") -> list[dict]:
     """제한시간 초과 시 subprocess.run이 자식 프로세스를 kill/wait한다.
 
     추가 검색에도 이전 검색이 잠금을 잡고 남지 않는다.
@@ -233,7 +266,11 @@ def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
         folder = Path(tmp)
         incoming = folder / "query.json"
         outgoing = folder / "result.json"
-        incoming.write_text(json.dumps({"query": title}, ensure_ascii=False),
+        # 개인정보를 줄이기 위해 아카이브 파일명 자체는 전달하지 않는다.
+        query_info = {"query": title}
+        if chapter_hint and re.fullmatch(r"\d{1,3}", chapter_hint):
+            query_info["chapter"] = chapter_hint
+        incoming.write_text(json.dumps(query_info, ensure_ascii=False),
                             encoding="utf-8")
         if getattr(sys, "frozen", False):
             command = [sys.executable, "--filename-web-worker",

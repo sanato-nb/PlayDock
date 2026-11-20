@@ -253,7 +253,7 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11.5-test"
+    assert VERSION == "0.11.6-test"
 
 
 
@@ -431,11 +431,14 @@ def test_search_provider_telemetry_survives_to_json():
 
 
 
-def test_ddgs_first_relevant_result_skips_bing(monkeypatch):
+def test_ddgs_article_only_continues_to_bing_for_storefront(monkeypatch):
     from experiments.dlsite_detector import filename_web_search as w, pipeline
     seen = []
-    monkeypatch.setattr(w, "bing_rss_search", lambda _: (
-        _ for _ in ()).throw(AssertionError("DDGS 결과를 찾았는데 Bing 호출")))
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: [{
+        "title": "Moon Valley by Studio",
+        "href": "https://studio.itch.io/moon-valley",
+        "body": "PC game",
+    }])
     def primary(q):
         seen.append(q)
         return [{
@@ -447,9 +450,10 @@ def test_ddgs_first_relevant_result_skips_bing(monkeypatch):
     trace = []
     rows = w.search_one_title("Moon Valley", trace)
     assert seen == ["Moon Valley"]
-    assert len(rows) == 1
-    assert len(trace) == 1 and trace[0]["provider"] == "ddgs"
+    assert rows[0]["href"] == "https://studio.itch.io/moon-valley"
+    assert [x["provider"] for x in trace] == ["ddgs", "bing_rss"]
     assert trace[0]["relevant_count"] == 1
+    assert trace[0]["strong_page_count"] == 0
 
 
 def test_ddgs_irrelevant_falls_back_to_bing(monkeypatch):
@@ -944,3 +948,163 @@ def test_serper_not_called_for_code_with_direct_official_lookup(monkeypatch):
     )
     assert r.status == "official_match"
     assert "TEST-ONLY-KEY" not in str(r.to_dict())
+
+
+def test_keyless_ddgs_pins_duckduckgo_backend(monkeypatch):
+    import sys
+    from types import SimpleNamespace
+    from experiments.dlsite_detector.pipeline import fast_web_search
+    kwargs_seen = []
+    class FakeDDGS:
+        def __init__(self, **kwargs):
+            pass
+        def __enter__(self):
+            return self
+        def __exit__(self, *args):
+            return False
+        def text(self, q, **kwargs):
+            kwargs_seen.append(kwargs)
+            return []
+    monkeypatch.setitem(sys.modules, "ddgs", SimpleNamespace(DDGS=FakeDDGS))
+    assert fast_web_search("Moon Valley") == []
+    assert kwargs_seen[0]["backend"] == "duckduckgo"
+
+
+def test_weak_article_and_rss_error_keeps_partial_evidence(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Moon Valley - Game Review",
+        "href": "https://review.example.org/games/moon-valley",
+        "body": "PC game review",
+    }])
+    def fail(_):
+        raise RuntimeError("RSS temporarily down")
+    monkeypatch.setattr(w, "bing_rss_search", fail)
+    trace = []
+    rows = w.search_one_title("Moon Valley", trace)
+    assert len(rows) == 1
+    assert trace[1]["state"] == "error"
+    assert trace[0]["strong_page_count"] == 0
+
+
+def test_provider_canonical_url_deduplication():
+    from experiments.dlsite_detector.filename_web_search import _canonical_url
+    assert _canonical_url("https://STUDIO.itch.io/moon-valley/?utm_source=x") == (
+        "https://studio.itch.io/moon-valley")
+
+
+def test_rss_fallback_filters_wrong_chapter(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Moon Valley Chapter 2 by Author",
+        "href": "https://author.itch.io/moon-valley-chapter-2",
+        "body": "Game chapter",
+    }])
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: [{
+        "title": "Moon Valley Chapter 1 by Author",
+        "href": "https://author.itch.io/moon-valley-chapter-1",
+        "body": "Game chapter",
+    }])
+    trace = []
+    rows = w.search_one_title("Moon Valley", trace, chapter_hint="1")
+    assert len(rows) == 1 and "chapter-1" in rows[0]["href"]
+    assert trace[0]["relevant_count"] == 0
+
+
+def test_worker_chapter_only_transferred_not_original_filename(tmp_path):
+    import json
+    import subprocess
+    from pathlib import Path
+    from experiments.dlsite_detector.filename_web_search import isolated_web_search
+    def runner(command, **options):
+        query = json.loads(Path(command[-2]).read_text(encoding="utf-8"))
+        assert query == {"query": "Moon Valley", "chapter": "1"}
+        Path(command[-1]).write_text(
+            json.dumps({"ok": True, "rows": [], "providers": []}),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, 0)
+    assert isolated_web_search(
+        "Moon Valley", chapter_hint="1", runner=runner
+    ) == []
+
+
+def test_third_party_title_code_rechecked_but_not_confirmed(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    calls = []
+    def lookup(code, **kwargs):
+        calls.append(code)
+        return product(code, "Moon Valley")
+    monkeypatch.setattr(identity, "fetch_product", lookup)
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "title": "Moon Valley RJ09999901 game review",
+        "href": "https://reviews.example.org/games/moon-valley",
+        "body": "game information",
+    }])
+    assert calls == ["RJ09999901"]
+    assert r.status == "likely"
+    assert r.candidates[0].source == "search_official_recheck"
+    assert r.web_code_hints[0]["state"] == "official_title_verified"
+    assert r.to_dict()["web_code_hints"][0]["origin"] == "third_party_search_result"
+
+
+def test_third_party_code_mismatch_not_promoted(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    monkeypatch.setattr(
+        identity, "fetch_product",
+        lambda code, **kwargs: product(code, "Other Game"),
+    )
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "title": "Moon Valley RJ09999902 game review",
+        "href": "https://reviews.example.org/games/moon-valley",
+        "body": "game",
+    }])
+    assert r.web_code_hints[0]["state"] == "title_mismatch"
+    assert r.status == "unidentified"
+    assert r.rejected_pages
+    assert not r.candidates
+
+
+def test_snippet_only_code_not_sent_to_catalog(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    monkeypatch.setattr(
+        identity, "fetch_product",
+        lambda *_a, **_kw: (_ for _ in ()).throw(
+            AssertionError("snippet code must not trigger catalog lookup")
+        ),
+    )
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "title": "Moon Valley game review",
+        "href": "https://reviews.example.org/games/moon-valley",
+        "body": "game listing RJ09999903",
+    }])
+    assert not r.web_code_hints
+    assert r.status == "web_candidate"
+
+
+def test_dlc_filename_not_confirmed_as_base_game():
+    r = identify_filename(
+        "Moon Valley [DLC] [RJ09999904].zip",
+        dlsite_lookup=lambda code: product(code, "Moon Valley"),
+        web_search=fail_web,
+    )
+    assert r.extracted.archive_kind == "dlc_candidate"
+    assert r.status == "likely"
+    assert r.is_unresolved
+
+
+def test_official_code_on_direct_url_keeps_original_behavior(monkeypatch):
+    from experiments.dlsite_detector import filename_only as identity
+    monkeypatch.setattr(
+        identity, "fetch_product",
+        lambda code, **kwargs: product(code, "Moon Valley"),
+    )
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [{
+        "title": "Moon Valley DLsite Game",
+        "href": "https://www.dlsite.com/maniax/work/=/product_id/"
+                "RJ09999905.html",
+        "body": "Game",
+    }])
+    assert r.status == "official_match"
+    assert r.web_code_hints[0]["origin"] == "official_product_url"
+
