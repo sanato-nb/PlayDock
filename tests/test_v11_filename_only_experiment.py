@@ -190,9 +190,9 @@ def test_itch_store_search_is_candidate_not_verified():
         "title": "Moon Valley - itch.io",
         "body": "Game",
     }])
-    assert r.status == "likely"
+    assert r.status == "web_candidate"
     assert r.candidates[0].platform == "itch.io"
-    assert r.candidates[0].source == "search_result"
+    assert r.candidates[0].source == "web_search"
 
 
 def test_itch_comment_is_not_game_page():
@@ -253,7 +253,7 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11.3-test"
+    assert VERSION == "0.11.4-test"
 
 
 
@@ -431,44 +431,57 @@ def test_search_provider_telemetry_survives_to_json():
 
 
 
-def test_irrelevant_bing_results_force_ddgs_fallback(monkeypatch):
-    from experiments.dlsite_detector import filename_web_search as w
-    from experiments.dlsite_detector import pipeline
+def test_ddgs_first_relevant_result_skips_bing(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
     seen = []
-    monkeypatch.setattr(w, "bing_rss_search", lambda title: [{
-        "title": "6 - 위키백과", "href": "https://ko.wikipedia.org/wiki/6",
-        "body": "number six",
-    }] * 6)
-    def secondary(q):
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: (
+        _ for _ in ()).throw(AssertionError("DDGS 결과를 찾았는데 Bing 호출")))
+    def primary(q):
         seen.append(q)
         return [{
-            "title": "6월의 너와 나 - 게임 소개",
-            "href": "https://game-review.example.com/6wol",
-            "body": "게임 플레이 리뷰",
+            "title": "Moon Valley - Gameplay Guide",
+            "href": "https://game-review.example.org/moon-valley",
+            "body": "PC game review",
         }]
-    monkeypatch.setattr(pipeline, "fast_web_search", secondary)
+    monkeypatch.setattr(pipeline, "fast_web_search", primary)
     trace = []
-    rows = w.search_one_title("6월의 너와 나", trace)
-    assert seen == ["6월의 너와 나"]
-    assert [r["title"] for r in rows] == ["6월의 너와 나 - 게임 소개"]
-    assert trace[0]["provider"] == "bing_rss"
+    rows = w.search_one_title("Moon Valley", trace)
+    assert seen == ["Moon Valley"]
+    assert len(rows) == 1
+    assert len(trace) == 1 and trace[0]["provider"] == "ddgs"
+    assert trace[0]["relevant_count"] == 1
+
+
+def test_ddgs_irrelevant_falls_back_to_bing(monkeypatch):
+    from experiments.dlsite_detector import filename_web_search as w, pipeline
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Canva Design", "href": "https://www.canva.com/",
+        "body": "visual design",
+    }])
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: [{
+        "title": "Moon Valley - itch.io",
+        "href": "https://author.itch.io/moon-valley",
+        "body": "PC game",
+    }])
+    trace = []
+    rows = w.search_one_title("Moon Valley", trace)
+    assert len(rows) == 1
+    assert [p["provider"] for p in trace] == ["ddgs", "bing_rss"]
     assert trace[0]["state"] == "irrelevant"
-    assert trace[0]["relevant_count"] == 0
-    assert trace[1]["provider"] == "ddgs"
     assert trace[1]["relevant_count"] == 1
 
 
-def test_official_bing_store_result_skips_ddgs(monkeypatch):
+def test_ddgs_direct_game_page_skips_bing(monkeypatch):
     from experiments.dlsite_detector import filename_web_search as w, pipeline
-    monkeypatch.setattr(w, "bing_rss_search", lambda name: [{
-        "title": "PASEC by FalloutStar - itch.io",
-        "href": "https://falloutstar.itch.io/pasec",
+    monkeypatch.setattr(w, "bing_rss_search", lambda _: (
+        _ for _ in ()).throw(AssertionError("redundant Bing search")))
+    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: [{
+        "title": "Moon Valley by Author - itch.io",
+        "href": "https://author.itch.io/moon-valley",
         "body": "Download game",
     }])
-    monkeypatch.setattr(pipeline, "fast_web_search", lambda _: (
-        _ for _ in ()).throw(AssertionError("redundant DDGS")))
     trace = []
-    result = w.search_one_title("PASEC", trace)
+    result = w.search_one_title("Moon Valley", trace)
     assert len(result) == 1
     assert len(trace) == 1
     assert trace[0]["relevant_count"] == 1
@@ -528,3 +541,177 @@ def test_one_off_topic_provider_plus_ddgs_error_is_search_failure(monkeypatch):
         assert False, "An unreliable query is not an actual negative lookup"
     except w.SearchWorkerError:
         pass
+
+
+
+def test_developer_profile_and_unrelated_game_not_chosen():
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [
+        {
+            "title": "moonvalley - itch.io",
+            "href": "https://moonvalley.itch.io/",
+            "body": "Game developer profile",
+        },
+        {
+            "title": "Another Valley by moonvalley - itch.io",
+            "href": "https://moonvalley.itch.io/another-valley",
+            "body": "Game",
+        },
+    ])
+    assert r.status == "unidentified"
+    assert not r.candidates
+
+
+def test_full_itch_game_page_beats_devlog_and_purchase_page():
+    r = identify_filename("Moon Valley.zip", web_search=lambda _: [
+        {
+            "title": "Devlog - Moon Valley by Author",
+            "href": "https://author.itch.io/moon-valley/devlog/100/update",
+            "body": "Game update",
+        },
+        {
+            "title": "Purchase Moon Valley",
+            "href": "https://author.itch.io/moon-valley/purchase",
+            "body": "Game purchase",
+        },
+        {
+            "title": "Moon Valley by Author",
+            "href": "https://author.itch.io/moon-valley",
+            "body": "Game",
+        },
+    ])
+    assert r.status == "web_candidate"
+    assert r.candidates[0].url == "https://author.itch.io/moon-valley"
+
+
+def test_short_partial_steam_title_is_rejected():
+    seen = []
+    r = identify_filename(
+        "NOR.zip",
+        web_search=lambda _: [{
+            "title": "Son of Nor on Steam",
+            "href": "https://store.steampowered.com/app/264000/Son_of_Nor/",
+            "body": "Adventure game",
+        }],
+        steam_lookup=lambda sid: seen.append(sid),
+    )
+    assert r.status == "unidentified"
+    assert not seen
+
+
+def test_chapter_hint_rejects_other_chapter_even_with_same_series_title():
+    r = identify_filename(
+        "Moon Valley [Chap.1].zip",
+        web_search=lambda _: [
+            {
+                "title": "Moon Valley Chapter 3 by Author",
+                "href": "https://author.itch.io/moon-valley-chapter-3",
+                "body": "Game chapter",
+            },
+            {
+                "title": "Moon Valley Chapter 1 - Guide",
+                "href": "https://guide.example.org/games/moon-valley-chapter-1",
+                "body": "Game chapter",
+            },
+        ],
+    )
+    assert r.status == "web_candidate"
+    assert r.candidates[0].url.endswith("moon-valley-chapter-1")
+
+
+def test_title_without_spaces_can_match_possessive_article():
+    r = identify_filename(
+        "AureliaStory.zip", web_search=lambda _: [{
+            "title": "Update is now live! - Aurelia's Story by Author",
+            "href": "https://author.itch.io/aurelias-story/devlog/100/news",
+            "body": "Game development update",
+        }],
+    )
+    assert r.status == "web_candidate"
+    assert "aurelias-story" in r.candidates[0].url
+
+
+def test_composite_title_matches_corresponding_page():
+    r = identify_filename(
+        "Moon Valley + Nightfall.zip", web_search=lambda _: [{
+            "title": "Moon Valley - Nightfall - Official game site",
+            "href": "https://studio.example.org/games/moon-valley-nightfall",
+            "body": "A game created by Studio",
+        }],
+    )
+    assert r.status == "web_candidate"
+    assert "nightfall" in r.candidates[0].url
+
+
+def test_steam_store_slug_and_official_api_both_match():
+    calls = []
+    r = identify_filename(
+        "Moon Valley.zip",
+        web_search=lambda _: [{
+            "title": "Moon Valley on SteamSome other search titles merged",
+            "href": "https://store.steampowered.com/app/1234567/Moon_Valley/",
+            "body": "",
+        }],
+        steam_lookup=lambda sid: (
+            calls.append(sid) or SteamProduct(
+                sid, "Moon Valley", "game",
+                f"https://store.steampowered.com/app/{sid}/"
+            )
+        ),
+    )
+    assert calls == ["1234567"]
+    assert r.status == "official_match"
+    assert r.candidates[0].product_id == "1234567"
+
+
+def test_steam_store_wrong_official_title_is_never_accepted():
+    r = identify_filename(
+        "Moon Valley.zip",
+        web_search=lambda _: [{
+            "title": "Moon Valley on Steam",
+            "href": "https://store.steampowered.com/app/1234567/Moon_Valley/",
+            "body": "Game",
+        }],
+        steam_lookup=lambda sid: SteamProduct(
+            sid, "Another Valley", "game",
+            f"https://store.steampowered.com/app/{sid}/"
+        ),
+    )
+    assert r.status == "web_candidate"
+    assert not any(c.source == "official_api" for c in r.candidates)
+
+
+def test_worker_error_retains_provider_failure_details(tmp_path):
+    from experiments.dlsite_detector.filename_web_search import (
+        SearchWorkerError, isolated_web_search
+    )
+    import subprocess
+    from pathlib import Path
+    def run(cmd, **options):
+        Path(cmd[-1]).write_text(
+            '{"ok":false,"error":"SearchWorkerError",'
+            '"details":"ddgs: RuntimeError: blocked",'
+            '"providers":[{"provider":"ddgs","state":"error",'
+            '"error":"RuntimeError: blocked","result_count":0}]}',
+            encoding="utf-8"
+        )
+        return subprocess.CompletedProcess(cmd, 2)
+    try:
+        isolated_web_search("Moon Valley", runner=run)
+        assert False, "worker error expected"
+    except SearchWorkerError as exc:
+        assert len(exc.providers) == 1
+        assert exc.providers[0]["error"] == "RuntimeError: blocked"
+
+
+def test_identify_error_preserves_providers_for_json():
+    from experiments.dlsite_detector.filename_web_search import SearchWorkerError
+    def fail(_):
+        raise SearchWorkerError("provider is blocked", providers=[
+            {"provider": "ddgs", "state": "error",
+             "error": "connection blocked", "result_count": 0}
+        ])
+    r = identify_filename("Moon Valley.zip", web_search=fail)
+    assert r.status == "search_error"
+    assert r.search_providers[0]["provider"] == "ddgs"
+    assert "provider is blocked" in r.errors[0]
+    assert r.to_dict()["search_providers"][0]["error"] == "connection blocked"
