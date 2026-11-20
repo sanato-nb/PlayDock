@@ -1,6 +1,6 @@
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-20)
 
-> **v0.11.6 추가(2026-11-20):** 전체 Python 회귀 **723개 통과** ([Actions #44676783968](https://github.com/sanato-nb/PlayDock/actions/runs/44676783968)); v0.11.6 Windows EXE는 수동 빌드 전까지 미검증. 기준 HEAD와 테스트 결과는 [v0.11.6 개발 기록](V116_KEYLESS_SEARCH_2026-11-20_KO.md) 참조. 기본 DDGS의 DuckDuckGo 한정, 약한 기사 결과에서 Bing RSS 추가 확인, 챕터 비교와 URL 중복 제거, 웹 품번 공식 재조회, 별도 DLC/패치/모드팩 본편 오인 방지를 추가. 129개 실사용 재검사와 Windows 새 EXE 검증은 별개로 확인해야 한다. 아래 v0.5 내용은 역사 기록이며 최신 설계 기준이 아니다.
+> **v0.11.6 추가(2026-11-20):** 전체 Python 회귀 **727개 통과** ([Actions #44677221287](https://github.com/sanato-nb/PlayDock/actions/runs/44677221287)); v0.11.6 Windows EXE는 수동 빌드 전까지 미검증. 기준 HEAD와 테스트 결과는 [v0.11.6 개발 기록](V116_KEYLESS_SEARCH_2026-11-20_KO.md) 참조. 기본 DDGS의 DuckDuckGo 한정, 약한 기사 결과에서 Bing RSS 추가 확인, 챕터 비교와 URL 중복 제거, 웹 품번 공식 재조회, 별도 DLC/패치/모드팩 본편 오인 방지를 추가. 129개 실사용 재검사와 Windows 새 EXE 검증은 별개로 확인해야 한다. 아래 v0.5 내용은 역사 기록이며 최신 설계 기준이 아니다.
 
 > **v0.11.5 최신:** v0.11.4 실사용 129개 검사에서 무품번 39개 중 DDGS 실패 16개 확인. Google 검색 결과 제공 서비스 Serper.dev를 사용자 API 키 선택 입력형으로 연결. 키 입력 시 Serper → DDGS → Bing RSS, 키 미입력 시 기존 검색. 키는 실행 중 자식 환경변수로만 전달하고 EXE/임시 JSON/명령행/결과/공개 코드에 넣지 않음. `serper_client.py`, `filename_web_search.py`, `filename_only.py`, `filename_identity_tester.py`, tests 및 `V11_FILENAME_ONLY_2026-11-19_KO.md` 참조. 실제 검색 품질은 새 Windows EXE 사용자 재검사 전까지 미측정.
 

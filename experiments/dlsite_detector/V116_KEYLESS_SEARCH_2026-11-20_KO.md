@@ -33,7 +33,8 @@
 - `experiments/dlsite_detector/HANDOFF_2026-11-19_KO.md` — 최신 버전 명시
 
 ## 테스트 및 빌드 확인
-- 전체 Python 회귀 최초: **723 passed**, 2026-11-20 GitHub Actions [성공 #44676783968](https://github.com/sanato-nb/PlayDock/actions/runs/44676783968). Python 3.12, Ubuntu 러너 기준.
+- 전체 Python 회귀 최종: **727 passed**, 2026-11-20 GitHub Actions [성공 #44677221287](https://github.com/sanato-nb/PlayDock/actions/runs/44677221287). Python 3.12, Ubuntu 러너 기준.
 - 첫 CI(#44676673765)는 챕터별 itch.io URL 일치 테스트 1건 실패(1 failed/722 passed). `filename_page_rank.py`의 정확한 챕터 슬러그 허용 로직 수정 후 최종 CI 모두 성공.
 - Windows 독립 EXE v0.11.6: **미생성/미검증**. 이전 v0.11.5 빌드 결과를 새 버전의 성공으로 표기하지 않음.
 - EXE Actions는 `workflow_dispatch` 수동 전용을 유지함.
+- **수동 EXE 실행 제약:** `.github/workflows/identity-tester-windows.yml`은 현재 실험 브랜치에만 있고 `main`에는 존재하지 않는다. GitHub `workflow_dispatch`는 워크플로 정의가 기본 브랜치에 있어야 수동 실행할 수 있다. 사용자 지시대로 `main`에는 파일을 추가하지 않고, 일회성 push 트리거로 자동 빌드하지 않았다. 따라서 이번 v0.11.6 Windows EXE는 아직 생성되지 않았다. Windows 빌드 성공 보고 금지.
