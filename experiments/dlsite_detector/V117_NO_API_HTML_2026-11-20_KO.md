@@ -48,4 +48,8 @@
 
 ## 회귀 검사
 - 전체 Ubuntu Python 3.12: **741 passed**, [CI #44741105893](https://github.com/sanato-nb/PlayDock/actions/runs/44741105893). 과거 727건 + HTML 모의 응답 14건.
-- Windows EXE 실행 결과·다운로드 아티팩트는 별도 빌드 완료 후 기록.
+- **최종 Windows EXE 빌드 성공:** [Actions #44742193821](https://github.com/sanato-nb/PlayDock/actions/runs/44742193821) / [다운로드 Artifact #14631581416](https://github.com/sanato-nb/PlayDock/actions/runs/44742193821/artifacts/14631581416). Windows Python 3.12 **216 passed**, PyInstaller 단일 EXE 생성 및 실행 `--self-test` 성공.
+- EXE SHA-256: `00fbc91e045430d07dc8dd788c2a8712b5b594f8ac9be1c32e178e7332b00afd`. ZIP SHA-256: `778ac879adf516db036b2238589361039f314a39baf39813b970e4d24dd1f5f3`. ZIP에는 EXE 및 한국어 설명서 두 파일만 보관.
+- 최종 Windows **공개 HTML 1회 실접속:** itch.io 검색 12건, Steam HTML 검색 12건, Steam 개별 상품 페이지 제목 `Stardew Valley` 검증 성공. DDG HTML은 자동화 차단, Mojeek HTML은 HTTP 오류. 접근 제한 우회 없음.
+- Windows 빌드용 실험 브랜치 `push` 트리거는 1회 사용 후 `workflow_dispatch` 전용으로 복원. `main` 미수정, PR Draft. GitHub 아티팩트 보존 기한 2026-12-20.
+- 이 결과는 HTML **검색 접근 가능성** 검증이지 사용자의 129개 게임 판독 정답률 측정이 아님.
