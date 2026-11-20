@@ -33,5 +33,7 @@
 - `experiments/dlsite_detector/HANDOFF_2026-11-19_KO.md` — 최신 버전 명시
 
 ## 테스트 및 빌드 확인
-- 전체 Python 회귀 및 Windows 독립 EXE 결과는 GitHub Actions에서 실제 완료 상태 확인 후 기입해야 함.
+- 전체 Python 회귀: **723 passed**, 2026-11-20 GitHub Actions [성공 #44676783968](https://github.com/sanato-nb/PlayDock/actions/runs/44676783968). Python 3.12, Ubuntu 러너 기준.
+- 첫 CI(#44676673765)는 챕터별 itch.io URL 일치 테스트 1건 실패(1 failed/722 passed). `filename_page_rank.py`의 정확한 챕터 슬러그 허용 로직 수정 후 최종 CI 모두 성공.
+- Windows 독립 EXE v0.11.6: **미생성/미검증**. 이전 v0.11.5 빌드 결과를 새 버전의 성공으로 표기하지 않음.
 - EXE Actions는 `workflow_dispatch` 수동 전용을 유지함.
