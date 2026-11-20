@@ -1,8 +1,10 @@
 name: PlayDock 게임 정체 판독기 Windows 검증판 빌드
 
-# EXE는 사용자 요청에 따라 일회성 빌드 후 수동 전용으로 복원.
-# 실험 브랜치 전용이며 main 병합/본체 연동 없음.
+# API 없는 HTML 검색 실접속 점검 출력 인코딩 수정, 1회 빌드.
+# 시작 확인 후 수동 전용으로 복원.
 on:
+  push:
+    branches: [experiment-dlsite-game-detector-20261117]
   workflow_dispatch:
 
 permissions:
@@ -38,6 +40,7 @@ jobs:
           python -m pytest -q tests/test_identity_verification_stage6_experiment.py tests/test_metadata_evidence_stage5_experiment.py tests/test_v05_search_and_catalog_experiment.py tests/test_fast_combined_scan_v04_experiment.py tests/test_v10_minimal_identity_experiment.py tests/test_v11_filename_only_experiment.py tests/test_v117_no_api_html_experiment.py
 
       - name: 공개 검색 HTML 1회 실접속 확인 (API/키 없음 · 실패 비치명)
+        continue-on-error: true
         shell: pwsh
         run: |
           @'
@@ -47,12 +50,12 @@ jobs:
                   hits = search_public_html("Stardew Valley", provider, timeout=3.0)
                   print("HTML_SMOKE", provider, "ok", len(hits), flush=True)
               except Exception as error:
-                  print("HTML_SMOKE", provider, type(error).__name__, str(error)[:80], flush=True)
+                  print("HTML_SMOKE", provider, type(error).__name__, ascii(str(error))[:180], flush=True)
           try:
               item = fetch_steam_html("413150", timeout=3.0)
-              print("HTML_SMOKE", "steam_product_html", item.title if item else "no_title", flush=True)
+              print("HTML_SMOKE", "steam_product_html", ascii(item.title) if item else "no_title", flush=True)
           except Exception as error:
-              print("HTML_SMOKE", "steam_product_html", type(error).__name__, str(error)[:80], flush=True)
+              print("HTML_SMOKE", "steam_product_html", type(error).__name__, ascii(str(error))[:180], flush=True)
           '@ | python -
 
       - name: PyInstaller GUI EXE 생성
