@@ -27,8 +27,9 @@ from .search_terms import cleaned_search_title
 from .steam_client import SteamProduct, fetch_steam_product
 from .storefront_candidate import single_store_candidate
 from .filename_web_search import isolated_web_search
+from .filename_page_rank import page_score, steam_app_id
 
-VERSION = "0.11.3-test"
+VERSION = "0.11.4-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -226,48 +227,26 @@ def _single_title_search(title: str) -> list[dict]:
     return isolated_web_search(title)
 
 
-def _web_name_candidate(local: str, evidence: tuple[WebEvidence, ...]) -> WebEvidence | None:
-    """검색 결과를 '확정'하지 않고 이름 단서로만 사용.
-    
-    제목에 이름이 충분히 구체적으로 들어 있고, 페이지가 게임 문맥을
-    제공하거나 게임 전문 플랫폼에 있어야 한다. 블로그 댓글과
-    프로필·검색·태그 페이지는 제외한다.
+def _web_name_candidate(
+    local: str, evidence: tuple[WebEvidence, ...], *,
+    filename: str = "",
+) -> WebEvidence | None:
+    """개발자 프로필·다른 챕터 대신 작품별 게임 페이지를 우선한다.
+
+    반환된 페이지도 웹 단서이지 압축 내용/게임 정체의 확정은 아니다.
     """
-    name = normalized_title(local)
-    if len(name) < 3:
-        return None
-    candidates = []
+    scored = []
     for ev in evidence:
-        title = normalized_title(ev.title)
-        if len(name) < 6:
-            # PASEC, REC처럼 짧은 게임 이름은 단어 경계 기준.
-            if not re.search(r"(?<!\w)" + re.escape(local.strip())
-                             + r"(?!\w)", ev.title, flags=re.I):
-                continue
-        elif name not in title:
-            continue
-        parsed = urlsplit(ev.url)
-        host = (parsed.hostname or "").casefold()
-        path = parsed.path.casefold()
-        if (
-            any(f"/{x}" in path for x in (
-                "comments", "comment", "profile", "users", "search",
-                "tags", "collections", "discussion",
-            ))
-            or host in {"www.google.com", "www.bing.com"}
-        ):
-            continue
-        game_site = ev.trusted_source or host.endswith(
-            (".itch.io", ".gamejolt.com", ".kone.gg")
-        ) or host == "kone.gg"
-        if not (ev.game_context or game_site):
-            continue
-        score = (2 if ev.strong_match else 0) + (
-            2 if game_site else 0
-        ) + (1 if ev.game_context else 0)
-        candidates.append((score, ev))
-    candidates.sort(key=lambda x: x[0], reverse=True)
-    return candidates[0][1] if candidates else None
+        score = page_score(
+            local, ev.title, ev.url,
+            local_filename=filename,
+            snippet="game" if ev.game_context else "",
+        )
+        if score:
+            scored.append((score, ev))
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return scored[0][1] if scored else None
+
 
 
 def identify_filename(
@@ -367,31 +346,63 @@ def identify_filename(
                             )
                     except Exception as exc:
                         errors.append("DLsite 후보 검증 실패: " + type(exc).__name__)
-                # 검색 결과만으로 직접 공식 게임 확정하지 않는다.
-                candidate = single_store_candidate(clues.game_name, evidence)
-                if candidate is not None:
-                    title, platform, url = candidate
-                    if platform == "steam":
-                        parsed = urlsplit(url)
-                        match = re.search(r"^/app/([1-9]\d{2,9})(?:/|$)", parsed.path)
-                        if match:
-                            check_steam(match.group(1))
-                    if platform == "itch.io" and not found:
-                        found[("itch.io", url)] = Candidate(
-                            title, "itch.io", "", url, "search_result", True,
-                            notes="검색 결과만 확인; 작품 원문은 검증하지 않았습니다"
+                # 검색 결과에 실제 작품 URL이 있으면 그 slug를 먼저
+                # 대조한다. Steam 후보의 제목은 검색 스니펫이 아닌
+                # 공식 Steam 조회 결과로 재검증한다.
+                checked_steam = set()
+                for ev in evidence:
+                    sid = steam_app_id(
+                        clues.game_name, ev.title, ev.url,
+                        local_filename=clues.archive_name,
+                    )
+                    if not sid or sid in checked_steam:
+                        continue
+                    checked_steam.add(sid)
+                    looked.append("Steam 웹 후보 " + sid)
+                    try:
+                        p = _STEAM_GATE.call(
+                            lambda sid=sid: steam_lookup(sid), steam_timeout
                         )
+                        if (p is not None and p.app_id == sid
+                                and p.item_type == "game"
+                                and _title_matches(clues.game_name, p.title)):
+                            found[("steam", sid)] = _steam_to_candidate(
+                                p, clues.game_name
+                            )
+                    except Exception as exc:
+                        errors.append(
+                            "Steam 웹 후보 " + sid + ": "
+                            + type(exc).__name__
+                        )
+                    if len(checked_steam) >= 2:
+                        break
                 if not found:
-                    clue = _web_name_candidate(clues.game_name, evidence)
+                    clue = _web_name_candidate(
+                        clues.game_name, evidence, filename=clues.archive_name
+                    )
                     if clue is not None:
+                        score = page_score(
+                            clues.game_name, clue.title, clue.url,
+                            local_filename=clues.archive_name,
+                            snippet="game" if clue.game_context else "",
+                        )
+                        source_note = (
+                            "게임 작품별 판매 페이지로 보이는 URL이지만 "
+                            "게임 파일 내용이나 공식 등록 원문은 미검증."
+                            if score >= 75 else
+                            "일반 웹 기사·하위 페이지의 이름 단서만 확인. "
+                            "게임 본편 및 공식 작품 페이지 여부는 미검증."
+                        )
                         found[("web", clue.url)] = Candidate(
                             clues.game_name, clue.domain, "", clue.url,
-                            "web_search", True, "",
-                            "일반 웹 검색 결과의 제목·게임 문맥만 확인. "
-                            "공식 상품 등록이나 압축파일 내용은 미검증",
+                            "web_search", True, "", source_note,
                         )
             except Exception as exc:
-                errors.append("제목 검색 실패: " + type(exc).__name__)
+                providers = tuple(getattr(exc, "providers", ()))
+                errors.append(
+                    "제목 검색 실패: " + type(exc).__name__ + ": "
+                    + str(exc)[:220]
+                )
     else:
         looked.append("오프라인: 외부 검색 미실행")
 
