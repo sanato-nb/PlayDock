@@ -1,3 +1,5 @@
+> **v0.11.7 HTML 사이트 실접속 결과:** Windows Actions에서 itch.io 공개 검색 12건, Steam 개별 상품 HTML 제목 확인에 성공. DuckDuckGo 자동 접근 차단, Mojeek HTTP 오류, Steam 검색 HTML 600KB 상한 초과 확인 후 **itch/Steam 우선 + 2.5MB 상한**으로 보정. 실제 129개 v0.11.7 온라인 정확도는 미검증. 개인 검색 파일명·JSON·API 키는 GitHub 업로드 금지.
+
 > **v0.11.7-no-api 추가(2026-11-20):** 사용자 요청으로 독립 GUI에서 Serper 키 UI를 제거하고 공개 HTML 검색으로 전환. DLsite/Steam JSON API를 사용하지 않는 검증판 `no_api=True` 구현. 전체 합성/모의 회귀 741개 통과([Actions #44741105893](https://github.com/sanato-nb/PlayDock/actions/runs/44741105893)). v0.11.6 실제 129개: 키 없는 검사 검색 장애 38건, Serper 검사 8건; 새 HTML 기반 v0.11.7 실제 온라인 정확도는 재검사 전 **미측정**. [v0.11.7 개발 기록](V117_NO_API_HTML_2026-11-20_KO.md) 참조. 뒤의 v0.11.6 기록은 역사 정보.
 
 # PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-20)

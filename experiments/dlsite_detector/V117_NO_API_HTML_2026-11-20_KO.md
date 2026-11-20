@@ -36,6 +36,16 @@
 - 단순 Steam 상품 HTML은 게임 본편 유형을 증명하지 못함. 제목이 맞아도 잘못 '다른 작품/유형'이라며 제외하던 오류를 수정하여 `official_html` 후보의 유형 미검증으로 보존.
 - DLsite의 연령 확인 화면을 작품 등록으로 인정하지 않음. 두 가지 모의 회귀 사례 추가.
 
+## Windows 실접속 표본 (실제 온라인 게임 정답률과 별개)
+- 실험: 합성 사용자 자료가 아닌 공개 게임 제목 `Stardew Valley` 1회씩 일반 HTML 검색.
+- `itch_html`: 공개 검색 결과 **12건 수신**.
+- `steam_product_html`: 개별 공식 작품 HTML에서 `Stardew Valley` 이름 확인.
+- `ddg_html`: CAPTCHA/자동화 차단. **차단을 우회하지 않음**.
+- `mojeek_html`: HTTP 오류로 결과 수집 실패.
+- `steam_html`: 이전 600KB 응답 제한 초과. 이후 최대 2.5MB로 보수적 상향해 재빌드.
+- 사이트별 장애는 명시적으로 남기며, 자동 검색 성공률은 사용자 129개 대상 재검사 전까지 **미측정**.
+- 정상 응답한 itch.io·Steam 검색을 DDG/Mojeek보다 먼저 조회하도록 우선순위 수정.
+
 ## 회귀 검사
 - 전체 Ubuntu Python 3.12: **741 passed**, [CI #44741105893](https://github.com/sanato-nb/PlayDock/actions/runs/44741105893). 과거 727건 + HTML 모의 응답 14건.
 - Windows EXE 실행 결과·다운로드 아티팩트는 별도 빌드 완료 후 기록.
