@@ -1,8 +1,10 @@
 name: PlayDock 게임 정체 판독기 Windows 검증판 빌드
 
-# EXE 자동 빌드 금지: 사용자가 명시적으로 필요할 때만 Actions에서 수동 실행.
-# 소스 테스트는 python-tests.yml의 PR CI에서 별도로 검증.
+# v0.11.6 배포 설명서 및 SHA256 보강판을 사용자 요청으로 1회 빌드.
+# 성공한 뒤 기존 수동 전용 설정으로 되돌릴 것.
 on:
+  push:
+    branches: [experiment-dlsite-game-detector-20261117]
   workflow_dispatch:
 
 permissions:
@@ -58,6 +60,7 @@ jobs:
           Copy-Item "dist/PlayDock-Identity-Tester.exe" "identity_tester_release/"
           Copy-Item "scripts/Filename-Tester-README_KO.txt" "identity_tester_release/사용법_먼저_읽기.txt"
           Get-ChildItem "identity_tester_release" | Select-Object Name,Length
+          Get-FileHash -Algorithm SHA256 "identity_tester_release/PlayDock-Identity-Tester.exe" | Format-List Algorithm,Hash,Path
           if ((Get-ChildItem "identity_tester_release" -File).Count -ne 2) {
             throw "배포 목록이 예상과 다릅니다."
           }
