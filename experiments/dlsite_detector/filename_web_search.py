@@ -98,6 +98,7 @@ def bing_rss_search(title: str, *, timeout: float = 3.0,
 from .filename_page_rank import page_score
 from .detector import product_page_candidate
 from .serper_client import serper_google_search
+from .no_api_html import search_public_html
 
 
 def _row_quality(query: str, row: dict, *, local_filename: str = "") -> int:
@@ -163,7 +164,7 @@ def _canonical_url(url: str) -> str:
 
 def search_one_title(title: str, providers: list[dict] | None = None,
                      *, serper_api_key: str = "",
-                     chapter_hint: str = "") -> list[dict]:
+                     chapter_hint: str = "", no_api: bool = False) -> list[dict]:
     """API 키 없이 DDGS → Bing RSS. 작품별 판매 페이지를 찾으면 중단.
 
     일반 게임 기사만 나온 경우 RSS를 한 번 더 확인한다. 파일명 전체가
@@ -175,8 +176,12 @@ def search_one_title(title: str, providers: list[dict] | None = None,
     had_success = False
     faults = []
     combined: dict[str, tuple[int, dict]] = {}
-    sources = (("google_serper", "ddgs", "bing_rss") if serper_api_key
-               else ("ddgs", "bing_rss"))
+    sources = (
+        ("ddg_html", "itch_html", "mojeek_html", "steam_html")
+        if no_api else
+        (("google_serper", "ddgs", "bing_rss") if serper_api_key
+         else ("ddgs", "bing_rss"))
+    )
 
     # 기사 등 약한 웹 단서만 있을 때는 공식 작품 페이지를 더 찾아본다.
     local_filename = (title + " Chapter " + chapter_hint
@@ -186,7 +191,9 @@ def search_one_title(title: str, providers: list[dict] | None = None,
             break
         begin = time.monotonic()
         try:
-            if source == "google_serper":
+            if no_api:
+                rows = search_public_html(title, source)
+            elif source == "google_serper":
                 rows = serper_google_search(title, serper_api_key)
             elif source == "ddgs":
                 rows = fast_web_search(title)
@@ -254,6 +261,7 @@ def worker_main(input_path: str, output_path: str) -> int:
             query, providers,
             serper_api_key=os.environ.get("PLAYDOCK_SERPER_API_KEY", ""),
             chapter_hint=chapter_hint,
+            no_api=raw.get("no_api") is True,
         )
         payload = {"ok": True, "rows": rows, "providers": providers}
     except Exception as exc:
@@ -272,7 +280,7 @@ def worker_main(input_path: str, output_path: str) -> int:
 def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
                         runner=subprocess.run,
                         serper_api_key: str = "",
-                        chapter_hint: str = "") -> list[dict]:
+                        chapter_hint: str = "", no_api: bool = False) -> list[dict]:
     """제한시간 초과 시 subprocess.run이 자식 프로세스를 kill/wait한다.
 
     추가 검색에도 이전 검색이 잠금을 잡고 남지 않는다.
@@ -286,6 +294,8 @@ def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
         outgoing = folder / "result.json"
         # 개인정보를 줄이기 위해 아카이브 파일명 자체는 전달하지 않는다.
         query_info = {"query": title}
+        if no_api:
+            query_info["no_api"] = True
         if chapter_hint and re.fullmatch(r"\d{1,3}", chapter_hint):
             query_info["chapter"] = chapter_hint
         incoming.write_text(json.dumps(query_info, ensure_ascii=False),
@@ -298,7 +308,7 @@ def isolated_web_search(title: str, *, timeout: float = WALL_SECONDS,
                        "--filename-web-worker", str(incoming), str(outgoing)]
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         options = {}
-        if serper_api_key:
+        if serper_api_key and not no_api:
             child_env = os.environ.copy()
             child_env["PLAYDOCK_SERPER_API_KEY"] = serper_api_key
             options["env"] = child_env
