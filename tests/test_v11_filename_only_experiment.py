@@ -253,7 +253,7 @@ def test_script_self_test_has_no_internet():
 
 
 def test_version_is_filename_only_test():
-    assert VERSION == "0.11.6-test"
+    assert VERSION == "0.11.7-no-api-test"
 
 
 

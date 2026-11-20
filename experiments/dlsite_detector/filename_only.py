@@ -342,7 +342,7 @@ def identify_filename(
                         isolated_web_search(
                             clues.game_name,
                             serper_api_key="" if no_api else serper_api_key,
-                            no_api=no_api,
+                            **({"no_api": True} if no_api else {}),
                             **({"chapter_hint": chapter} if chapter else {}),
                         ) if (no_api or serper_api_key or chapter)
                         else web_search(clues.game_name)
