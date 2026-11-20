@@ -5,7 +5,7 @@ from io import BytesIO
 
 from experiments.dlsite_detector.detector import Product
 from experiments.dlsite_detector.reverse_lookup import (
-    lookup_code, lookup_title, parse_catalog_links, search_catalog_html,
+    lookup_code, lookup_title, parse_catalog_links, search_catalog_html, search_engine_html,
 )
 
 
@@ -139,7 +139,8 @@ def test_title_lookup_falls_back_to_general_public_html_when_dlsite_empty():
         return [{"title": "My Game", "href":
                  "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"}]
     result = lookup_title("My Game", catalog_search=lambda *args: [],
-                          external_search=external, fetcher=lambda code: product(code))
+                          engine_search=lambda *args: [], external_search=external,
+                          fetcher=lambda code: product(code))
     assert searches == [('site:dlsite.com "My Game"', "ddg_html")]
     assert result.status == "confirmed"
 
@@ -147,9 +148,10 @@ def test_title_lookup_falls_back_to_general_public_html_when_dlsite_empty():
 def test_title_lookup_unavailable_when_all_sites_fail():
     def broken(*args):
         raise RuntimeError("blocked")
-    result = lookup_title("My Game", catalog_search=broken, external_search=broken)
+    result = lookup_title("My Game", catalog_search=broken, external_search=broken,
+                          engine_search=broken)
     assert result.status == "unavailable"
-    assert len(result.providers) == 6
+    assert len(result.providers) == 8
     assert all(p["state"] == "error" for p in result.providers)
 
 
@@ -157,7 +159,7 @@ def test_title_lookup_never_uses_arbitrary_website_codes():
     def external(query, provider):
         return [{"title": "My Game", "href": "https://evil.com/work/=/product_id/RJ123456.html"}]
     result = lookup_title("My Game", catalog_search=lambda *args: [],
-                          external_search=external)
+                          engine_search=lambda *args: [], external_search=external)
     assert result.status == "no_candidate"
     assert not result.matches
 
@@ -168,10 +170,52 @@ def test_title_lookup_does_not_send_original_private_path():
         seen.append(title)
         return []
     lookup_title("C:\\private\\My Game [v2.0].zip", catalog_search=catalog,
-                 external_search=lambda *args: [])
+                 engine_search=lambda *args: [], external_search=lambda *args: [])
     assert seen and set(seen) == {"My Game"}
 
 
 def test_title_lookup_short_query_rejected_without_network():
     assert lookup_title("A").status == "invalid"
     assert lookup_title("").status == "invalid"
+
+
+def test_bing_html_extracts_only_valid_official_product_link():
+    urls = []
+    def opener(request, timeout):
+        urls.append(request.full_url)
+        return Response(request.full_url, (
+            '<li class="b_algo"><h2><a '
+            'href="https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html">'
+            'My Game</a></h2></li>'
+            '<a href="https://evil.example.net/maniax/work/=/product_id/RJ999999.html">Fake</a>'
+        ))
+    matches = search_engine_html("My Game", "bing_html", opener=opener)
+    assert [m["code"] for m in matches] == ["RJ123456"]
+    assert "bing.com/search" in urls[0]
+    assert "/api/" not in urls[0]
+
+
+def test_google_html_redirect_unwrapped_only_when_dlsite_product():
+    def opener(request, timeout):
+        return Response(request.full_url, (
+            '<a href="/url?q=https%3A%2F%2Fwww.dlsite.com%2Fmaniax%2Fwork%2F%3D%2F'
+            'product_id%2FRJ123456.html&amp;sa=U">My Game</a>'
+            '<a href="/url?q=https%3A%2F%2Fevil.example.com%2Fanything">Bad</a>'
+        ))
+    matches = search_engine_html("My Game", "google_html", opener=opener)
+    assert [m["code"] for m in matches] == ["RJ123456"]
+
+
+def test_title_lookup_prefers_bing_html_to_blocked_ddg_when_official_empty():
+    calls = []
+    def engines(title, provider):
+        calls.append(provider)
+        return ([{"title": "My Game", "url":
+                  "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"}]
+                if provider == "bing_html" else [])
+    result = lookup_title("My Game", catalog_search=lambda *args: [],
+                          engine_search=engines,
+                          external_search=lambda *args: (_ for _ in ()).throw(AssertionError("not needed")),
+                          fetcher=lambda code: product(code))
+    assert result.status == "confirmed"
+    assert calls == ["bing_html"]
