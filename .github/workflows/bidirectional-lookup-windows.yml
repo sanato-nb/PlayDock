@@ -10,6 +10,7 @@ on:
       - "scripts/title_to_code_tester.py"
       - "scripts/code_to_title_tester.py"
       - "tests/test_reverse_lookup_no_api_experiment.py"
+      - "scripts/Two-Way-Lookup-README_KO.txt"
       - ".github/workflows/bidirectional-lookup-windows.yml"
   workflow_dispatch:
 
