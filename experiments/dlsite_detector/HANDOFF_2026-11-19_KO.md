@@ -1,4 +1,6 @@
-# PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-19)
+# PlayDock 게임 정체 판독기 — 새 채팅 인수인계 (2026-11-20)
+
+> **v0.11.5 최신:** v0.11.4 실사용 129개 검사에서 무품번 39개 중 DDGS 실패 16개 확인. Google 검색 결과 제공 서비스 Serper.dev를 사용자 API 키 선택 입력형으로 연결. 키 입력 시 Serper → DDGS → Bing RSS, 키 미입력 시 기존 검색. 키는 실행 중 자식 환경변수로만 전달하고 EXE/임시 JSON/명령행/결과/공개 코드에 넣지 않음. `serper_client.py`, `filename_web_search.py`, `filename_only.py`, `filename_identity_tester.py`, tests 및 `V11_FILENAME_ONLY_2026-11-19_KO.md` 참조. 실제 검색 품질은 새 Windows EXE 사용자 재검사 전까지 미측정.
 
 > **v0.11.4 최신:** 사용자 129개 v0.11.3 JSON에서 웹 후보 17개 중 개발자 홈·다른 챕터·다른 작품명 일부 일치 오탐과 검색 장애 18건을 확인. `filename_page_rank.py` 신규 구현으로 게임 작품 URL slug·챕터·제목 전체 대조, `filename_web_search.py` DDGS 우선 + Bing RSS 보조, `filename_only.py` 공식 Steam ID/제목 재검증 및 불일치 결과 제외, `filename_identity_tester.py` 공급자 오류·제외 근거 상세/JSON 기록. 파일명 이외의 압축 내용은 여전히 읽지 않음. 상세 `V11_FILENAME_ONLY_2026-11-19_KO.md` 및 tests 참조. 실사용 정확도는 재검사 전 미측정.
 

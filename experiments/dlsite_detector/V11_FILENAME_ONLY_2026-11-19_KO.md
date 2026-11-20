@@ -1,4 +1,16 @@
-# PlayDock v0.11.4 파일명 전용 최소 정체 판독기 — 인수인계
+# PlayDock v0.11.5 파일명 전용 최소 정체 판독기 — 인수인계
+
+## v0.11.5 — 사용자 제공 Serper 키로 Google 검색 사용
+- v0.11.4 129개 검사에서 품번 없는 파일 39건 중 웹 후보 20건, DDGS 실패 16건, 미확인 3건. DDGSException은 Google 검색 추가 이전의 관찰 결과이고, 새 Google 사용 시 개선은 아직 실측되지 않음.
+- `serper_client.py` 신규: `https://google.serper.dev/search`에 POST, `X-API-KEY` 인증, `organic[]` 결과 제목·URL·설명 변환, 4초 네트워크 제한, 사용자에게 공개해도 키/응답 원문이 포함되지 않는 HTTP 오류 분류.
+- `filename_web_search.py`: `serper_api_key`가 있으면 Google(Serper) → DDGS → Bing RSS, 키가 없으면 기존 DDGS → Bing RSS. 하나라도 관련 작품 페이지를 얻으면 중단. 공급자별 반환 건수·관련성·시간·오류 기록.
+- `isolated_web_search`의 검색 워커는 사용자 입력 키를 **일시적 자식 환경변수**로 받아 사용한다. 키가 임시 입력 JSON/명령행/결과 JSON에 기록되지 않도록 구현.
+- `filename_only.py`: `identify_filename(serper_api_key=...)` 선택형 인자 추가. 공식 상품 코드가 있으면 Google 요청하지 않음. 압축파일을 열지 않음.
+- `filename_identity_tester.py`: Serper 키 마스킹 입력란, 검색 전 동의 문구, 실행 키 메모리 사용, 검색 완료 시 실행용 복사본 비움, 기본 결과명 v0.11.5.
+- `tests/test_v11_filename_only_experiment.py`: 키 없는 기존 동작·Google 우선/실패 대체·401·키 미노출·작품번호 우선 처리 등 신규 회귀 추가. 전체 Python 713개 통과.
+- 사용자 개인 검사 JSON과 API 키는 공개 GitHub에 커밋하지 않음. Windows 실행파일은 별도 빌드 및 검증 필요.
+
+
 
 ## v0.11.4 — 작품별 URL·챕터·공식 제목 재검증
 - 사용자가 제공한 v0.11.3 개인 검사 JSON 129개: 공식 이름 일치 9, 품번 상품 발견 72, 웹 단서 17, 유력 후보 6, 복수 1, 정체 미확인 6, 검색 장애 18. 파일별 검사시간 합계 155.61초(벽시계 시간과 다를 수 있음).

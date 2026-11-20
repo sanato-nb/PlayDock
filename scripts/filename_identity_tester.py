@@ -107,7 +107,7 @@ class FilenameTesterApp(tk.Tk):
         self.status = tk.StringVar(value="압축파일을 선택하거나 파일명 목록을 붙여넣으세요.")
         self.current = tk.StringVar(value="0개 선택")
         self.serper_key = tk.StringVar(value="")
-        self._active_serper_key = ""
+        self._active_serper_api_key = ""
         self._setup_style()
         self._layout()
         self.after(100, self._poll)
