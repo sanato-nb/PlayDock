@@ -16,7 +16,7 @@ import time
 import subprocess
 import sys
 import tempfile
-from urllib.parse import urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
@@ -142,9 +142,20 @@ def _canonical_url(url: str) -> str:
     """추적 파라미터·후행 슬래시만 다른 동일 결과는 한 번만 보관."""
     try:
         parts = urlsplit(url)
+        # 상품 식별에 사용되는 id 등의 쿼리는 남기고 URL 추적값만 제거.
+        # 쿼리 전체를 지우면 /game?id=1 과 /game?id=2 가 합쳐진다.
+        params = [
+            (key, value) for key, value in parse_qsl(
+                parts.query, keep_blank_values=True
+            )
+            if not key.casefold().startswith("utm_")
+            and key.casefold() not in {
+                "fbclid", "gclid", "msclkid", "igshid",
+            }
+        ]
         return urlunsplit((
             parts.scheme.lower(), parts.netloc.lower(),
-            parts.path.rstrip("/") or "/", "", "",
+            parts.path.rstrip("/") or "/", urlencode(params), "",
         ))
     except ValueError:
         return url

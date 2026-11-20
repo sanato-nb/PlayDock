@@ -1154,3 +1154,15 @@ def test_steam_slugless_short_partial_title_is_not_verified():
         "NOR", "Son of Nor on Steam",
         "https://store.steampowered.com/app/264000/",
     )
+
+
+
+def test_url_canonicalization_preserves_product_identity_query():
+    from experiments.dlsite_detector.filename_web_search import _canonical_url
+    first = _canonical_url(
+        "https://catalog.example.org/game?id=100&utm_source=search")
+    second = _canonical_url(
+        "https://catalog.example.org/game?id=200&utm_source=search")
+    assert first.endswith("?id=100")
+    assert second.endswith("?id=200")
+    assert first != second
