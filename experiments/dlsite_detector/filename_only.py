@@ -29,7 +29,7 @@ from .storefront_candidate import single_store_candidate
 from .filename_web_search import isolated_web_search
 from .filename_page_rank import page_score, steam_app_id
 
-VERSION = "0.11.4-test"
+VERSION = "0.11.5-test"
 MAX_CODES = 3
 MAX_WEB_RESULTS = 6
 MAX_WEB_CODES = 2
@@ -260,6 +260,7 @@ def identify_filename(
     web_timeout: float = TITLE_LIMIT_SECONDS,
     steam_timeout: float = STEAM_LIMIT_SECONDS,
     online: bool = True,
+    serper_api_key: str = "",
 ) -> FilenameIdentityResult:
     start = time.monotonic()
     clues = extract_filename_clues(filename)
@@ -309,7 +310,11 @@ def identify_filename(
                 if web_search is _single_title_search:
                     # 기본 검색은 자식 프로세스 자체가 제한시간 후 완전히
                     # 종료된다. 전역 스레드 잠금을 사용하지 않는다.
-                    rows = web_search(clues.game_name)
+                    rows = (
+                        isolated_web_search(
+                            clues.game_name, serper_api_key=serper_api_key
+                        ) if serper_api_key else web_search(clues.game_name)
+                    )
                 else:
                     # 테스트/플러그인에서 주입한 임의 콜백은 여전히
                     # bounded thread에서 처리하되 기본 서비스와 분리한다.
