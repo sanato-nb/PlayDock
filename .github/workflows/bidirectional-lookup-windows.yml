@@ -2,10 +2,6 @@ name: PlayDock 이름-품번 양방향 검색기 Windows 검증판
 
 # 실험 브랜치에서 두 독립 EXE를 확인하고 이후 수동 실행으로 복원.
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths:
-      - ".github/workflows/bidirectional-lookup-windows.yml"
   workflow_dispatch:
 
 permissions:
