@@ -41,7 +41,7 @@ def test_web_metas_can_confirm_official_code_but_not_translated_name():
                  "body": "DLsite 품번 RJ123456 제작 게임"}]
     result = lookup_title(
         "한글 작품명 [v1.2].zip",
-        meta_search=meta, catalog_search=forbidden,
+        meta_search=meta, catalog_search=lambda *args: [],
         engine_search=forbidden, external_search=forbidden,
         fetcher=lambda code: official(code),
     )
@@ -51,7 +51,8 @@ def test_web_metas_can_confirm_official_code_but_not_translated_name():
     assert result.matches[0].title == "日本語の作品名"
     assert result.matches[0].source == "ddgs_meta"
     assert result.matches[0].confidence == "official_code"
-    assert result.providers[0]["provider"] == "ddgs_meta"
+    assert result.providers[0]["provider"] == "dlsite_maniax"
+    assert any(p["provider"] == "ddgs_meta" for p in result.providers)
 
 
 def test_meta_unverified_code_stays_candidate_and_no_fabricated_url():
@@ -59,7 +60,7 @@ def test_meta_unverified_code_stays_candidate_and_no_fabricated_url():
         "한글 작품명.zip", meta_search=lambda _: [
             {"title": "한글 작품명 [RJ123456]",
              "href": "https://example.org/forum"}],
-        catalog_search=forbidden, engine_search=forbidden,
+        catalog_search=lambda *args: [], engine_search=forbidden,
         external_search=forbidden, fetcher=lambda code: None,
     )
     assert result.status == "candidates"
