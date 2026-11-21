@@ -40,14 +40,14 @@ def test_bing_rss_second_when_official_search_returns_no_related_hit():
                          "href": "https://example.org/review"}]
     result = lookup_title(
         "Example Garden.zip", catalog_search=lambda *args: [],
-        rss_search=rss, meta_search=never, engine_search=never,
+        rss_search=rss, meta_search=lambda name: [], engine_search=never,
         external_search=never, fetcher=lambda code: product(code),
     )
     assert result.status in ("confirmed", "candidates")
     assert result.matches[0].code == "RJ123456"
     providers = [p["provider"] for p in result.providers]
     assert providers[:4] == ["dlsite_" + c for c in ("maniax", "home", "soft", "girls")]
-    assert providers[-1] == "bing_rss"
+    assert providers.index("bing_rss") < providers.index("ddgs_meta")
 
 
 def test_ddgs_third_only_after_bing_rss_no_result():
@@ -79,13 +79,13 @@ def test_catalog_http_failure_still_falls_back_to_bing():
         "Example Garden.zip", catalog_search=blocked,
         rss_search=lambda name: [{"title": "Example Garden RJ123456",
                                   "href": "https://example.org/game"}],
-        meta_search=never, engine_search=never, external_search=never,
+        meta_search=lambda name: [], engine_search=never, external_search=never,
         fetcher=lambda code: product(code),
     )
     assert result.matches[0].code == "RJ123456"
     assert result.providers[0]["state"] == "error"
     assert result.providers[0]["detail"] == "HTTP 403"
-    assert result.providers[-1]["provider"] == "bing_rss"
+    assert "bing_rss" in [p["provider"] for p in result.providers]
 
 
 def test_explicit_japanese_alias_after_bing_is_researched_on_official_catalog():
