@@ -14,6 +14,7 @@ from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit
 
 from .detector import CODE_PATTERN, EXACT_CODE, Product, normalized_title, product_page_candidate
 from .no_api_html import PublicHtmlUnavailable, _fetch_html, fetch_dlsite_html, search_public_html
+from .metasearch_no_key import search_meta_no_key
 from .search_terms import cleaned_search_title, title_web_queries
 
 CATEGORIES = ("maniax", "home", "soft", "girls")
@@ -242,6 +243,7 @@ def lookup_title(
     catalog_search: Callable[[str, str], list[dict]] = search_catalog_html,
     external_search: Callable[[str, str], list[dict]] = search_public_html,
     engine_search: Callable[[str, str], list[dict]] = search_engine_html,
+    meta_search: Callable[[str], list[dict]] | None = None,
     fetcher: Callable[[str], Product | None] = fetch_dlsite_html,
 ) -> Lookup:
     raw = str(raw_title or "")
@@ -295,14 +297,17 @@ def lookup_title(
         url = str(item.get("url") or item.get("href") or "")
         code_cat = product_page_candidate(url)
         heading = str(item.get("title") or "")
+        summary = str(item.get("body") or "")[:420]
+        # 웹 제목과 요약문은 유효한 검색 근거지만 원본 공식 제목은 아니다.
+        evidence = (heading + " " + summary).strip()[:640]
         if code_cat:
             code, category = code_cat
-        elif source in ("bing_html", "google_html", "ddg_html", "mojeek_html"):
+        elif source in ("bing_html", "google_html", "ddg_html", "mojeek_html", "ddgs_meta"):
             # 비공식 사이트에서 발견한 품번은 최종 확인이 아니며,
             # 반드시 원문 검색 제목과 연결된 링크일 때만 잠정 후보로 수용.
             codes = tuple(dict.fromkeys(m.group(1).upper()
-                       for m in CODE_PATTERN.finditer(heading)))
-            if len(codes) != 1 or max(_match_score(n, heading) for n in search_names) == 0:
+                       for m in CODE_PATTERN.finditer(evidence)))
+            if len(codes) != 1 or max(_match_score(n, evidence) for n in search_names) == 0:
                 return
             code, category = codes[0], ""
             url = ""  # 외부 사이트 URL을 DLsite 공식 페이지로 가장하지 않는다.
@@ -310,28 +315,52 @@ def lookup_title(
             return
         if code not in hits:
             hits[code] = {"code": code, "category": category, "url": url,
-                          "title": heading[:240], "source": source}
+                          "title": evidence if source == "ddgs_meta" else heading[:240],
+                          "source": source}
         elif max(_match_score(n, heading) for n in search_names) > max(
                 _match_score(n, hits[code]["title"]) for n in search_names):
             hits[code].update({"title": heading[:240], "source": source})
 
-    # DLsite 공식 검색을 우선; 2곳에서 비어 있으면 다른 카테고리까지 보충.
-    for category in CATEGORIES:
-        if category in ("soft", "girls") and any(
-                max(_match_score(n, hit["title"]) for n in search_names) > 0
-                for hit in hits.values()):
-            break
+    # 코드가 없는 파일은 자동 메타검색을 먼저 사용한다.
+    # 기존 함수 주입식 단위 테스트는 네트워크를 실행하지 않도록 유지.
+    if meta_search is None:
+        meta_search = (search_meta_no_key if (
+            catalog_search is search_catalog_html and
+            external_search is search_public_html and
+            engine_search is search_engine_html) else (lambda *_: []))
+    for candidate_name in search_names:
         try:
-            results = catalog_search(search_names[0], category) or []
-            providers.append({"provider": "dlsite_" + category, "state": "ok",
-                              "count": len(results)})
-            for item in results[:40]:
+            results = meta_search(candidate_name) or []
+            providers.append({"provider": "ddgs_meta", "query": candidate_name,
+                              "state": "ok", "count": len(results)})
+            for item in results[:12]:
                 if isinstance(item, dict):
-                    add_hit(item, "dlsite_search_html")
+                    add_hit(item, "ddgs_meta")
+            if hits:
+                break
         except Exception as exc:
-            providers.append({"provider": "dlsite_" + category, "state": "error",
-                              "detail": type(exc).__name__})
-            warnings.append(f"DLsite {category} 검색 장애: {type(exc).__name__}")
+            providers.append({"provider": "ddgs_meta", "query": candidate_name,
+                              "state": "error", "detail": type(exc).__name__})
+            warnings.append("DDGS 자동 검색 장애: " + type(exc).__name__)
+
+    # 메타검색에 관련 후보가 없을 때만 공식 DLsite HTML 검색한다.
+    if not hits:
+        for category in CATEGORIES:
+            if category in ("soft", "girls") and any(
+                    max(_match_score(n, hit["title"]) for n in search_names) > 0
+                    for hit in hits.values()):
+                break
+            try:
+                results = catalog_search(search_names[0], category) or []
+                providers.append({"provider": "dlsite_" + category, "state": "ok",
+                                  "count": len(results)})
+                for item in results[:40]:
+                    if isinstance(item, dict):
+                        add_hit(item, "dlsite_search_html")
+            except Exception as exc:
+                providers.append({"provider": "dlsite_" + category, "state": "error",
+                                  "detail": type(exc).__name__})
+                warnings.append(f"DLsite {category} 검색 장애: {type(exc).__name__}")
 
     # 이름이 다른 언어일 수 있어, 웹 전체를 인용부호 없이 검색한다.
     # 검색어는 최대 두 개(원제/번역명)이며 후보가 유효할 때 중단한다.
