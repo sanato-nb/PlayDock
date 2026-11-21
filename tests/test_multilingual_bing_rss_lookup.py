@@ -122,7 +122,7 @@ def test_code_from_rss_requires_official_fetch_and_stays_candidate_when_translat
     }]
     result = lookup_title(
         "번역 게임 제목.zip", meta_search=lambda q: [],
-        rss_search=rss, catalog_search=forbidden,
+        rss_search=rss, catalog_search=lambda *args: [],
         external_search=forbidden, engine_search=forbidden,
         fetcher=lambda code: product(code),
     )
