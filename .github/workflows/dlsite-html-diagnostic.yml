@@ -1,0 +1,22 @@
+name: PlayDock DLsite HTML 접속 장애 진단
+on:
+  push:
+    branches:
+      - experiment-bidirectional-lookup-20261121
+    paths:
+      - ".github/workflows/dlsite-html-diagnostic.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: DLsite 공개 HTML HTTP 코드 확인
+        shell: pwsh
+        run: python scripts/diagnose_dlsite_http.py
