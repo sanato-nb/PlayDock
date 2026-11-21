@@ -340,9 +340,11 @@ def lookup_title(
                 if hits:
                     break
             except Exception as exc:
+                detail = (str(exc)[:200] if isinstance(exc, PublicHtmlUnavailable)
+                          else type(exc).__name__)
                 providers.append({"provider": "ddgs_meta", "query": candidate_name,
-                                  "state": "error", "detail": type(exc).__name__})
-                warnings.append("DDGS 자동 검색 장애: " + type(exc).__name__)
+                                  "state": "error", "detail": detail})
+                warnings.append("DDGS 자동 검색 장애: " + detail)
 
     # 메타검색에 관련 후보가 없을 때만 공식 DLsite HTML 검색한다.
     if not hits:
