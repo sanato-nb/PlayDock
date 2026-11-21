@@ -323,25 +323,26 @@ def lookup_title(
 
     # 코드가 없는 파일은 자동 메타검색을 먼저 사용한다.
     # 기존 함수 주입식 단위 테스트는 네트워크를 실행하지 않도록 유지.
-    if meta_search is None:
-        meta_search = (search_meta_no_key if (
+    if meta_search is None and (
             catalog_search is search_catalog_html and
             external_search is search_public_html and
-            engine_search is search_engine_html) else (lambda *_: []))
-    for candidate_name in search_names:
-        try:
-            results = meta_search(candidate_name) or []
-            providers.append({"provider": "ddgs_meta", "query": candidate_name,
-                              "state": "ok", "count": len(results)})
-            for item in results[:12]:
-                if isinstance(item, dict):
-                    add_hit(item, "ddgs_meta")
-            if hits:
-                break
-        except Exception as exc:
-            providers.append({"provider": "ddgs_meta", "query": candidate_name,
-                              "state": "error", "detail": type(exc).__name__})
-            warnings.append("DDGS 자동 검색 장애: " + type(exc).__name__)
+            engine_search is search_engine_html):
+        meta_search = search_meta_no_key
+    if meta_search is not None:
+        for candidate_name in search_names:
+            try:
+                results = meta_search(candidate_name) or []
+                providers.append({"provider": "ddgs_meta", "query": candidate_name,
+                                  "state": "ok", "count": len(results)})
+                for item in results[:12]:
+                    if isinstance(item, dict):
+                        add_hit(item, "ddgs_meta")
+                if hits:
+                    break
+            except Exception as exc:
+                providers.append({"provider": "ddgs_meta", "query": candidate_name,
+                                  "state": "error", "detail": type(exc).__name__})
+                warnings.append("DDGS 자동 검색 장애: " + type(exc).__name__)
 
     # 메타검색에 관련 후보가 없을 때만 공식 DLsite HTML 검색한다.
     if not hits:
