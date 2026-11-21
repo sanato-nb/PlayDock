@@ -15,7 +15,7 @@ import socket
 import ssl
 
 TIMEOUT = 6.0
-MAX_READ = 32_768
+MAX_READ = 2_500_001
 
 
 class _Facts(HTMLParser):
@@ -49,7 +49,7 @@ def probe(label: str, url: str, *, browser_headers: bool = False):
                 found.feed(body.decode("utf-8", "replace"))
             except Exception:
                 pass
-            lower = body.lower()
+            lower = body[:100_000].lower()
             markers = [name for name, term in [
                 ("captcha", b"captcha"), ("challenge", b"challenge"),
                 ("age-check", b"age_check"), ("result-links", b"product_id"),
@@ -57,7 +57,7 @@ def probe(label: str, url: str, *, browser_headers: bool = False):
             ] if term in lower]
             print("PROBE", label, variant, "HTTP", response.status,
                   "ctype", ctype, "redirected", moved,
-                  "bytes_sampled", len(body),
+                  "bytes_read", len(body), "size_over_limit", len(body)>2_500_000,
                   "anchor_sample", found.tags["a"],
                   "markers", ",".join(markers) or "none", flush=True)
     except HTTPError as exc:
@@ -86,6 +86,21 @@ def main():
         probe(label, url)
     # 헤더가 원인인지 동등한 공개 GET 요청으로만 비교. 쿠키/로그인/우회 없음.
     probe("maniax-search", probes[1][1], browser_headers=True)
+    # Read/parse with the actual PlayDock code path (not just urllib).
+    from experiments.dlsite_detector.reverse_lookup import search_catalog_html
+    from experiments.dlsite_detector.no_api_html import _fetch_html, PublicHtmlUnavailable
+    for category in ("maniax", "home", "soft", "girls"):
+        for title in ("RPG", "NOR"):
+            try:
+                rows = search_catalog_html(title, category, timeout=6)
+                print("REAL_CATALOG", title, category, "ok", len(rows), flush=True)
+            except PublicHtmlUnavailable as exc:
+                print("REAL_CATALOG", title, category,
+                      "unavailable", str(exc)[:160], flush=True)
+            except Exception as exc:
+                print("REAL_CATALOG", title, category,
+                      "error", type(exc).__name__, flush=True)
+
 
 
 if __name__ == "__main__":
