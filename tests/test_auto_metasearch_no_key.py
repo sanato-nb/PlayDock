@@ -130,3 +130,45 @@ def test_meta_invalid_inputs_skip_search():
 def test_ddgs_never_uses_google_automated_backend():
     assert "google" not in BACKENDS
     assert "duckduckgo" in BACKENDS
+
+
+def test_independent_backend_fallback_preserves_later_success():
+    calls = []
+    class FakeDDGS:
+        def text(self, query, *, backend, **kwargs):
+            calls.append(backend)
+            if backend == "duckduckgo":
+                raise RuntimeError("blocked")
+            return [{"title": "한글 작품명 RJ123456",
+                     "href": "https://example.org/post",
+                     "body": "작품 정보"}]
+    rows = search_meta_no_key("한글 작품명", ddgs_factory=lambda **kwargs: FakeDDGS())
+    assert calls == ["duckduckgo", "brave"]
+    assert len(rows) == 1 and "RJ123456" in rows[0]["title"]
+
+
+def test_independent_backend_fallback_can_skip_empty_result():
+    calls = []
+    class FakeDDGS:
+        def text(self, query, *, backend, **kwargs):
+            calls.append(backend)
+            if backend == "duckduckgo":
+                return []
+            if backend == "brave":
+                raise RuntimeError("blocked")
+            return [{"title": "찾은 게임", "href": "https://example.org/item"}]
+    rows = search_meta_no_key("한글 작품명", ddgs_factory=lambda **kwargs: FakeDDGS())
+    assert len(rows) == 1
+    assert calls == ["duckduckgo", "brave", "bing"]
+
+
+def test_independent_backend_fallback_reports_each_failure():
+    class FakeDDGS:
+        def text(self, query, *, backend, **kwargs):
+            raise RuntimeError("blocked")
+    with pytest.raises(PublicHtmlUnavailable) as exc:
+        search_meta_no_key("한글 작품명", ddgs_factory=lambda **kwargs: FakeDDGS())
+    message = str(exc.value)
+    assert all(backend + ":RuntimeError" in message for backend in BACKENDS)
+    assert "한글 작품명" not in message
+
