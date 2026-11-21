@@ -15,6 +15,7 @@ from urllib.parse import urlencode
 
 from experiments.dlsite_detector.detector import EXACT_CODE
 from experiments.dlsite_detector.search_terms import cleaned_search_title, title_web_queries
+from experiments.dlsite_detector.candidate_history import CandidateHistory
 from experiments.dlsite_detector.archive_input import (
     MAX_BATCH, archive_name, batch_inputs, extract_one_code,
     folder_archive_names, run_lookup, selected_archives,
@@ -35,6 +36,7 @@ CONFIDENCE_KO = {
     "search_candidate": "검색 링크 후보",
     "filename_code_verified": "파일명 품번·공식 확인",
     "filename_code_only": "파일명 품번·미검증",
+    "history_candidate": "과거 후보·재확인 필요",
 }
 CONFIG = {
     "title_to_code": (
@@ -61,6 +63,7 @@ class LookupWindow(tk.Tk):
         self.messages = Queue()
         self.cancel = Event()
         self.results: list[Lookup] = []
+        self.history = CandidateHistory() if mode == "title_to_code" else None
         self.selected_files: list[str] = []
         self.busy = False
         self.selection_urls: dict[str, str] = {}
@@ -113,6 +116,11 @@ class LookupWindow(tk.Tk):
         self.clear_button.pack(side="left", padx=6)
         ttk.Button(controls, text="브라우저에서 직접 찾기",
                    command=self.open_browser_search).pack(side="left", padx=6)
+        self.history_btn = None
+        if mode == "title_to_code":
+            self.history_btn = ttk.Button(
+                controls, text="이전 결과 JSON 가져오기", command=self.import_history)
+            self.history_btn.pack(side="left", padx=6)
         self.json_btn = ttk.Button(controls, text="JSON 저장", command=self.save_json, state="disabled")
         self.json_btn.pack(side="right")
         self.csv_btn = ttk.Button(controls, text="CSV 저장", command=self.save_csv, state="disabled")
@@ -222,6 +230,8 @@ class LookupWindow(tk.Tk):
         self.busy = True
         self.start.configure(state="disabled")
         self.clear_button.configure(state="disabled")
+        if self.history_btn:
+            self.history_btn.configure(state="disabled")
         for button in self.file_controls:
             button.configure(state="disabled")
         self.stop.configure(state="normal")
@@ -235,6 +245,8 @@ class LookupWindow(tk.Tk):
                 break
             try:
                 result = run_lookup(item, self.mode)
+                if self.history is not None:
+                    result = self.history.merge_and_save(result)
             except Exception as exc:
                 result = Lookup(self.mode, item.label, "unavailable",
                                 warnings=("처리 오류: " + type(exc).__name__,),
@@ -259,7 +271,9 @@ class LookupWindow(tk.Tk):
                             candidate.code, candidate.title,
                             CONFIDENCE_KO.get(candidate.confidence, candidate.confidence),
                             candidate.source,
-                        ), tags=("verified",) if candidate.confidence != "search_candidate" else ())
+                        ), tags=("verified",) if candidate.confidence not in
+                                ("search_candidate", "history_candidate", "filename_code_only")
+                                else ())
                     if not result.matches:
                         iid = str(len(self.selection_urls))
                         self.selection_urls[iid] = ""
@@ -271,6 +285,8 @@ class LookupWindow(tk.Tk):
                     self.busy = False
                     self.start.configure(state="normal")
                     self.clear_button.configure(state="normal")
+                    if self.history_btn:
+                        self.history_btn.configure(state="normal")
                     for button in self.file_controls:
                         button.configure(state="normal")
                     self.stop.configure(state="disabled")
@@ -304,6 +320,13 @@ class LookupWindow(tk.Tk):
             lines += ["", "조회 경고:", *record.warnings]
         if record and record.providers:
             lines += ["", "검색 사이트:", *(str(p) for p in record.providers)]
+        if record and record.catalog_review:
+            lines += ["", "DLsite에서 수집한 공식 링크 · 제목 비교 근거:"]
+            lines += [
+                f"[{row.get('match_score', 0)}점] {row.get('code', '')} "
+                f"{row.get('title', '')} · {row.get('reason', '')}"
+                for row in record.catalog_review
+            ]
         self.details.configure(state="normal")
         self.details.delete("1.0", "end")
         self.details.insert("1.0", "\n".join(lines))
@@ -363,6 +386,34 @@ class LookupWindow(tk.Tk):
                        "EJ": "girls"}.get(code[:2], "maniax")
             url = (f"https://www.dlsite.com/{section}/work/=/product_id/{code}.html")
         webbrowser.open(url)
+
+    def import_history(self):
+        """사용자가 선택한 이전 v4~v6 결과 JSON의 후보만 보수적으로 불러옴."""
+        if self.busy or self.history is None:
+            return
+        paths = filedialog.askopenfilenames(
+            title="기존 이름→품번 결과 JSON 선택 (여러 개 가능)",
+            filetypes=[("PlayDock JSON", "*.json")],
+        )
+        if not paths:
+            return
+        imported_titles = imported_candidates = 0
+        errors = []
+        for path in paths:
+            try:
+                titles, candidates = self.history.import_export(Path(path))
+                imported_titles += titles
+                imported_candidates += candidates
+            except (OSError, ValueError, TypeError) as exc:
+                errors.append(Path(path).name + ": " + type(exc).__name__)
+        self.status.set(
+            f"과거 후보 {imported_candidates}개 ({imported_titles}개 작품) 보존 · "
+            "다음 검색에서 자동 비교")
+        message = (f"이전 후보 {imported_candidates}개를 사용자 로컬 이력에 가져왔습니다.\n"
+                   "현재 재확인되지 않은 기록은 과거 후보로 구분됩니다.")
+        if errors:
+            message += "\n\n읽기 실패: " + ", ".join(errors[:3])
+        messagebox.showinfo("이전 검색 결과", message)
 
     def save_json(self):
         if not self.results:
