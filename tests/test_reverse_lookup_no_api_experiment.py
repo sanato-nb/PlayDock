@@ -147,7 +147,8 @@ def test_title_lookup_falls_back_to_general_public_html_when_dlsite_empty():
                           engine_search=lambda *args: [], external_search=external,
                           fetcher=lambda code: product(code))
     assert searches == [('My Game DLsite RJ', "ddg_html")]
-    assert result.status == "confirmed"
+    # Web-derived link + official code does NOT prove the local game is identical.
+    assert result.status == "candidates"
 
 
 def test_title_lookup_unavailable_when_all_sites_fail():
@@ -224,5 +225,5 @@ def test_title_lookup_prefers_bing_html_to_blocked_ddg_when_official_empty():
                           engine_search=engines,
                           external_search=lambda *args: (_ for _ in ()).throw(AssertionError("not needed")),
                           fetcher=lambda code: product(code))
-    assert result.status == "confirmed"
+    assert result.status == "candidates"
     assert calls == ["bing_html"]
