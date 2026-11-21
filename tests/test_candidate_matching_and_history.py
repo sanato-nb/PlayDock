@@ -53,9 +53,9 @@ def test_phonetic_match_is_only_review_candidate_not_confirmed():
     assert result.matches[0].confidence == "official_code"
     assert result.providers[0]["provider"] == "dlsite_maniax"
     assert len(result.catalog_review) == 2
-    assert result.catalog_review[0]["match_score"] == 30
+    assert result.catalog_review[0]["match_score"] == 45
     assert result.catalog_review[1]["match_score"] == 0
-    assert "제목/별칭" in result.catalog_review[1]["reason"]
+    assert "연결 근거 부족" in result.catalog_review[1]["reason"]
 
 
 def test_catalog_review_is_saved_when_all_items_rejected():
