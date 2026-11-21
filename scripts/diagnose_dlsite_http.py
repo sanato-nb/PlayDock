@@ -90,7 +90,7 @@ def main():
     from experiments.dlsite_detector.reverse_lookup import search_catalog_html
     from experiments.dlsite_detector.no_api_html import _fetch_html, PublicHtmlUnavailable
     for category in ("maniax", "home", "soft", "girls"):
-        for title in ("RPG", "NOR"):
+        for title in ("RPG", "NOR", "Stardew Valley", "AnUnlistedPlayDockFiction2026"):
             try:
                 rows = search_catalog_html(title, category, timeout=6)
                 print("REAL_CATALOG", title, category, "ok", len(rows), flush=True)
