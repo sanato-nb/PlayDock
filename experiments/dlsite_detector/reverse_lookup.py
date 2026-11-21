@@ -17,6 +17,7 @@ from .no_api_html import PublicHtmlUnavailable, _fetch_html, fetch_dlsite_html, 
 from .metasearch_no_key import search_meta_no_key
 from .bing_rss import search_bing_rss
 from .multilingual_search import title_candidates, explicit_original_titles
+from .kana_match import phonetic_score
 from .search_terms import cleaned_search_title, title_web_queries
 
 CATEGORIES = ("maniax", "home", "soft", "girls")
@@ -44,6 +45,7 @@ class Lookup:
     warnings: tuple[str, ...] = ()
     providers: tuple[dict, ...] = ()
     input_origin: str = "manual"  # archive / manual
+    catalog_review: tuple[dict, ...] = ()  # 공식 검색 결과 제목·품번·탈락 이유 진단
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -218,7 +220,8 @@ def _match_score(query: str, title: str) -> int:
         (len(left) >= 5 and any("가" <= ch <= "힣" for ch in left))):
         if left in right:
             return 40
-    return 0
+    # 일본어 가나를 로마자로 읽은 '발음 일치'는 확인이 아닌 후보일 뿐이다.
+    return phonetic_score(query, title)
 
 
 def lookup_code(code: str, *, fetcher: Callable[[str], Product | None] = fetch_dlsite_html) -> Lookup:
@@ -297,6 +300,12 @@ def lookup_title(
     hits = {}
     providers = []
     warnings = []
+    official_review: dict[str, dict] = {}
+
+    def review_summary():
+        # 관련 가능성을 우선 표시하되 무관한 결과/탈락 이유도 확인할 수 있도록 보존.
+        return tuple(sorted(official_review.values(),
+                            key=lambda x: -x["match_score"])[:30])
 
     def register_explicit_originals(rows):
         for alias in explicit_original_titles(rows, tuple(seed_names)):
@@ -373,6 +382,27 @@ def lookup_title(
                     for item in results[:40]:
                         if isinstance(item, dict):
                             add_hit(item, "dlsite_search_html")
+                            url = str(item.get("url") or item.get("href") or "")
+                            product_ref = product_page_candidate(url)
+                            if product_ref is None:
+                                continue
+                            code, _ = product_ref
+                            name = str(item.get("title") or "")[:240]
+                            score = max((_match_score(n, name) for n in search_names),
+                                        default=0)
+                            reason = ("일본어 발음으로 유사한 수동 검토 후보"
+                                      if score == 30 else
+                                      "검색 이름이 공식 제목에 나타남"
+                                      if score > 0 else
+                                      "제목/별칭 일치 증거 부족")
+                            prior = official_review.get(code)
+                            if (prior is None or score > prior["match_score"]) and (
+                                    prior is not None or len(official_review) < 120):
+                                official_review[code] = {
+                                    "code": code, "title": name,
+                                    "url": url, "provider": "dlsite_" + category,
+                                    "match_score": score, "reason": reason,
+                                }
                 except Exception as exc:
                     detail = (str(exc)[:160] if isinstance(exc, PublicHtmlUnavailable)
                               else type(exc).__name__)
@@ -472,7 +502,8 @@ def lookup_title(
             "품번 후보를 찾지 못했습니다. 작품이 없다는 뜻은 아닙니다."
         )
         return Lookup("title_to_code", title, state, warnings=tuple(warnings),
-                      providers=tuple(providers))
+                      providers=tuple(providers),
+                      catalog_review=review_summary())
 
     ranked = sorted(
         (hit for hit in hits.values()
@@ -516,4 +547,5 @@ def lookup_title(
     if len(ranked) > MAX_CANDIDATES:
         warnings.append("후보가 많아 상위 8개만 표시했습니다.")
     return Lookup("title_to_code", title, state, tuple(output),
-                  tuple(warnings), tuple(providers))
+                  tuple(warnings), tuple(providers),
+                  catalog_review=review_summary())
