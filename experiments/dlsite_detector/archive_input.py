@@ -5,11 +5,12 @@
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 import re
 
 from .detector import CODE_PATTERN
+from .reverse_lookup import Lookup, lookup_code, lookup_title
 
 ARCHIVE_SUFFIXES = (".zip", ".7z", ".rar")
 MAX_BATCH = 1000
@@ -28,7 +29,7 @@ def archive_name(value: str) -> str:
     name = re.split(r"[/\\]", str(value or ""))[-1].strip()
     if not name.casefold().endswith(ARCHIVE_SUFFIXES):
         return ""
-    if len(name) <= 4:
+    if any(name.casefold() == s for s in ARCHIVE_SUFFIXES):
         return ""
     return name
 
@@ -68,3 +69,24 @@ def batch_inputs(manual_text: str, archive_names, *, limit: int = MAX_BATCH) -> 
     if len(result) > limit:
         raise ValueError(f"한 번에 최대 {limit}개까지 검사할 수 있습니다.")
     return tuple(result)
+
+
+def run_lookup(
+    item: SearchInput, mode: str, *,
+    title_lookup=lookup_title, code_lookup=lookup_code,
+) -> Lookup:
+    """선택한 원본 파일명과 검색 결과를 연결해 돌려준다."""
+    if mode not in ("title_to_code", "code_to_title"):
+        raise ValueError("잘못된 검색 방향")
+    if mode == "title_to_code":
+        result = title_lookup(item.value)
+    else:
+        if item.origin == "archive":
+            code, warning = extract_one_code(item.value)
+            if warning:
+                return Lookup("code_to_title", item.label, "invalid", warnings=(warning,))
+        else:
+            code = item.value
+        result = code_lookup(code)
+    # 공식 결과는 작업용 검색어가 아니라 사용자가 선택한 파일명에 연결.
+    return replace(result, query=item.label)
