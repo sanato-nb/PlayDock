@@ -103,3 +103,39 @@ def search_title_variants(raw: str, *, limit: int = 2) -> tuple[str, ...]:
         if len(found) >= limit:
             break
     return tuple(found)
+
+
+# 품번이 없는 압축파일 전용: 번역명 외에도 파일명에 병기된 원제/영문명을 검색한다.
+# 자동 기계번역으로 작품명을 지어내지 않고 이미 존재하는 별칭만 사용.
+ALIASED_TITLE = re.compile(r"\\(([^()]{4,90})\\)")
+WEB_JUNK = re.compile(r"(?i)\\b(?:RJ|VJ|BJ|EJ)\\d{6,8}\\b")
+
+
+def title_web_queries(raw: str, *, limit: int = 2) -> tuple[str, ...]:
+    """제목명 검색 쿼리 후보. 공백·괄호 정리, 로컬 경로 제거, 별칭 우선.
+    
+    - 원래 작품명이 일본어·영어로 병기되어 있으면 독립 쿼리로 검색.
+    - 한국어 제목을 일본어로 임의 번역하지는 않는다.
+    - 과다 요청 방지를 위해 최대 2개만 만든다.
+    """
+    clean = cleaned_search_title(raw)
+    if not clean:
+        return ()
+    names = []
+    # '한국어 제목 (English Title)' -> 영어 별칭과 전체 제목을 모두 시도.
+    for inside in ALIASED_TITLE.findall(clean):
+        term = inside.strip(" -_")
+        if re.search(r"[A-Za-z]{3}", term) and not WEB_JUNK.search(term):
+            names.append(term)
+    names.append(clean)
+    unique = []
+    seen = set()
+    for name in names:
+        name = SPACES.sub(" ", name).strip()
+        ident = name.casefold()
+        if ident and ident not in seen and len(name) >= 2:
+            unique.append(name[:160])
+            seen.add(ident)
+        if len(unique) >= max(1, min(limit, 3)):
+            break
+    return tuple(unique)
