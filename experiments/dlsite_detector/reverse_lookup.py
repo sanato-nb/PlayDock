@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit
 
 from .detector import CODE_PATTERN, EXACT_CODE, Product, normalized_title, product_page_candidate
 from .no_api_html import PublicHtmlUnavailable, _fetch_html, fetch_dlsite_html, search_public_html
-from .search_terms import cleaned_search_title
+from .search_terms import cleaned_search_title, title_web_queries
 
 CATEGORIES = ("maniax", "home", "soft", "girls")
 MAX_CANDIDATES = 8
@@ -121,12 +121,13 @@ def search_catalog_html(title: str, category: str, *, timeout: float = 3.0,
 
 def search_engine_html(title: str, provider: str, *, timeout: float = 2.8,
                        opener=None) -> list[dict]:
-    """Bing/Google 일반 검색 HTML에서 DLsite 공식 작품 링크만 수집."""
+    """제목을 따옴표로 묶지 않고 웹 전체에서 검색해 공식 링크와 품번 힌트를 수집."""
     endpoints = {"bing_html": "https://www.bing.com/search",
                  "google_html": "https://www.google.com/search"}
     if provider not in endpoints:
         raise ValueError("허용하지 않은 검색 사이트")
-    query = 'site:dlsite.com "' + title + '"'
+    # 번역 제목과 원제가 서로 다를 수 있으므로 정확 문구 일치/도메인 한정 금지.
+    query = title + " DLsite RJ"
     url = endpoints[provider] + "?" + urlencode({"q": query})
     kwargs = {"timeout": timeout}
     if opener is not None:
@@ -137,7 +138,69 @@ def search_engine_html(title: str, provider: str, *, timeout: float = 2.8,
              "google_html": ("www.google.com", "google.com")}[provider]
     if host not in valid:
         raise PublicHtmlUnavailable("일반 검색 페이지가 외부 사이트로 이동")
-    return parse_catalog_links(body, final)
+    rows = parse_catalog_links(body, final)
+    rows.extend(parse_web_code_hints(body, final, title))
+    return rows
+
+
+
+class _WebCodeAnchors(HTMLParser):
+    """검색 결과의 링크 제목에 명시된 작품번호 힌트만 채집."""
+    def __init__(self, base_url: str):
+        super().__init__(convert_charrefs=True)
+        self.base_url = base_url
+        self.current = None
+        self.rows = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a" and self.current is None:
+            props = dict(attrs)
+            href = urljoin(self.base_url, unescape(props.get("href") or ""))
+            self.current = {"href": href, "text": [props.get("title") or ""]}
+        elif tag == "img" and self.current is not None:
+            self.current["text"].append(dict(attrs).get("alt") or "")
+
+    def handle_data(self, data):
+        if self.current is not None:
+            self.current["text"].append(data)
+
+    def handle_endtag(self, tag):
+        if tag == "a" and self.current is not None:
+            title = re.sub(r"\\s+", " ", " ".join(self.current["text"])).strip()
+            if title and CODE_PATTERN.search(title):
+                self.rows.append({"title": title[:240], "url": self.current["href"]})
+            self.current = None
+
+
+def parse_web_code_hints(html: str, base_url: str, title: str) -> list[dict]:
+    """제3자 검색결과의 링크 '한국어 게임명 [RJ...]'을 별도 근거로 수집.
+
+    이 URL은 공식 확인 근거가 아니며 같은 품번의 DLsite HTML 재확인을 요구한다.
+    """
+    if len(normalized_title(title)) < 5:
+        return []
+    parser = _WebCodeAnchors(base_url)
+    parser.feed(html)
+    found = []
+    seen = set()
+    for item in parser.rows:
+        href = item["url"]
+        parts = urlsplit(href)
+        if parts.scheme not in ("https", "http") or not parts.hostname:
+            continue
+        if parts.hostname.endswith(("google.com", "bing.com")) and "/search" in parts.path:
+            continue
+        code_hits = tuple(dict.fromkeys(m.group(1).upper()
+                    for m in CODE_PATTERN.finditer(item["title"])))
+        if len(code_hits) != 1 or code_hits[0] in seen:
+            continue
+        if _match_score(title, item["title"]) == 0:
+            continue
+        seen.add(code_hits[0])
+        found.append(item)
+        if len(found) >= MAX_CANDIDATES:
+            break
+    return found
 
 
 def _match_score(query: str, title: str) -> int:
@@ -217,6 +280,9 @@ def lookup_title(
     if not (2 <= len(title) <= 160) or not any(ch.isalpha() for ch in title):
         return Lookup("title_to_code", title, "invalid",
                       warnings=("검색할 작품명을 2~160자로 입력하세요.",))
+    search_names = title_web_queries(raw)
+    if not search_names:
+        search_names = (title,)
     hits = {}
     providers = []
     warnings = []
@@ -224,22 +290,35 @@ def lookup_title(
     def add_hit(item: dict, source: str):
         url = str(item.get("url") or item.get("href") or "")
         code_cat = product_page_candidate(url)
-        if not code_cat:
-            return
-        code, category = code_cat
         heading = str(item.get("title") or "")
+        if code_cat:
+            code, category = code_cat
+        elif source in ("bing_html", "google_html", "ddg_html", "mojeek_html"):
+            # 비공식 사이트에서 발견한 품번은 최종 확인이 아니며,
+            # 반드시 원문 검색 제목과 연결된 링크일 때만 잠정 후보로 수용.
+            codes = tuple(dict.fromkeys(m.group(1).upper()
+                       for m in CODE_PATTERN.finditer(heading)))
+            if len(codes) != 1 or max(_match_score(n, heading) for n in search_names) == 0:
+                return
+            code, category = codes[0], ""
+            url = ""  # 외부 사이트 URL을 DLsite 공식 페이지로 가장하지 않는다.
+        else:
+            return
         if code not in hits:
             hits[code] = {"code": code, "category": category, "url": url,
                           "title": heading[:240], "source": source}
-        elif _match_score(title, heading) > _match_score(title, hits[code]["title"]):
+        elif max(_match_score(n, heading) for n in search_names) > max(
+                _match_score(n, hits[code]["title"]) for n in search_names):
             hits[code].update({"title": heading[:240], "source": source})
 
     # DLsite 공식 검색을 우선; 2곳에서 비어 있으면 다른 카테고리까지 보충.
     for category in CATEGORIES:
-        if category in ("soft", "girls") and hits:
+        if category in ("soft", "girls") and any(
+                max(_match_score(n, hit["title"]) for n in search_names) > 0
+                for hit in hits.values()):
             break
         try:
-            results = catalog_search(title, category) or []
+            results = catalog_search(search_names[0], category) or []
             providers.append({"provider": "dlsite_" + category, "state": "ok",
                               "count": len(results)})
             for item in results[:40]:
@@ -250,27 +329,35 @@ def lookup_title(
                               "detail": type(exc).__name__})
             warnings.append(f"DLsite {category} 검색 장애: {type(exc).__name__}")
 
-    # 공식 검색에서 링크를 찾지 못한 때만 일반 HTML 검색에 'DLsite' 제한어 사용.
-    if not hits:
-        for provider in ("bing_html", "google_html", "ddg_html", "mojeek_html"):
-            try:
-                if provider in ("bing_html", "google_html"):
-                    results = engine_search(title, provider) or []
-                else:
-                    results = external_search('site:dlsite.com "' + title + '"', provider) or []
-                providers.append({"provider": provider, "state": "ok",
-                                  "count": len(results)})
-                for item in results[:12]:
-                    if isinstance(item, dict):
-                        add_hit(item, provider)
-                if hits:
-                    break
-            except Exception as exc:
-                providers.append({"provider": provider, "state": "error",
-                                  "detail": type(exc).__name__})
-                warnings.append(f"{provider} 검색 장애: {type(exc).__name__}")
+    # 이름이 다른 언어일 수 있어, 웹 전체를 인용부호 없이 검색한다.
+    # 검색어는 최대 두 개(원제/번역명)이며 후보가 유효할 때 중단한다.
+    def relevant_hit_exists():
+        return any(max(_match_score(n, row["title"]) for n in search_names) > 0
+                   for row in hits.values())
 
-    if not hits:
+    if not relevant_hit_exists():
+        for candidate_name in search_names:
+            for provider in ("bing_html", "google_html", "ddg_html", "mojeek_html"):
+                try:
+                    if provider in ("bing_html", "google_html"):
+                        results = engine_search(candidate_name, provider) or []
+                    else:
+                        results = external_search(candidate_name + " DLsite RJ", provider) or []
+                    providers.append({"provider": provider, "query": candidate_name,
+                                      "state": "ok", "count": len(results)})
+                    for item in results[:12]:
+                        if isinstance(item, dict):
+                            add_hit(item, provider)
+                    if relevant_hit_exists():
+                        break
+                except Exception as exc:
+                    providers.append({"provider": provider, "query": candidate_name,
+                                      "state": "error", "detail": type(exc).__name__})
+                    warnings.append(f"{provider} 검색 장애: {type(exc).__name__}")
+            if relevant_hit_exists():
+                break
+
+    if not relevant_hit_exists():
         official = [p for p in providers if p["provider"].startswith("dlsite_")]
         official_blocked = bool(official) and all(p["state"] == "error" for p in official)
         state = ("unavailable" if official_blocked or (
@@ -284,8 +371,12 @@ def lookup_title(
         return Lookup("title_to_code", title, state, warnings=tuple(warnings),
                       providers=tuple(providers))
 
-    ranked = sorted(hits.values(), key=lambda h: _match_score(title, h["title"]),
-                    reverse=True)
+    ranked = sorted(
+        (hit for hit in hits.values()
+         if max(_match_score(n, hit["title"]) for n in search_names) > 0),
+        key=lambda h: max(_match_score(n, h["title"]) for n in search_names),
+        reverse=True,
+    )
     output = []
     for item in ranked[:MAX_CANDIDATES]:
         product = None
@@ -295,22 +386,23 @@ def lookup_title(
             except Exception as exc:
                 warnings.append(f"{item['code']} 공식 페이지 조회 장애: {type(exc).__name__}")
         if product is not None and product.code.upper() == item["code"]:
-            match_quality = _match_score(title, product.title)
+            match_quality = max(_match_score(n, product.title) for n in search_names)
             # A valid product ID is not evidence that the game name matched.
             # Reject e.g. "NOR"/"REC" website menu recommendations.
-            if max(match_quality, _match_score(title, item["title"])) == 0:
+            if max(match_quality, *( _match_score(n, item["title"]) for n in search_names)) == 0:
                 continue
             output.append(Match(
                 item["code"], product.title, product.url, product.category,
                 "exact_title" if match_quality == 100 else "official_code",
-                "dlsite_product_html",
+                "dlsite_product_html" if item["source"] == "dlsite_search_html" else item["source"],
                 ("공식 페이지에서 제목 일치" if match_quality == 100 else
+                 "웹 제목에 품번이 함께 표시되고 공식 상품번호를 확인함. 번역명 일치는 미확인." if not item["url"] else
                  "품번·상품명 확인; 정식 제목의 일부만 일치하여 수동 검토 필요")))
-        elif _match_score(title, item["title"]) > 0:
+        elif max(_match_score(n, item["title"]) for n in search_names) > 0:
             output.append(Match(
                 item["code"], item["title"], item["url"], item["category"],
                 "search_candidate", item["source"],
-                "검색 링크의 제목이 일부 일치하지만 공식 상품 페이지는 미확인"))
+                "웹 검색 결과에 제목과 품번이 보이나 공식 작품 페이지는 미확인"))
     if not output:
         warnings.append("웹 검색에 작품 링크가 있었으나 입력 이름과 연관성이 없어 제외했습니다.")
     state = ("confirmed" if any(m.confidence == "exact_title" for m in output)
