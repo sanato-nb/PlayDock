@@ -9,6 +9,8 @@ on:
       - "experiments/dlsite_detector/search_terms.py"
       - "tests/test_reverse_lookup_no_api_experiment.py"
       - "tests/test_name_search_unquoted_multilingual.py"
+      - "scripts/lookup_window.py"
+      - "scripts/Two-Way-Lookup-README_KO.txt"
       - ".github/workflows/bidirectional-lookup-windows.yml"
   workflow_dispatch:
 
