@@ -209,8 +209,12 @@ def _match_score(query: str, title: str) -> int:
         return 0
     if left == right:
         return 100
-    if len(left) >= 7 and left in right:
-        return 40
+    # 짧은 한글 번역 제목도 뒤에 RJ코드/제작사 표기가 붙을 수 있다.
+    # 'NOR', 'REC' 같은 짧은 라틴 일반어는 기존처럼 부분 일치 불허.
+    if (len(left) >= 7 or
+        (len(left) >= 5 and any("\\uac00" <= ch <= "\\ud7a3" for ch in left))):
+        if left in right:
+            return 40
     return 0
 
 
