@@ -120,7 +120,7 @@ def test_title_lookup_keeps_unmatched_name_as_candidate():
                           fetcher=lambda code: product(code))
     assert result.status == "no_candidate"
     assert result.matches == ()
-    assert any("연관성이 없어 제외" in w for w in result.warnings)
+    assert any("품번 후보를 찾지 못했습니다" in w for w in result.warnings)
 
 
 def test_title_lookup_keeps_search_candidate_when_product_html_blocked():
