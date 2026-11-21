@@ -12,7 +12,7 @@ import re
 from typing import Callable
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit
 
-from .detector import EXACT_CODE, Product, normalized_title, product_page_candidate
+from .detector import CODE_PATTERN, EXACT_CODE, Product, normalized_title, product_page_candidate
 from .no_api_html import PublicHtmlUnavailable, _fetch_html, fetch_dlsite_html, search_public_html
 from .search_terms import cleaned_search_title
 
@@ -177,7 +177,43 @@ def lookup_title(
     engine_search: Callable[[str, str], list[dict]] = search_engine_html,
     fetcher: Callable[[str], Product | None] = fetch_dlsite_html,
 ) -> Lookup:
-    title = cleaned_search_title(str(raw_title or ""))
+    raw = str(raw_title or "")
+    title = cleaned_search_title(raw)
+
+    # The archive filename already contains a DLsite product ID:
+    # do not discard it and perform a noisy search for a translated title.
+    known_codes = tuple(dict.fromkeys(match.group(1).upper()
+                                      for match in CODE_PATTERN.finditer(raw)))
+    if known_codes:
+        found = []
+        warnings = []
+        for code in known_codes[:MAX_CANDIDATES]:
+            try:
+                product = fetcher(code)
+            except Exception as exc:
+                product = None
+                warnings.append(f"{code} 공식 상품 HTML 조회 장애: {type(exc).__name__}")
+            if product is not None and product.code.upper() == code and product.title.strip():
+                found.append(Match(
+                    code, product.title, product.url, product.category,
+                    "filename_code_verified", "dlsite_product_html",
+                    "파일명에 있는 품번을 추출하고 동일 품번의 공식 상품명을 확인함. "
+                    "번역명·파일 내용은 검증하지 않음."))
+            else:
+                found.append(Match(
+                    code, "", "", "", "filename_code_only", "archive_filename",
+                    "파일명에서 품번을 추출함. 공식 상품 정보는 확인하지 못했음."))
+        if len(known_codes) > 1:
+            warnings.append("파일명에 여러 DLsite 품번이 있습니다. 동일 작품 여부를 자동 결정하지 않습니다.")
+        if len(known_codes) > MAX_CANDIDATES:
+            warnings.append("품번이 많아 상위 8개만 표시했습니다.")
+        if any(match.confidence == "filename_code_only" for match in found):
+            warnings.append("파일명에 적힌 품번은 공식 작품번호라고 검증된 것은 아닙니다.")
+        state = ("confirmed" if len(found) == 1 and
+                 found[0].confidence == "filename_code_verified" else "candidates")
+        return Lookup("title_to_code", title or raw, state, tuple(found),
+                      tuple(warnings), providers=())
+
     if not (2 <= len(title) <= 160) or not any(ch.isalpha() for ch in title):
         return Lookup("title_to_code", title, "invalid",
                       warnings=("검색할 작품명을 2~160자로 입력하세요.",))
@@ -253,19 +289,25 @@ def lookup_title(
                 warnings.append(f"{item['code']} 공식 페이지 조회 장애: {type(exc).__name__}")
         if product is not None and product.code.upper() == item["code"]:
             match_quality = _match_score(title, product.title)
+            # A valid product ID is not evidence that the game name matched.
+            # Reject e.g. "NOR"/"REC" website menu recommendations.
+            if max(match_quality, _match_score(title, item["title"])) == 0:
+                continue
             output.append(Match(
                 item["code"], product.title, product.url, product.category,
                 "exact_title" if match_quality == 100 else "official_code",
                 "dlsite_product_html",
                 ("공식 페이지에서 제목 일치" if match_quality == 100 else
-                 "품번·상품명만 공식 확인; 입력 제목과 동일 작품인지 수동 검토 필요")))
-        else:
+                 "품번·상품명 확인; 정식 제목의 일부만 일치하여 수동 검토 필요")))
+        elif _match_score(title, item["title"]) > 0:
             output.append(Match(
                 item["code"], item["title"], item["url"], item["category"],
                 "search_candidate", item["source"],
-                "검색 링크만 수집; 공식 작품 페이지 미확인"))
+                "검색 링크의 제목이 일부 일치하지만 공식 상품 페이지는 미확인"))
+    if not output:
+        warnings.append("웹 검색에 작품 링크가 있었으나 입력 이름과 연관성이 없어 제외했습니다.")
     state = ("confirmed" if any(m.confidence == "exact_title" for m in output)
-             else "candidates")
+             else "candidates" if output else "no_candidate")
     if len(ranked) > MAX_CANDIDATES:
         warnings.append("후보가 많아 상위 8개만 표시했습니다.")
     return Lookup("title_to_code", title, state, tuple(output),
