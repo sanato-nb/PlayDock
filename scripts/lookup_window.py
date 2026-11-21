@@ -14,7 +14,7 @@ import webbrowser
 from urllib.parse import urlencode
 
 from experiments.dlsite_detector.detector import EXACT_CODE
-from experiments.dlsite_detector.search_terms import cleaned_search_title
+from experiments.dlsite_detector.search_terms import cleaned_search_title, title_web_queries
 from experiments.dlsite_detector.archive_input import (
     MAX_BATCH, archive_name, batch_inputs, extract_one_code,
     folder_archive_names, run_lookup, selected_archives,
@@ -333,13 +333,22 @@ class LookupWindow(tk.Tk):
             messagebox.showwarning("입력 없음", "먼저 압축파일을 선택하거나 게임 이름·품번을 입력하세요.")
             return
         if self.mode == "title_to_code":
-            query = cleaned_search_title(value)
-            if not query:
-                messagebox.showwarning("검색어 없음", "게임 이름을 입력하세요.")
-                return
-            url = "https://www.google.com/search?" + urlencode({
-                "q": 'site:dlsite.com "' + query + '"'
-            })
+            # 기존 방식의 site:dlsite.com + 따옴표 제한을 제거한다.
+            # 이미 품번이 있다면 Google을 거치지 않고 공식 상품 URL만 연다.
+            existing_code, _ = extract_one_code(value)
+            if existing_code:
+                section = {"RJ": "maniax", "VJ": "soft", "BJ": "girls",
+                           "EJ": "girls"}.get(existing_code[:2], "maniax")
+                url = (f"https://www.dlsite.com/{section}/work/=/product_id/"
+                       f"{existing_code}.html")
+            else:
+                variants = title_web_queries(value)
+                if not variants:
+                    messagebox.showwarning("검색어 없음", "게임 이름을 입력하세요.")
+                    return
+                url = "https://www.google.com/search?" + urlencode({
+                    "q": variants[0],
+                })
         else:
             code = value.upper()
             if archive_name(code):
