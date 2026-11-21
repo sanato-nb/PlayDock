@@ -72,6 +72,13 @@ def assess_title(query: str, official: str) -> Evidence:
         return Evidence(0, "빈 제목")
     if _conflicts(query, official):
         return Evidence(0, "시리즈 번호 충돌", True, ("series_conflict",))
+    # 'BUZAMA 2' may appear inside 'BUZAMA 20 RJ...' after stripping spaces.
+    # Never match a numeric title prefix to a different series number.
+    if left[-1:].isdigit() and left in right:
+        positions = [m.start() for m in re.finditer(re.escape(left), right)]
+        if positions and all((p + len(left) < len(right) and
+                              right[p + len(left)].isdigit()) for p in positions):
+            return Evidence(0, "시리즈 번호 접두어 충돌", True, ("series_conflict",))
     if left == right:
         return Evidence(100, "정규화한 작품명 완전 일치", signals=("exact_title",))
     # A 2-digit title must not match 20 as a prefix. Series conflict above
