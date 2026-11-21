@@ -40,6 +40,7 @@ class Lookup:
     matches: tuple[Match, ...] = ()
     warnings: tuple[str, ...] = ()
     providers: tuple[dict, ...] = ()
+    input_origin: str = "manual"  # archive / manual
 
     def to_dict(self) -> dict:
         return asdict(self)
