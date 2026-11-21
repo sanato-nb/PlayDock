@@ -86,6 +86,14 @@ def main():
         probe(label, url)
     # 헤더가 원인인지 동등한 공개 GET 요청으로만 비교. 쿠키/로그인/우회 없음.
     probe("maniax-search", probes[1][1], browser_headers=True)
+    # Search route-space encoding A/B test, one public title, same language/category.
+    for label, path in [
+        ("space-percent20", "Stardew%20Valley"),
+        ("space-plus", "Stardew+Valley"),
+        ("space-hyphen", "Stardew-Valley"),
+    ]:
+        probe(label, "https://www.dlsite.com/maniax/fsr/=/language/jp/keyword/" + path + "/")
+
     # Read/parse with the actual PlayDock code path (not just urllib).
     from experiments.dlsite_detector.reverse_lookup import search_catalog_html
     from experiments.dlsite_detector.no_api_html import _fetch_html, PublicHtmlUnavailable
