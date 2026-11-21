@@ -15,6 +15,10 @@ from urllib.parse import urlencode
 
 from experiments.dlsite_detector.detector import EXACT_CODE
 from experiments.dlsite_detector.search_terms import cleaned_search_title
+from experiments.dlsite_detector.archive_input import (
+    MAX_BATCH, archive_name, batch_inputs, extract_one_code,
+    folder_archive_names, run_lookup, selected_archives,
+)
 
 from experiments.dlsite_detector.reverse_lookup import (
     Lookup, lookup_code, lookup_title, parse_catalog_links,
@@ -33,12 +37,12 @@ CONFIDENCE_KO = {
 CONFIG = {
     "title_to_code": (
         "PlayDock — 이름으로 DLsite 품번 찾기",
-        "게임 이름을 한 줄에 하나씩 입력하세요. 파일명(.zip/.7z/.rar)도 가능합니다.",
+        "ZIP/7z/RAR 압축파일을 여러 개 선택하거나 게임 이름을 직접 입력할 수 있습니다.",
         "예: 작품명 또는 Game Name [v1.2].zip",
     ),
     "code_to_title": (
         "PlayDock — DLsite 품번으로 이름 찾기",
-        "DLsite RJ/VJ/BJ/EJ 품번을 한 줄에 하나씩 입력하세요.",
+        "ZIP/7z/RAR 파일명에서 RJ/VJ/BJ/EJ 품번을 읽거나 품번을 직접 입력할 수 있습니다.",
         "예: RJ12345678",
     ),
 }
@@ -55,6 +59,7 @@ class LookupWindow(tk.Tk):
         self.messages = Queue()
         self.cancel = Event()
         self.results: list[Lookup] = []
+        self.selected_files: list[str] = []
         self.busy = False
         self.selection_urls: dict[str, str] = {}
 
@@ -68,7 +73,32 @@ class LookupWindow(tk.Tk):
         self.input.pack(fill="x")
         self.input.insert("1.0", "")
         self.input.configure(font=("맑은 고딕", 10))
-        ttk.Label(outer, text=example, foreground="#666").pack(anchor="w", pady=(3, 8))
+        ttk.Label(outer, text=example, foreground="#666").pack(anchor="w", pady=(3, 5))
+
+        filebar = ttk.Frame(outer)
+        filebar.pack(fill="x", pady=(0, 4))
+        self.file_picker = ttk.Button(
+            filebar, text="압축파일 선택 (여러 개 가능)", command=self.choose_archives)
+        self.file_picker.pack(side="left")
+        self.folder_picker = ttk.Button(
+            filebar, text="폴더 내 압축파일 선택", command=self.choose_folder)
+        self.folder_picker.pack(side="left", padx=(6, 0))
+        self.remove_picker = ttk.Button(
+            filebar, text="선택 목록에서 제거", command=self.remove_selected_files)
+        self.remove_picker.pack(side="left", padx=(6, 0))
+        self.file_count = tk.StringVar(value="선택한 압축파일: 0개")
+        ttk.Label(filebar, textvariable=self.file_count).pack(side="right")
+
+        selected_frame = ttk.Frame(outer)
+        selected_frame.pack(fill="x", pady=(0, 6))
+        self.file_list = tk.Listbox(
+            selected_frame, height=4, selectmode="extended", exportselection=False)
+        self.file_list.pack(side="left", fill="x", expand=True)
+        file_scroll = ttk.Scrollbar(selected_frame, orient="vertical",
+                                    command=self.file_list.yview)
+        file_scroll.pack(side="right", fill="y")
+        self.file_list.configure(yscrollcommand=file_scroll.set)
+        self.file_controls = (self.file_picker, self.folder_picker, self.remove_picker)
 
         controls = ttk.Frame(outer)
         controls.pack(fill="x", pady=(0, 6))
@@ -76,8 +106,9 @@ class LookupWindow(tk.Tk):
         self.start.pack(side="left")
         self.stop = ttk.Button(controls, text="중단", command=self.cancel.set, state="disabled")
         self.stop.pack(side="left", padx=(6, 0))
-        ttk.Button(controls, text="입력 지우기",
-                   command=lambda: self.input.delete("1.0", "end")).pack(side="left", padx=6)
+        self.clear_button = ttk.Button(
+            controls, text="입력 모두 지우기", command=self.clear_inputs)
+        self.clear_button.pack(side="left", padx=6)
         ttk.Button(controls, text="브라우저에서 직접 찾기",
                    command=self.open_browser_search).pack(side="left", padx=6)
         self.json_btn = ttk.Button(controls, text="JSON 저장", command=self.save_json, state="disabled")
@@ -110,15 +141,75 @@ class LookupWindow(tk.Tk):
         self.details.pack(fill="x")
         self.after(100, self._poll)
 
+    def choose_archives(self):
+        """다중 선택 창: 파일 *경로*를 받더라도 basename만 보관한다."""
+        if self.busy:
+            return
+        paths = filedialog.askopenfilenames(
+            title="검색할 게임 압축파일 선택 (복수 선택 가능)",
+            filetypes=[
+                ("게임 압축파일", "*.zip *.7z *.rar"),
+                ("ZIP", "*.zip"), ("7z", "*.7z"), ("RAR", "*.rar"),
+            ],
+        )
+        self._append_files(selected_archives(paths))
+
+    def choose_folder(self):
+        """폴더 바로 아래의 압축파일 이름만 수집한다. 내부 파일 내용은 미검사."""
+        if self.busy:
+            return
+        path = filedialog.askdirectory(title="압축파일이 있는 폴더 선택")
+        if not path:
+            return
+        try:
+            names = folder_archive_names(path)
+        except OSError as exc:
+            messagebox.showerror("폴더 읽기 실패", str(exc))
+            return
+        if not names:
+            messagebox.showinfo("압축파일 없음", "해당 폴더에 ZIP/7z/RAR 파일이 없습니다.")
+            return
+        self._append_files(names)
+
+    def _append_files(self, names):
+        if not names:
+            return
+        if len(self.selected_files) + len(names) > MAX_BATCH:
+            messagebox.showwarning(
+                "선택 제한", f"압축파일은 한 번에 최대 {MAX_BATCH}개까지 선택할 수 있습니다.")
+            return
+        for name in names:
+            self.selected_files.append(name)
+            self.file_list.insert("end", name)
+        self.file_count.set(f"선택한 압축파일: {len(self.selected_files)}개")
+        self.status.set(f"압축파일 {len(self.selected_files)}개 준비 · 검색 시작을 누르세요.")
+
+    def remove_selected_files(self):
+        if self.busy:
+            return
+        for index in reversed(self.file_list.curselection()):
+            self.file_list.delete(index)
+            del self.selected_files[index]
+        self.file_count.set(f"선택한 압축파일: {len(self.selected_files)}개")
+
+    def clear_inputs(self):
+        if self.busy:
+            return
+        self.input.delete("1.0", "end")
+        self.file_list.delete(0, "end")
+        self.selected_files.clear()
+        self.file_count.set("선택한 압축파일: 0개")
+
     def run_search(self):
         if self.busy:
             return
-        lines = [v.strip() for v in self.input.get("1.0", "end").splitlines() if v.strip()]
-        if not lines:
-            messagebox.showwarning("검색어 없음", "이름이나 품번을 입력하세요.")
+        try:
+            items = batch_inputs(self.input.get("1.0", "end"), self.selected_files)
+        except ValueError as exc:
+            messagebox.showwarning("입력 제한", str(exc))
             return
-        if len(lines) > 100:
-            messagebox.showwarning("입력 제한", "한 번에 최대 100개까지 검사할 수 있습니다.")
+        if not items:
+            messagebox.showwarning("검색어 없음", "압축파일을 선택하거나 이름·품번을 입력하세요.")
             return
         self.results.clear()
         self.selection_urls.clear()
@@ -128,21 +219,25 @@ class LookupWindow(tk.Tk):
         self.cancel.clear()
         self.busy = True
         self.start.configure(state="disabled")
+        self.clear_button.configure(state="disabled")
+        for button in self.file_controls:
+            button.configure(state="disabled")
         self.stop.configure(state="normal")
         self.json_btn.configure(state="disabled")
         self.csv_btn.configure(state="disabled")
-        Thread(target=self._search_worker, args=(lines,), daemon=True).start()
+        Thread(target=self._search_worker, args=(items,), daemon=True).start()
 
-    def _search_worker(self, lines: list[str]):
-        for i, value in enumerate(lines):
+    def _search_worker(self, items):
+        for i, item in enumerate(items):
             if self.cancel.is_set():
                 break
             try:
-                result = lookup_title(value) if self.mode == "title_to_code" else lookup_code(value)
+                result = run_lookup(item, self.mode)
             except Exception as exc:
-                result = Lookup(self.mode, value, "unavailable",
-                                warnings=("처리 오류: " + type(exc).__name__,))
-            self.messages.put(("result", result, i + 1, len(lines)))
+                result = Lookup(self.mode, item.label, "unavailable",
+                                warnings=("처리 오류: " + type(exc).__name__,),
+                                input_origin=item.origin)
+            self.messages.put(("result", result, i + 1, len(items)))
         self.messages.put(("done",))
 
     def _poll(self):
@@ -173,6 +268,9 @@ class LookupWindow(tk.Tk):
                 elif msg[0] == "done":
                     self.busy = False
                     self.start.configure(state="normal")
+                    self.clear_button.configure(state="normal")
+                    for button in self.file_controls:
+                        button.configure(state="normal")
                     self.stop.configure(state="disabled")
                     self.json_btn.configure(state="normal" if self.results else "disabled")
                     self.csv_btn.configure(state="normal" if self.results else "disabled")
@@ -192,6 +290,10 @@ class LookupWindow(tk.Tk):
                       if m.code == values[2] and m.title == values[3]), None)
         record = next((r for r in self.results if r.query == values[0]), None)
         lines = [f"입력: {values[0]}", f"상태: {values[1]}"]
+        if record:
+            lines.append("입력 방식: " + (
+                "선택한 압축파일 이름만 사용" if record.input_origin == "archive"
+                else "직접 입력"))
         if match:
             lines += [f"품번: {match.code}", f"제목: {match.title}",
                       f"검증: {CONFIDENCE_KO.get(match.confidence, match.confidence)}",
@@ -234,6 +336,11 @@ class LookupWindow(tk.Tk):
             })
         else:
             code = value.upper()
+            if archive_name(code):
+                code, warning = extract_one_code(code)
+                if warning:
+                    messagebox.showwarning("품번 미확인", warning)
+                    return
             if not EXACT_CODE.fullmatch(code):
                 messagebox.showwarning("품번 형식 오류", "RJ/VJ/BJ/EJ + 숫자 6~8자리로 입력하세요.")
                 return
@@ -251,8 +358,9 @@ class LookupWindow(tk.Tk):
         if path:
             payload = {"program": "PlayDock " + self.mode, "mode": self.mode,
                        "created_at_local": datetime.now().astimezone().isoformat(),
-                       "api_used": False, "results": [r.to_dict() for r in self.results],
-                       "notice": "HTML 검증 결과이며 로컬 게임 파일 내용은 검사하지 않았습니다."}
+                       "api_used": False, "archive_contents_inspected": False,
+                       "results": [r.to_dict() for r in self.results],
+                       "notice": "선택한 압축파일의 이름만 사용; 압축파일 내부 미검사."}
             try:
                 Path(path).write_text(json.dumps(payload, ensure_ascii=False, indent=2),
                                       encoding="utf-8")
@@ -269,10 +377,10 @@ class LookupWindow(tk.Tk):
             try:
                 with open(path, "w", encoding="utf-8-sig", newline="") as fp:
                     writer = csv.writer(fp)
-                    writer.writerow(["입력", "상태", "품번", "상품명", "검증 수준", "출처", "URL", "경고"])
+                    writer.writerow(["입력", "입력 방식", "상태", "품번", "상품명", "검증 수준", "출처", "URL", "경고"])
                     for r in self.results:
                         for m in r.matches or (None,):
-                            writer.writerow([r.query, r.status,
+                            writer.writerow([r.query, r.input_origin, r.status,
                                              m.code if m else "", m.title if m else "",
                                              m.confidence if m else "",
                                              m.source if m else "", m.url if m else "",
@@ -285,6 +393,10 @@ def self_test(mode: str) -> int:
     """빌드 EXE 자체 확인: 인터넷 접속하지 않음."""
     assert mode in CONFIG
     assert lookup_code("RJINVALID").status == "invalid"
+    from experiments.dlsite_detector.archive_input import batch_inputs, extract_one_code
+    items = batch_inputs("", [r"C:\\Games\\My Game [RJ123456].zip"])
+    assert items[0].label == "My Game [RJ123456].zip"
+    assert extract_one_code(items[0].label)[0] == "RJ123456"
     sample = ('<a href="/maniax/work/=/product_id/RJ123456.html">'
               '<img alt="Example Work"></a>')
     items = parse_catalog_links(sample, "https://www.dlsite.com/maniax/fsr/=/")
