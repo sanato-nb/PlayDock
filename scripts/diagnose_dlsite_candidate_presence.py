@@ -7,26 +7,34 @@ from experiments.dlsite_detector.reverse_lookup import search_catalog_html
 from experiments.dlsite_detector.no_api_html import fetch_dlsite_html
 
 def main():
-    for query, expected in (
+    import time
+    variants = (
         ("BUZAMA 2", "RJ01052720"),
+        ("BUZAMA2", "RJ01052720"),
         ("BUZAMA 3", "RJ01305436"),
+        ("BUZAMA3", "RJ01305436"),
+        ("BUZAMA", "RJ01305436"),
         ("Project Dungeon", ""),
-    ):
+        ("ProjectDungeon", ""),
+    )
+    for query, expected in variants:
         try:
             rows = search_catalog_html(query, "maniax", timeout=7)
             ids = [r["code"] for r in rows]
-            print("PRESENCE", repr(query), "scoped_cards", len(ids),
-                  "historic_candidate_in_first_page", expected in ids if expected else "unknown",
-                  flush=True)
+            pos = (ids.index(expected) + 1 if expected and expected in ids
+                   else 0 if expected else "unknown")
+            print("VARIANT", repr(query), "cards", len(ids),
+                  "known_code_rank",pos,flush=True)
         except Exception as exc:
-            print("PRESENCE", repr(query), "error", type(exc).__name__,flush=True)
-        if expected:
-            try:
-                product = fetch_dlsite_html(expected,timeout=4)
-                print("PRODUCT",expected,"official_page_title_available",
-                      bool(product and product.title),flush=True)
-            except Exception as exc:
-                print("PRODUCT",expected,"error",type(exc).__name__,flush=True)
+            print("VARIANT",repr(query),"error",type(exc).__name__,flush=True)
+        time.sleep(.45)
+    for code in ("RJ01052720", "RJ01305436"):
+        try:
+            product = fetch_dlsite_html(code,timeout=4)
+            print("PRODUCT",code,"official_page_title_available",
+                  bool(product and product.title),flush=True)
+        except Exception as exc:
+            print("PRODUCT",code,"error",type(exc).__name__,flush=True)
 
 if __name__ == "__main__":
     main()
