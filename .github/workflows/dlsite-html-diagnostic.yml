@@ -20,4 +20,4 @@ jobs:
           python-version: "3.12"
       - name: DLsite 공개 HTML HTTP 코드 확인
         shell: pwsh
-        run: python scripts/diagnose_dlsite_http.py
+        run: python -m scripts.diagnose_dlsite_http
