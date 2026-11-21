@@ -53,7 +53,7 @@ def test_search_catalog_escapes_path_injection():
         seen.append(request.full_url)
         return Response(request.full_url, "<html>No matches</html>")
     assert search_catalog_html("Title /?code=1", "home", opener=opener) == []
-    assert "/keyword/Title%20%2F%3Fcode%3D1/" in seen[0]
+    assert "/keyword/Title+%2F%3Fcode%3D1/" in seen[0]
     assert "/api/" not in seen[0]
 
 
