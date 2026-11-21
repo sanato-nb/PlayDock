@@ -1,6 +1,6 @@
 name: PlayDock 이름-품번 양방향 검색기 Windows 검증판
 
-# v7 후보 진단/이력 검사 재실행 후 수동 워크플로로 복원.
+# v8 실제 결과 카드 구조·후보 평가 검증 후 수동 워크플로로 복원.
 on:
   push:
     branches: [experiment-bidirectional-lookup-20261121]
@@ -61,7 +61,16 @@ jobs:
               print("BING_RSS_SMOKE", type(exc).__name__, ascii(str(exc))[:160], flush=True)
           try:
               rows = search_catalog_html("Stardew Valley", "maniax", timeout=3.0)
-              print("DLSITE_HTML_SMOKE", "ok", len(rows), flush=True)
+              scoped = sum(r.get("scope") == "search_result" for r in rows)
+              print("DLSITE_HTML_SMOKE", "ok", len(rows), "actual_result_cards", scoped, flush=True)
+              assert scoped == len(rows)
+              from experiments.dlsite_detector.candidate_scoring import assess_title
+              for query in ("BUZAMA 3", "Project Dungeon"):
+                  rows2 = search_catalog_html(query, "maniax", timeout=4.0)
+                  scores = [assess_title(query, r["title"]).score for r in rows2]
+                  print("DLSITE_V8_PROBE", ascii(query), "cards", len(rows2),
+                        "related_by_title", sum(s>0 for s in scores),
+                        "best_score", max(scores, default=0), flush=True)
           except Exception as exc:
               print("DLSITE_HTML_SMOKE", type(exc).__name__, ascii(str(exc))[:160], flush=True)
           '@ | python -
