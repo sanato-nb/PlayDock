@@ -132,3 +132,18 @@
 - 품번→이름 EXE SHA256: `c087f5eddf804869d456cf0b670f5e9946186d7f9afb6af7a440cef20d9cd0ef`
 - **실접속 스모크 실패:** GitHub Windows runner에서 `DDGS_META_SMOKE PublicHtmlUnavailable 'DDGS 검색 실패: DDGSException'`; Bing/Google HTML 후보 0건; DLsite HTML 접근 오류. CI의 웹 검색 가능성은 확인되지 않았으며 Windows 사용자의 네트워크에서 달라질 수 있음.
 - 실측 성공률은 사용자 네트워크에서 실행한 새 JSON 제출 전까지 미측정.
+
+
+## 2026-11-21 오후 — 실제 129개 재시험 분석 및 메타검색 백엔드 분리
+
+- 제출된 JSON: `PlayDock_title_to_code_no_api(2).json` (사용자 파일 원문은 저장소에 포함하지 않음).
+- 검사 129개 중 파일명에 공식 형식 품번 89개, 미포함 40개. 상태는 **confirmed 87, candidates 2, unavailable 32, no_candidate 8**.
+- 이전 `(1).json`과 품번 없는 40개의 상태·결과 완전 동일: **이름만으로 신규 품번 0/40**.
+- DDGS 메타검색 **43번 시도, 전부 `PublicHtmlUnavailable`** (40개 파일 중 3개는 영문 별칭 2회 검색).
+- Bing/Google HTML 각 43회 페이지 응답을 얻었지만 품번 후보 추출 0건. 이는 Google의 검색 결과 전체가 0건이라는 뜻은 아님.
+- DLsite 공식 검색(미포함 40개 × 4 카테고리) 160회 중 128회 오류. 32회는 HTML 응답은 얻었으나 연관 작품 후보는 없음.
+- 첫판 실사용 실패 원인 추적을 위해 여러 DDGS 백엔드를 한 번에 조회하던 방식에서 **duckduckgo → brave → bing 독립 조회**로 변경. 한 엔진의 예외가 다른 엔진의 결과를 버리지 않게 했음.
+- 전부 실패하면 엔진별 오류 유형을 `providers[].detail`과 warnings에 남기도록 변경. 쿼리 원문·사용자 경로·예외 본문은 추가 로그에 저장하지 않음.
+- Windows Actions [#44874163731](https://github.com/sanato-nb/PlayDock/actions/runs/44874163731) 성공, **83개 회귀 테스트 통과**, Windows EXE 두 개 빌드 및 자체 진단 성공. ZIP Artifact [#14694958498](https://github.com/sanato-nb/PlayDock/actions/runs/44874163731/artifacts/14694958498), SHA256 `f4af5b9328aeea70f4ae2c012bd26cf48f437f5150873fff8fc9c12fc981e182`.
+- 단, GitHub runner 실제 검색에서는 **duckduckgo/brave/bing 세 백엔드 모두 `DDGSException`**. 따라서 원인 구분은 개선됐으나, **실제 검색 성공률 향상은 미증명**.
+- 다음 검증 우선순위: (1) 사용자 Windows 네트워크에서 엔진별 장애명 수집, (2) 데이터 수집 경로(API 키 선택형 무료 서비스 포함) 검증, (3) 이름 일치·코드 공식 확인 분리 유지. 
