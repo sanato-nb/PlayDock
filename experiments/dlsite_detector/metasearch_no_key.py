@@ -14,11 +14,11 @@ MAX_WEB_RESULTS = 12
 MAX_TITLE = 240
 MAX_SUMMARY = 420
 # Google 자동수집은 이용약관 제약이 있으므로 제외한다.
-BACKENDS = "duckduckgo,brave,bing"
+BACKENDS = ("duckduckgo", "brave", "bing")
 
 
 def search_meta_no_key(
-    query: str, *, searcher=None, timeout: int = 5,
+    query: str, *, searcher=None, timeout: int = 5, ddgs_factory=None,
 ) -> list[dict]:
     """자동 웹 검색 결과의 제목/설명/URL을 반환. API 토큰과 브라우저 조작 불필요.
 
@@ -27,17 +27,35 @@ def search_meta_no_key(
     if not isinstance(query, str) or not 2 <= len(query) <= 160:
         return []
     if searcher is None:
-        try:
-            from ddgs import DDGS
-        except ImportError as exc:
-            raise PublicHtmlUnavailable("DDGS 미설치") from exc
-        try:
-            rows = DDGS(timeout=timeout).text(
-                query, region="kr-kr", safesearch="off",
-                max_results=MAX_WEB_RESULTS, backend=BACKENDS,
-            )
-        except Exception as exc:
-            raise PublicHtmlUnavailable("DDGS 검색 실패: " + type(exc).__name__) from exc
+        if ddgs_factory is None:
+            try:
+                from ddgs import DDGS
+                ddgs_factory = DDGS
+            except ImportError as exc:
+                raise PublicHtmlUnavailable("DDGS 미설치") from exc
+        # 한 번에 여러 백엔드를 지정하면 한 엔진의 오류로 다른 결과까지
+        # 사라질 수 있다. 서로 독립적으로 검색하고 첫 유효 응답을 사용한다.
+        failures = []
+        successful = 0
+        rows = []
+        for backend in BACKENDS:
+            try:
+                candidate = ddgs_factory(timeout=timeout).text(
+                    query, region="kr-kr", safesearch="off",
+                    max_results=MAX_WEB_RESULTS, backend=backend,
+                )
+                if not isinstance(candidate, (list, tuple)):
+                    raise ValueError("검색 응답 형식 오류")
+                successful += 1
+                if candidate:
+                    rows = candidate
+                    break
+            except Exception as exc:
+                # 개인 경로/HTML/검색어 원문을 오류 로그에 넣지 않는다.
+                failures.append(backend + ":" + type(exc).__name__)
+        if not rows and not successful:
+            raise PublicHtmlUnavailable("DDGS 백엔드 전체 실패 (" +
+                                        ", ".join(failures) + ")")
     else:
         rows = searcher(query)
 
