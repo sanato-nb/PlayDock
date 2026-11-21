@@ -163,3 +163,17 @@
 - ZIP SHA256 `05376b1c64b836f175ccffda21d19c56e8cd2cc4e19bc205dbf3ba7c88f8c26b`
 - 실제 인터넷 스모크: 일반 검색어 `Stardew Valley game`에서 **DDGS 9건**, **Bing RSS 10건** 수집. Google/Bing HTML 0개 유효품번, DLsite 공식 HTML은 HTTP 오류. 수집 건수는 게임 품번 정답률 아님.
 - 따라서 *검색 결과 자체를 자동으로 수집하는 기술적 장애는 일부 개선*되었지만, 실제 사용자 무품번 40개 정확도/확정률은 새 JSON 검사 전까지 미측정.
+
+## 2026-11-21 — DLsite 직접 검색 HTTP 403 원인 규명 및 수정
+
+- 문제: 일부 사용자 JSON에서 DLsite 카테고리 검색이 `PublicHtmlUnavailable`로만 남아 구체적 오류가 누락됨. 파일명에 RJ 품번이 없는 40개 중 공식 카탈로그 검색 156회에서 오류 124회, 정상 응답 32회(최신 사용자 JSON 기준).
+- GitHub Windows 실접속에서 원래 PlayDock의 `keyword/Stardew%20Valley/` 요청은 **HTTP 403**으로 확인됨.
+- 동일 검색어의 `keyword/Stardew+Valley/` 요청은 **HTTP 200**, 검색 페이지 HTML 정상 수신.
+- `RPG`·`NOR` 등 공백 없는 검색어는 기존 코드에서도 각 DLsite 카테고리 정상 검색, 존재하지 않는 단일 문자열은 정상 0건. 따라서 검색어의 공백을 URL 경로에 `%20`으로 표현한 것이 주요 오류 원인.
+- 수정: `reverse_lookup.search_catalog_html`에서 `quote(title, safe='').replace('%20', '+')` 적용. 특수문자 및 문자열 내부 리터럴 `+`는 올바르게 퍼센트 인코딩하여 검색.
+- 오류 개선: `_fetch_html`에서 HTTP 403/404/429 등 실제 코드를 `PublicHtmlUnavailable('HTTP 403')`처럼 보존. 결과 JSON의 공식 DLsite `providers[].detail`에도 표시.
+- 검증: 같은 `Stardew Valley` 검색의 Windows 실접속이 수정 후 `DLSITE_HTML_SMOKE ok 3`으로 변경. 테스트 103개 통과, 독립 EXE 2개 빌드/자체 진단 성공.
+- URL A/B 진단: [GitHub Actions #44901984614](https://github.com/sanato-nb/PlayDock/actions/runs/44901984614)
+- 수정판 EXE 검증: [GitHub Actions #44902217713](https://github.com/sanato-nb/PlayDock/actions/runs/44902217713)
+- 아티팩트: `PlayDock-Two-Way-Lookup-No-API-Windows` (ID `14706730276`, SHA256 `1aeae81e08aac1cebec6021309bfe9051edc9bf49abf1b6d0bc614bd8ff07bfb`)
+- 주의: 이 원인이 모든 사용자 네트워크의 검색 장애를 설명한다고 단정하지 않음. 수정판 실제 사용자 40개 무품번 검색 성공률은 새 JSON으로 재측정해야 함.
