@@ -17,4 +17,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Google 실제 공개 검색 응답 검사
+        env:
+          PYTHONIOENCODING: utf-8
         run: python -m scripts.diagnose_google_html_fallback
