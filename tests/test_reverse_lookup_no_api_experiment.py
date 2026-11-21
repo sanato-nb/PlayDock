@@ -117,8 +117,9 @@ def test_title_lookup_keeps_unmatched_name_as_candidate():
                 if category == "maniax" else [])
     result = lookup_title("Different Work", catalog_search=search,
                           fetcher=lambda code: product(code))
-    assert result.status == "candidates"
-    assert result.matches[0].confidence == "official_code"
+    assert result.status == "no_candidate"
+    assert result.matches == ()
+    assert any("연관성이 없어 제외" in w for w in result.warnings)
 
 
 def test_title_lookup_keeps_search_candidate_when_product_html_blocked():
