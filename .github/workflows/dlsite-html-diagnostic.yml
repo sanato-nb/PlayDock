@@ -5,6 +5,7 @@ on:
       - experiment-bidirectional-lookup-20261121
     paths:
       - ".github/workflows/dlsite-html-diagnostic.yml"
+      - "scripts/diagnose_dlsite_http.py"
   workflow_dispatch:
 permissions:
   contents: read
