@@ -166,7 +166,7 @@ class _WebCodeAnchors(HTMLParser):
 
     def handle_endtag(self, tag):
         if tag == "a" and self.current is not None:
-            title = re.sub(r"\\s+", " ", " ".join(self.current["text"])).strip()
+            title = re.sub(r"\s+", " ", " ".join(self.current["text"])).strip()
             if title and CODE_PATTERN.search(title):
                 self.rows.append({"title": title[:240], "url": self.current["href"]})
             self.current = None
