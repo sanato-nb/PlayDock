@@ -84,7 +84,8 @@ def run_lookup(
         if item.origin == "archive":
             code, warning = extract_one_code(item.value)
             if warning:
-                return Lookup("code_to_title", item.label, "invalid", warnings=(warning,))
+                return Lookup("code_to_title", item.label, "invalid", warnings=(warning,),
+                              input_origin=item.origin)
         else:
             code = item.value
         result = code_lookup(code)
