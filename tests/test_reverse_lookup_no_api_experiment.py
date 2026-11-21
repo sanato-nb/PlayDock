@@ -38,8 +38,11 @@ def test_search_catalog_extracts_official_links_without_api_calls():
     def opener(request, timeout):
         calls.append(request.full_url)
         return Response(request.full_url,
+                        '<div id="search_result_list"><ul class="n_worklist" '
+                        'id="search_result_img_box"><li class="search_result_img_box_inner">'
+                        '<dd class="work_name"><div class="multiline_truncate">'
                         '<a href="/maniax/work/=/product_id/RJ123456.html">'
-                        '<img alt="My Game"></a>'
+                        '<img alt="My Game"></a></div></dd></li></ul></div>'
                         '<a href="/maniax/help/">Help</a>')
     rows = search_catalog_html("My Game", "maniax", opener=opener)
     assert [row["code"] for row in rows] == ["RJ123456"]
