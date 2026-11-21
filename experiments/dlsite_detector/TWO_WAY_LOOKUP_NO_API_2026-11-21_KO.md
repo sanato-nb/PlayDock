@@ -147,3 +147,19 @@
 - Windows Actions [#44874163731](https://github.com/sanato-nb/PlayDock/actions/runs/44874163731) 성공, **83개 회귀 테스트 통과**, Windows EXE 두 개 빌드 및 자체 진단 성공. ZIP Artifact [#14694958498](https://github.com/sanato-nb/PlayDock/actions/runs/44874163731/artifacts/14694958498), SHA256 `f4af5b9328aeea70f4ae2c012bd26cf48f437f5150873fff8fc9c12fc981e182`.
 - 단, GitHub runner 실제 검색에서는 **duckduckgo/brave/bing 세 백엔드 모두 `DDGSException`**. 따라서 원인 구분은 개선됐으나, **실제 검색 성공률 향상은 미증명**.
 - 다음 검증 우선순위: (1) 사용자 Windows 네트워크에서 엔진별 장애명 수집, (2) 데이터 수집 경로(API 키 선택형 무료 서비스 포함) 검증, (3) 이름 일치·코드 공식 확인 분리 유지. 
+
+## 2026-11-21 — 다국어 제목 후보 및 Bing RSS 자동 검색 강화
+
+- 사전 실사용 JSON: 129개 중 파일명 품번 89개, 품번 없는 파일 40개(신규 검색 성공 0개).
+- 개선: 병기된 한국어·영문·일본어 제목을 분리해 각각 검색하는 `multilingual_search.py` 추가.
+- HTML/DDGS/RSS 결과에 명시적으로 소개된 `원제/原題/Japanese title`만 추출해 추가 일본어 제목 검색. 번역 API나 추측 일본어 제목 생성 없음.
+- DLsite 카탈로그 첫 번째 제목만 검색하던 병목 개선: 언어별 제목과 발견한 일본어 원제를 최대 8회 검색 예산 내에서 재조회.
+- 품번이 없는 파일에서 Bing 검색 RSS의 XML 결과 제목/링크/요약문을 자동 수집하는 `bing_rss.py` 추가, 실패 시 기존 HTML 경로로 폴백.
+- 웹 원제와 공식 일본어 작품명이 같은 경우도, 한국어 번역명과의 연결이 자동 확정될 수 없으므로 후보로 남기는 규칙 유지.
+- 기존 파일명 품번 직접 확인 분기 유지. ZIP/7z/RAR 내부 목록은 이 독립 검색 실험판에서는 열지 않음.
+- 자동 회귀 검사 97개 통과, Windows PyInstaller 독립 EXE 두 개 빌드·자체 진단 완료.
+- GitHub Actions: [#44884224434](https://github.com/sanato-nb/PlayDock/actions/runs/44884224434)
+- Artifact [#14699142852](https://github.com/sanato-nb/PlayDock/actions/runs/44884224434/artifacts/14699142852)
+- ZIP SHA256 `05376b1c64b836f175ccffda21d19c56e8cd2cc4e19bc205dbf3ba7c88f8c26b`
+- 실제 인터넷 스모크: 일반 검색어 `Stardew Valley game`에서 **DDGS 9건**, **Bing RSS 10건** 수집. Google/Bing HTML 0개 유효품번, DLsite 공식 HTML은 HTTP 오류. 수집 건수는 게임 품번 정답률 아님.
+- 따라서 *검색 결과 자체를 자동으로 수집하는 기술적 장애는 일부 개선*되었지만, 실제 사용자 무품번 40개 정확도/확정률은 새 JSON 검사 전까지 미측정.
