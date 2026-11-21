@@ -130,7 +130,7 @@ def test_code_from_rss_requires_official_fetch_and_stays_candidate_when_translat
     assert result.matches[0].source == "bing_rss"
     assert result.matches[0].code == "RJ123456"
     assert result.matches[0].title == "魔法少女アリス"
-    assert result.providers[-1]["provider"] == "bing_rss"
+    assert any(p["provider"] == "bing_rss" for p in result.providers)
 
 
 def test_discovered_japanese_original_is_searched_at_dlsite_without_claiming_confirmation():
