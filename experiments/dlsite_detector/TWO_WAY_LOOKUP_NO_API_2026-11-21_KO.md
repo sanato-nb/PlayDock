@@ -112,3 +112,23 @@
 - `PlayDock-Name-to-Code.exe` SHA256: `c8298a35913e152cf990fd0a00771780736659c5d3357e050e7d011efbe1ab5d`.
 - `PlayDock-Code-to-Name.exe` SHA256: `1d48f1b9a42682050a113490900201c626860900bfa4693c7341ea8dd6ad3b06`.
 - 실접속 스모크: Bing/Google HTML 작품링크 후보 0건, DLsite 검색 페이지 `PublicHtmlUnavailable/HTTPError`. **실제 검색 성공률 향상 증거가 아니다.**
+
+## 2026-11-21 — 사람 조작 없는 자동 이름 검색 실험판
+
+- 목적: URL 브라우저만 열지 않고, 사용자 조작 없이 검색 → 결과 제목/요약 수집 → 품번 추출 → DLsite 재확인.
+- 이름에 RJ/VJ/BJ/EJ가 있는 파일은 기존처럼 DLsite 공식 작품 HTML 직접 조회. 웹 메타검색을 건너뜀.
+- 품번이 없는 파일에 한해 `metasearch_no_key.py`에서 `ddgs`로 키 없는 자동 검색을 시도. `backend="duckduckgo,brave,bing"`이며 Google 웹 자동스크래핑은 하지 않음.
+- 검색 결과의 `title`, `body` 및 `href`를 합쳐서 검색 대상 제목에 대응하는 RJ 품번 1개를 찾고, 반드시 공식 DLsite HTML을 재확인함.
+- 공식 등록된 품번이 확인되어도 한국어 번역명과 일본어 작품명의 대응이 추가 검증되지 않았으면 `candidates` 상태를 유지.
+- DDGS가 차단/실패하면 `providers`에 `ddgs_meta` 장애를 기록하고 기존 DLsite/HTML 검색으로 폴백. 검색 실패를 상품 부재로 단정하지 않음.
+- 압축파일 내부 증거는 현재 미분석. 실제 결과 129개 재시험 전까지 정확도 개선은 입증되지 않음.
+
+### 실제 CI 결과
+
+- Windows Actions: [#44867846556](https://github.com/sanato-nb/PlayDock/actions/runs/44867846556), 성공. **80개 테스트 통과**, Windows 독립 EXE 두 개 PyInstaller 빌드 및 자체 진단 완료.
+- Artifact: [#14691709447](https://github.com/sanato-nb/PlayDock/actions/runs/44867846556/artifacts/14691709447)
+- ZIP SHA256: `bd36a58189bfefa5e45e794841fa31f179c4e1b81025d0b8617e033db76c28ac`
+- 이름→품번 EXE SHA256: `b37622783664ec47e1115fe5ca8bf20074887bf4c996c3b56b157bd9ff3be7cf`
+- 품번→이름 EXE SHA256: `c087f5eddf804869d456cf0b670f5e9946186d7f9afb6af7a440cef20d9cd0ef`
+- **실접속 스모크 실패:** GitHub Windows runner에서 `DDGS_META_SMOKE PublicHtmlUnavailable 'DDGS 검색 실패: DDGSException'`; Bing/Google HTML 후보 0건; DLsite HTML 접근 오류. CI의 웹 검색 가능성은 확인되지 않았으며 Windows 사용자의 네트워크에서 달라질 수 있음.
+- 실측 성공률은 사용자 네트워크에서 실행한 새 JSON 제출 전까지 미측정.
