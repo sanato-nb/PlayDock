@@ -37,7 +37,7 @@ def _key(value: str) -> str:
 
 
 def _append(out: list[str], seen: set[str], value: str) -> None:
-    val = re.sub(r"\s+", " ", value).strip(" \t\r\n-_.:：()[]")
+    val = re.sub(r"\s+", " ", value).strip(" \t\r\n-_.:：")
     ident = _key(val)
     if 2 <= len(val) <= 160 and len(ident) >= 2 and ident not in seen:
         out.append(val)
