@@ -107,8 +107,8 @@ def search_title_variants(raw: str, *, limit: int = 2) -> tuple[str, ...]:
 
 # 품번이 없는 압축파일 전용: 번역명 외에도 파일명에 병기된 원제/영문명을 검색한다.
 # 자동 기계번역으로 작품명을 지어내지 않고 이미 존재하는 별칭만 사용.
-ALIASED_TITLE = re.compile(r"\\(([^()]{4,90})\\)")
-WEB_JUNK = re.compile(r"(?i)\\b(?:RJ|VJ|BJ|EJ)\\d{6,8}\\b")
+ALIASED_TITLE = re.compile(r"\(([^()]{4,90})\)")
+WEB_JUNK = re.compile(r"(?i)\b(?:RJ|VJ|BJ|EJ)\d{6,8}\b")
 
 
 def title_web_queries(raw: str, *, limit: int = 2) -> tuple[str, ...]:
