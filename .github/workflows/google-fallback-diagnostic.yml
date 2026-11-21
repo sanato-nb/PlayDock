@@ -1,10 +1,7 @@
 name: PlayDock Google HTML 폴백 검증
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths:
-      - ".github/workflows/google-fallback-diagnostic.yml"
   workflow_dispatch:
+
 permissions:
   contents: read
 jobs:
