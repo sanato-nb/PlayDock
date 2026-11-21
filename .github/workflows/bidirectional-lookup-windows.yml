@@ -2,6 +2,10 @@ name: PlayDock 이름-품번 양방향 검색기 Windows 검증판
 
 # v7 후보 진단/이력 검사 재실행 후 수동 워크플로로 복원.
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths:
+      - ".github/workflows/bidirectional-lookup-windows.yml"
   workflow_dispatch:
 
 permissions:
@@ -29,7 +33,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q experiments scripts/lookup_window.py scripts/title_to_code_tester.py scripts/code_to_title_tester.py
-          python -m pytest -q tests/test_reverse_lookup_no_api_experiment.py tests/test_v117_no_api_html_experiment.py tests/test_archive_input_gui_experiment.py tests/test_title_to_code_results_regression.py tests/test_name_search_unquoted_multilingual.py tests/test_auto_metasearch_no_key.py tests/test_multilingual_bing_rss_lookup.py tests/test_dlsite_space_encoding_diagnostic.py tests/test_search_provider_priority.py tests/test_candidate_matching_and_history.py
+          python -m pytest -q tests/test_reverse_lookup_no_api_experiment.py tests/test_v117_no_api_html_experiment.py tests/test_archive_input_gui_experiment.py tests/test_title_to_code_results_regression.py tests/test_name_search_unquoted_multilingual.py tests/test_auto_metasearch_no_key.py tests/test_multilingual_bing_rss_lookup.py tests/test_dlsite_space_encoding_diagnostic.py tests/test_search_provider_priority.py tests/test_candidate_matching_and_history.py tests/test_dlsite_card_scope_and_evidence_v8.py
 
       - name: 공식 검색 HTML 실접속 진단 (실패 비치명)
         continue-on-error: true
