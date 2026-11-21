@@ -1,9 +1,7 @@
 name: DLsite search card HTML structure diagnostic
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/dlsite-card-scope-diagnostic.yml"]
   workflow_dispatch:
+
 permissions:
   contents: read
 jobs:
