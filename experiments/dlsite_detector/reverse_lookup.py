@@ -109,7 +109,7 @@ def search_catalog_html(title: str, category: str, *, timeout: float = 3.0,
         return []
     # 사용자 문자열은 경로 구성 요소로만 인코딩한다.
     url = (f"https://www.dlsite.com/{category}/fsr/=/language/jp/"
-           f"keyword/{quote(title, safe='')}/")
+           f"keyword/{quote(title, safe='').replace('%20', '+')}/")
     kwargs = {"timeout": timeout}
     if opener is not None:
         kwargs["opener"] = opener
@@ -406,10 +406,12 @@ def lookup_title(
                         if isinstance(item, dict):
                             add_hit(item, "dlsite_search_html")
                 except Exception as exc:
+                    detail = (str(exc)[:160] if isinstance(exc, PublicHtmlUnavailable)
+                              else type(exc).__name__)
                     providers.append({"provider": "dlsite_" + category,
                                       "query": candidate_name,
-                                      "state": "error", "detail": type(exc).__name__})
-                    warnings.append(f"DLsite {category} 검색 장애: {type(exc).__name__}")
+                                      "state": "error", "detail": detail})
+                    warnings.append(f"DLsite {category} 검색 장애: {detail}")
             if catalog_calls >= 8 or relevant_hit_exists():
                 break
 
