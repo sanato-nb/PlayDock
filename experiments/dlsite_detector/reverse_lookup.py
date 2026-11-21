@@ -336,38 +336,59 @@ def lookup_title(
                 _match_score(n, hits[code]["title"]) for n in search_names):
             hits[code].update({"title": heading[:240], "source": source})
 
-    # 코드가 없는 파일은 자동 메타검색을 먼저 사용한다.
-    # 기존 함수 주입식 단위 테스트는 네트워크를 실행하지 않도록 유지.
+    # 검색 우선순위: DLsite 공식 카탈로그 → Bing RSS → DDGS.
+    # 기본 검색기는 외부 주입 검색기가 없는 경우에만 자동 연결한다.
     if meta_search is None and (
             catalog_search is search_catalog_html and
             external_search is search_public_html and
             engine_search is search_engine_html):
         meta_search = search_meta_no_key
-    if meta_search is not None:
-        for candidate_name in search_names:
-            try:
-                results = meta_search(candidate_name) or []
-                providers.append({"provider": "ddgs_meta", "query": candidate_name,
-                                  "state": "ok", "count": len(results)})
-                for item in results[:12]:
-                    if isinstance(item, dict):
-                        add_hit(item, "ddgs_meta")
-                register_explicit_originals(results)
-                if relevant_hit_exists():
-                    break
-            except Exception as exc:
-                detail = (str(exc)[:200] if isinstance(exc, PublicHtmlUnavailable)
-                          else type(exc).__name__)
-                providers.append({"provider": "ddgs_meta", "query": candidate_name,
-                                  "state": "error", "detail": detail})
-                warnings.append("DDGS 자동 검색 장애: " + detail)
-
-    # 메타검색 실패 시 XML 구조가 분명한 Bing RSS도 자동 확인.
     if rss_search is None and (
             catalog_search is search_catalog_html and
             external_search is search_public_html and
             engine_search is search_engine_html):
         rss_search = search_bing_rss
+
+    catalog_queried: set[tuple[str, str]] = set()
+
+    def search_official_catalog(names, *, max_calls: int, first_all_categories: bool):
+        """결과에 있는 링크를 수집하되 관련 후보가 나오면 불필요한 추가 요청을 생략."""
+        calls = 0
+        for name_index, candidate_name in enumerate(names):
+            categories = (CATEGORIES if first_all_categories and name_index == 0
+                          else ("maniax", "home"))
+            for category in categories:
+                if calls >= max_calls or relevant_hit_exists():
+                    break
+                pair = (candidate_name, category)
+                if pair in catalog_queried:
+                    continue
+                catalog_queried.add(pair)
+                calls += 1
+                try:
+                    results = catalog_search(candidate_name, category) or []
+                    providers.append({"provider": "dlsite_" + category,
+                                      "query": candidate_name,
+                                      "state": "ok", "count": len(results)})
+                    for item in results[:40]:
+                        if isinstance(item, dict):
+                            add_hit(item, "dlsite_search_html")
+                except Exception as exc:
+                    detail = (str(exc)[:160] if isinstance(exc, PublicHtmlUnavailable)
+                              else type(exc).__name__)
+                    providers.append({"provider": "dlsite_" + category,
+                                      "query": candidate_name,
+                                      "state": "error", "detail": detail})
+                    warnings.append(f"DLsite {category} 검색 장애: {detail}")
+            if calls >= max_calls or relevant_hit_exists():
+                break
+
+    # 1순위: 파일명에 실제 표기된 한국어/영어/일본어 이름을 공식 사이트에서 검색.
+    # 첫 번째 별칭 4개 카테고리, 나머지는 2개씩 총 8회 이하.
+    search_official_catalog(seed_names, max_calls=8, first_all_categories=True)
+
+    # 2순위: 공식 검색에서 일치 후보가 없을 때만 API 키 없는 Bing RSS를 사용.
+    # 비공식 웹 정보는 검증 근거가 아닌 '후보'이며 원제가 명시되면 별칭에 등록.
     if rss_search is not None and not relevant_hit_exists():
         for candidate_name in seed_names[:2]:
             try:
@@ -387,33 +408,32 @@ def lookup_title(
                                   "state": "error", "detail": detail})
                 warnings.append("Bing RSS 검색 장애: " + detail)
 
-    # DLsite 공식 카탈로그는 영문/한국어/일본어 이름을 각각 조회한다.
-    # 과도한 요청 방지를 위해 최대 8회, 유력 후보 발견 시 즉시 종료.
-    if not relevant_hit_exists():
-        catalog_names = list(seed_names[:2]) + discovered_aliases + list(seed_names[2:])
-        catalog_calls = 0
-        for name_index, candidate_name in enumerate(catalog_names[:4]):
-            for category in (CATEGORIES if name_index == 0 else ("maniax", "home")):
-                if catalog_calls >= 8 or relevant_hit_exists():
+    # 3순위: DLsite/Bing RSS로도 관련 품번을 얻지 못했을 때만 DDGS 시도.
+    # DuckDuckGo/Brave/Bing 백엔드는 기존 DDGS 래퍼에서 각각 실패를 처리한다.
+    if meta_search is not None and not relevant_hit_exists():
+        for candidate_name in search_names:
+            try:
+                results = meta_search(candidate_name) or []
+                providers.append({"provider": "ddgs_meta", "query": candidate_name,
+                                  "state": "ok", "count": len(results)})
+                for item in results[:12]:
+                    if isinstance(item, dict):
+                        add_hit(item, "ddgs_meta")
+                register_explicit_originals(results)
+                if relevant_hit_exists():
                     break
-                catalog_calls += 1
-                try:
-                    results = catalog_search(candidate_name, category) or []
-                    providers.append({"provider": "dlsite_" + category,
-                                      "query": candidate_name,
-                                      "state": "ok", "count": len(results)})
-                    for item in results[:40]:
-                        if isinstance(item, dict):
-                            add_hit(item, "dlsite_search_html")
-                except Exception as exc:
-                    detail = (str(exc)[:160] if isinstance(exc, PublicHtmlUnavailable)
-                              else type(exc).__name__)
-                    providers.append({"provider": "dlsite_" + category,
-                                      "query": candidate_name,
-                                      "state": "error", "detail": detail})
-                    warnings.append(f"DLsite {category} 검색 장애: {detail}")
-            if catalog_calls >= 8 or relevant_hit_exists():
-                break
+            except Exception as exc:
+                detail = (str(exc)[:200] if isinstance(exc, PublicHtmlUnavailable)
+                          else type(exc).__name__)
+                providers.append({"provider": "ddgs_meta", "query": candidate_name,
+                                  "state": "error", "detail": detail})
+                warnings.append("DDGS 자동 검색 장애: " + detail)
+
+    # Bing RSS / DDGS에서 발견한 *명시적 일본어 원제*는 공식 카탈로그에 재조회.
+    # 원래 제목과 동일 검색은 건너뛰며 별칭 2개 × 2개 카테고리(최대 4회).
+    if discovered_aliases and not relevant_hit_exists():
+        search_official_catalog(discovered_aliases[:2], max_calls=4,
+                                first_all_categories=False)
 
     # 공식·RSS 결과가 없을 때만 기존 HTML 검색 경로를 보충 사용한다.
 
