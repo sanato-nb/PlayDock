@@ -463,7 +463,7 @@ def lookup_title(
             engine_search is search_engine_html):
         meta_search = search_meta_no_key
     if meta_search is not None and not official_exact_hit_exists():
-        for candidate_name in search_names[:3]:
+        for candidate_name in search_names[:2]:
             try:
                 results = meta_search(candidate_name) or []
                 providers.append({"provider": "ddgs_meta", "query": candidate_name,
@@ -491,8 +491,14 @@ def lookup_title(
         search_official_catalog(discovered_aliases[:2], max_calls=4,
                                 first_all_categories=False)
 
-    # Legacy HTML search: only when no plausible candidate is available at all.
-    if not any_related_hit():
+    # Legacy HTML providers have repeatedly returned empty JS/challenge pages
+    # on the actual Windows runner. Do not spend several extra network requests
+    # on them in the normal no-key route. Keep explicit injection for regression
+    # tests and developer diagnostics only.
+    legacy_injected = (catalog_search is not search_catalog_html or
+                       engine_search is not search_engine_html or
+                       external_search is not search_public_html)
+    if legacy_injected and not any_related_hit():
         for candidate_name in search_names[:3]:
             for provider in ("bing_html", "google_html", "ddg_html", "mojeek_html"):
                 try:
