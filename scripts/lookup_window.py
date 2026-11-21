@@ -33,6 +33,8 @@ STATUS_KO = {
 CONFIDENCE_KO = {
     "exact_title": "공식 제목 일치", "official_code": "공식 품번 확인",
     "search_candidate": "검색 링크 후보",
+    "filename_code_verified": "파일명 품번·공식 확인",
+    "filename_code_only": "파일명 품번·미검증",
 }
 CONFIG = {
     "title_to_code": (
@@ -275,7 +277,7 @@ class LookupWindow(tk.Tk):
                     self.json_btn.configure(state="normal" if self.results else "disabled")
                     self.csv_btn.configure(state="normal" if self.results else "disabled")
                     self.status.set(f"검색 완료: {len(self.results)}개 · "
-                                    f"공식 제목 일치 {sum(any(m.confidence in ('exact_title', 'official_code') for m in r.matches) for r in self.results)}개"
+                                    f"공식 확인 {sum(any(m.confidence in ('exact_title', 'official_code', 'filename_code_verified') for m in r.matches) for r in self.results)}개"
                                     + (" · 중단됨" if self.cancel.is_set() else ""))
         except Empty:
             pass
