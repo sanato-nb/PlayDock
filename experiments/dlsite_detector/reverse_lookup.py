@@ -576,7 +576,10 @@ def lookup_title(
             is_exact = official_check.score == 100 and has_exact_card
             if is_exact:
                 direct_exact.add(code)
-            source = "dlsite_product_html" if item["url"] else "web_evidence"
+            best_evidence = max(evidence,
+                                key=lambda e: assess_many(search_names, e["title"]).score)
+            source = ("dlsite_product_html" if best_evidence["source"] == "dlsite_search_html"
+                      else best_evidence["source"])
             output.append(Match(
                 code, product.title, product.url, product.category,
                 "exact_title" if is_exact else "official_code", source,
