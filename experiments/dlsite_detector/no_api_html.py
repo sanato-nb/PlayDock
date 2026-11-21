@@ -9,6 +9,7 @@ from __future__ import annotations
 from html import unescape
 from html.parser import HTMLParser
 import re
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, unquote, urlencode, urlsplit
 from urllib.request import Request, urlopen
 
@@ -87,6 +88,14 @@ def _fetch_html(url: str, *, timeout: float, opener=urlopen) -> tuple[str, str]:
             final_url = response.geturl() if hasattr(response, "geturl") else url
             content_type = response.headers.get("Content-Type", "text/html")
             body = response.read(MAX_HTML_BYTES + 1)
+    except HTTPError as exc:
+        # 작품이 없어서 0건인 상황과 사이트의 HTTP 접근 거부를 구분한다.
+        raise PublicHtmlUnavailable(f"HTTP {exc.code}") from exc
+    except URLError as exc:
+        # URL/개인 경로 노출 없이 네트워크 원인의 종류만 남긴다.
+        raise PublicHtmlUnavailable("네트워크 오류: " + type(exc.reason).__name__) from exc
+    except TimeoutError as exc:
+        raise PublicHtmlUnavailable("응답 시간 초과") from exc
     except Exception as exc:
         raise PublicHtmlUnavailable(type(exc).__name__) from exc
     if not content_type.lower().startswith(("text/html", "application/xhtml+xml")):
