@@ -19,3 +19,7 @@ jobs:
         env:
           PYTHONIOENCODING: utf-8
         run: python -m scripts.diagnose_dlsite_result_containers
+      - name: Check historic code presence in real search results
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m scripts.diagnose_dlsite_candidate_presence
