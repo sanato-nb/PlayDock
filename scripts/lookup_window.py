@@ -323,8 +323,12 @@ class LookupWindow(tk.Tk):
         else:
             value = next((line.strip() for line in self.input.get("1.0", "end").splitlines()
                           if line.strip()), "")
+        if not value and self.selected_files:
+            # 검색 실행 전에도 파일 선택만으로 수동 브라우저 검색 가능.
+            selected_index = self.file_list.curselection()
+            value = self.selected_files[selected_index[0]] if selected_index else self.selected_files[0]
         if not value:
-            messagebox.showwarning("입력 없음", "먼저 게임 이름이나 품번을 입력하세요.")
+            messagebox.showwarning("입력 없음", "먼저 압축파일을 선택하거나 게임 이름·품번을 입력하세요.")
             return
         if self.mode == "title_to_code":
             query = cleaned_search_title(value)
