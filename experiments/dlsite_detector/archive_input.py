@@ -90,4 +90,4 @@ def run_lookup(
             code = item.value
         result = code_lookup(code)
     # 공식 결과는 작업용 검색어가 아니라 사용자가 선택한 파일명에 연결.
-    return replace(result, query=item.label)
+    return replace(result, query=item.label, input_origin=item.origin)
