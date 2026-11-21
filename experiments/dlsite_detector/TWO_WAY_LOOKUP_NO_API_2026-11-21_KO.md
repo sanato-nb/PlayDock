@@ -103,3 +103,12 @@
 - **브라우저 폴백:** 이름 검색은 제약 없는 일반 Google 제목 검색으로, 품번이 있으면 DLsite 공식 페이지로 바로 연결.
 - **기술적 한계:** Google/Bing의 HTML 검색이 차단되거나 결과에 RJ 코드/공식 링크가 표시되지 않으면 이 방식으로도 찾지 못할 수 있음. 우회 CAPTCHA·연령 인증을 구현하지 않으며 API 키·JSON 검색 API를 사용하지 않음.
 - 변경 후 실제 129개 재실행 정확도는 사용자 테스트 전까지 **미측정**.
+
+### 최종 테스트 및 배포 — 비인용·다국어 검색 실험판
+
+- [GitHub Actions #44864049281](https://github.com/sanato-nb/PlayDock/actions/runs/44864049281) 성공, Windows 회귀 **71개 통과**, 독립 EXE 두 개 패키징 및 자체 진단 성공.
+- [배포 Artifact #14690907500](https://github.com/sanato-nb/PlayDock/actions/runs/44864049281/artifacts/14690907500)
+- ZIP SHA256: `798109f85faeb500f3cf5d378fc4bd47484a5e5d68699b30c03df2ddd014650f`.
+- `PlayDock-Name-to-Code.exe` SHA256: `c8298a35913e152cf990fd0a00771780736659c5d3357e050e7d011efbe1ab5d`.
+- `PlayDock-Code-to-Name.exe` SHA256: `1d48f1b9a42682050a113490900201c626860900bfa4693c7341ea8dd6ad3b06`.
+- 실접속 스모크: Bing/Google HTML 작품링크 후보 0건, DLsite 검색 페이지 `PublicHtmlUnavailable/HTTPError`. **실제 검색 성공률 향상 증거가 아니다.**
