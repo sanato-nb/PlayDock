@@ -1,0 +1,21 @@
+name: DLsite search card HTML structure diagnostic
+on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/dlsite-card-scope-diagnostic.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Inspect public DLsite result structures
+        env:
+          PYTHONIOENCODING: utf-8
+        run: python -m scripts.diagnose_dlsite_result_containers
