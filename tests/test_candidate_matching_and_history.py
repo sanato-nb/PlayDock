@@ -90,7 +90,7 @@ def test_history_saves_candidates_and_recovers_only_as_unverified(tmp_path):
     assert len(restored.matches) == 1
     assert restored.matches[0].code == "RJ123456"
     assert restored.matches[0].confidence == "history_candidate"
-    assert "이번 검색에서 재확인하지 못" in restored.matches[0].note
+    assert "이번 실행에서는 다시 확인하지 못함" in restored.matches[0].note
     assert restored.catalog_review == ()
 
 
