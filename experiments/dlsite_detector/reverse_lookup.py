@@ -271,9 +271,16 @@ def lookup_title(
                 warnings.append(f"{provider} 검색 장애: {type(exc).__name__}")
 
     if not hits:
-        state = ("unavailable" if providers and all(
-            p["state"] == "error" for p in providers) else "no_candidate")
-        warnings.append("품번을 찾지 못했습니다. 작품이 없다는 뜻은 아닙니다.")
+        official = [p for p in providers if p["provider"].startswith("dlsite_")]
+        official_blocked = bool(official) and all(p["state"] == "error" for p in official)
+        state = ("unavailable" if official_blocked or (
+            providers and all(p["state"] == "error" for p in providers))
+            else "no_candidate")
+        warnings.append(
+            "공식 DLsite 검색이 모두 실패했고 다른 검색에서도 유효한 품번을 얻지 못했습니다."
+            if official_blocked else
+            "품번 후보를 찾지 못했습니다. 작품이 없다는 뜻은 아닙니다."
+        )
         return Lookup("title_to_code", title, state, warnings=tuple(warnings),
                       providers=tuple(providers))
 
