@@ -17,6 +17,10 @@ from urllib.parse import urljoin, urlsplit
 from .detector import product_page_candidate
 
 MAX_CARDS = 40
+# HTML void elements have no end-tag. Keeping them in the ancestor stack
+# would make the following work-title </a> appear at the wrong depth.
+VOID_TAGS = frozenset({"area","base","br","col","embed","hr","img","input",
+                       "link","meta","param","source","track","wbr"})
 
 
 class UnknownSearchLayout(RuntimeError):
@@ -57,10 +61,13 @@ class SearchCardParser(HTMLParser):
                                    "text": [data.get("title") or ""]}
         elif tag == "img" and self.anchor is not None:
             self.anchor["text"].append(data.get("alt") or "")
+        if tag in VOID_TAGS:
+            self.stack.pop()
 
     def handle_startendtag(self, tag: str, attrs):
         self.handle_starttag(tag, attrs)
-        self.handle_endtag(tag)
+        if tag not in VOID_TAGS:
+            self.handle_endtag(tag)
 
     def handle_data(self, value: str):
         if self.anchor is not None:
