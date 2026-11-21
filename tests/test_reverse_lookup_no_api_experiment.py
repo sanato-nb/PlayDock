@@ -116,6 +116,7 @@ def test_title_lookup_keeps_unmatched_name_as_candidate():
                   "url": "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"}]
                 if category == "maniax" else [])
     result = lookup_title("Different Work", catalog_search=search,
+                          engine_search=lambda *args: [], external_search=lambda *args: [],
                           fetcher=lambda code: product(code))
     assert result.status == "no_candidate"
     assert result.matches == ()
@@ -142,7 +143,7 @@ def test_title_lookup_falls_back_to_general_public_html_when_dlsite_empty():
     result = lookup_title("My Game", catalog_search=lambda *args: [],
                           engine_search=lambda *args: [], external_search=external,
                           fetcher=lambda code: product(code))
-    assert searches == [('site:dlsite.com "My Game"', "ddg_html")]
+    assert searches == [('My Game DLsite RJ', "ddg_html")]
     assert result.status == "confirmed"
 
 
@@ -193,6 +194,8 @@ def test_bing_html_extracts_only_valid_official_product_link():
     matches = search_engine_html("My Game", "bing_html", opener=opener)
     assert [m["code"] for m in matches] == ["RJ123456"]
     assert "bing.com/search" in urls[0]
+    assert "site%3A" not in urls[0] and "%22" not in urls[0]
+    assert "DLsite+RJ" in urls[0]
     assert "/api/" not in urls[0]
 
 
