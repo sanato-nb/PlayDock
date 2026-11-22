@@ -1,9 +1,6 @@
 name: PlayDock 폴더 선택만으로 파일명 변경 Windows 빌드
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/one-folder-renamer-windows.yml"]
   workflow_dispatch:
 
 permissions:
