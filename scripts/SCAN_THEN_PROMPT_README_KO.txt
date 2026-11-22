@@ -9,17 +9,21 @@ Windows 10/11 콘솔 실행파일: PlayDock-ID-Scan-And-Prompt.exe
 
 사용법
   1. EXE를 실행합니다.
-  2. 검사할 게임 압축파일 폴더의 전체 경로를 입력하고 Enter를 누릅니다.
+  2. 검사할 게임 압축파일 폴더의 전체 경로를 입력하거나,
+     경로 없이 Enter를 눌러 Windows 폴더 선택창을 엽니다.
      예: C:\Games\Archive
   3. 선택한 폴더 경로가 다시 표시됩니다.
      "이 폴더가 맞습니까?" → Y 입력 시에만 스캔 시작
      그 외에는 취소 (압축파일 검사·결과 TXT 생성 없음).
-     ※ 명령줄에서 폴더 인자를 직접 넘겨 자동 실행할 때는 확인 질문을 생략합니다.
+     ※ 명령줄에서 폴더 인자를 직접 넘겨도 Y 확인이 필요합니다.
   4. 진행률과 DLsite→Steam 검사 결과가 끝날 때까지 확인합니다.
   5. 기본 저장 위치:
        검사 폴더\PlayDock_Results\검사일시\
   6. 검사 결과 파일은 하나입니다:
        PlayDock_Complete_Scan_And_AI_Prompt.txt
+  7. 공식 확인된 품번의 사이트·ID·공식 작품명·작품 종류·URL을
+     별도 사용자 DB (%LOCALAPPDATA%\PlayDock\official_works.sqlite3)에 저장합니다.
+     게임 폴더와 기존 PlayDock 데이터베이스는 변경하지 않습니다.
 
 검사에 실패한 게임이 있다면 TXT 내용:
   - 요약: 전체/공식 확인/일부 확인/제외 수

@@ -120,7 +120,7 @@ class OfficialWorkCatalog:
                                     f"https://www.dlsite.com/a/{product_id}" if store == "dlsite"
                                     else f"https://store.steampowered.com/app/{product_id}/")):
             return None
-        with closing(sqlite3.connect(f"file:{self.path.as_posix()}?mode=ro", uri=True)) as con:
+        with closing(sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True)) as con:
             con.row_factory = sqlite3.Row
             try:
                 row = con.execute(
