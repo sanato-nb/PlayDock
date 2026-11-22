@@ -18,6 +18,7 @@ from experiments.dlsite_detector.research_handoff import (
 STATUS = {
     "claimed_confirmed": "AI 공식 확인 제안",
     "candidate": "후보 · 수동 확인",
+    "identity_ambiguous": "DLC/합본 · 수동 확인",
     "unknown": "미확인 · 수동 검색",
     "invalid": "입력 오류 · 수동 확인",
 }
@@ -147,9 +148,9 @@ class SimpleRenamer(tk.Tk):
         self.manual_button.configure(state="normal")
         hist = Counter(row.ai_status for row in rows)
         self.info.set(
-            f"제외 {len(rows)}개 · AI 공식 확인 제안 {hist['claimed_confirmed']} · "
-            f"후보 {hist['candidate']} · 미확인 {hist['unknown']} · 오류 {hist['invalid']} "
-            f"· 아직 공식 재조회/실제 파일명 변경 미실시"
+            f"제외 {len(rows)}개 · 일반 확인 제안 {hist['claimed_confirmed']} · "
+            f"후보 {hist['candidate']} · DLC/합본 수동 {hist['identity_ambiguous']} · "
+            f"미확인 {hist['unknown']} · 오류 {hist['invalid']} · 실제 이름 변경 전"
         )
         if errors:
             messagebox.showwarning("AI JSON 확인 필요",
