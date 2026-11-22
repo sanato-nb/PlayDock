@@ -60,13 +60,13 @@ def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
     combined = (target / COMBINED_NAME).read_text(encoding="utf-8-sig")
     assert "전체 4개 | 공식 확인 3개 | 일부 확인 0개 | 제외 1개" in combined
     assert "1부. AI 조사 지침 및 실제 제외 게임 목록" in combined
-    assert "2부. 전체 검사 결과 (참고용 / 추가 조사 대상 아님)" in combined
-    assert "제외 파일: 1개" in combined
+    assert "2부. 품번 확인 완료 목록 (AI 조사 대상 아님)" in combined
+    assert "제외된 게임: 총 1개" in combined
     assert "Unknown [v1.05] [한글패치].zip" in combined
-    assert "실패 유형: 식별번호 없음" in combined
-    assert "공식 작품명: DL Work" in combined
-    assert "공식 작품명: Steam Work" in combined
-    assert "검사 파일: 4개" in combined
+    assert "A. 식별번호 없음" in combined
+    assert "| DL Work" in combined
+    assert "| Steam Work" in combined
+    assert "전체 4개" in combined
     assert "Steam" in combined and "DLsite" in combined
     assert "사용자 승인" in combined
     assert "PowerShell" in combined and "BAT" in combined
@@ -239,9 +239,9 @@ def test_every_excluded_entry_is_in_paste_ready_prompt(tmp_path):
     for name in ("Unidentified A [v1.2].zip", "Unidentified B [한글].7z",
                  "DL failure [RJ123456].rar"):
         assert name in combined
-    assert "기존 DLsite 품번: RJ123456" in combined
-    assert "공식 조회 실패/이용 불가" in combined
-    assert "검사 파일: 3개" in combined
+    assert "기존 품번: DLsite RJ123456" in combined
+    assert "공식 작품명 확인 실패" in combined
+    assert "전체 3개" in combined
 
 
 def test_duplicate_filenames_remain_in_prompt_with_original_ids(tmp_path):
@@ -255,7 +255,7 @@ def test_duplicate_filenames_remain_in_prompt_with_original_ids(tmp_path):
     combined = (output / COMBINED_NAME).read_text(encoding="utf-8-sig")
     assert "[1] Duplicated.zip" in combined
     assert "[2] Duplicated.zip" in combined
-    assert combined.count("동일 파일명 중복: 예") == 2
+    assert combined.count("주의: 같은 파일명 여러 개") == 2
 
 
 def test_korean_files_open_in_windows_notepad(tmp_path):
@@ -279,7 +279,7 @@ def test_no_failed_items_means_no_prompt_or_excluded_txt(tmp_path):
     contents = (output / COMBINED_NAME).read_text(encoding="utf-8-sig")
     assert "AI 조사 요청은 필요하지 않습니다" in contents
     assert "1부. AI 조사 지침" not in contents
-    assert "공식 작품명: Official Work" in contents
+    assert "| Official Work" in contents
     assert not make_ai_prompt(0)
 
 
@@ -297,8 +297,8 @@ def test_exactly_one_file_even_for_129_archive_report(tmp_path):
     assert filenames == [COMBINED_NAME]
     text = (output / COMBINED_NAME).read_text(encoding="utf-8-sig")
     assert "전체 129개 | 공식 확인 88개 | 일부 확인 0개 | 제외 41개" in text
-    assert "제외 파일: 41개" in text
-    assert text.count("동일 파일명 중복: ") == 41
+    assert "제외된 게임: 총 41개" in text
+    assert text.count("### A. 식별번호 없음") == 1
     assert text.count("===== 실제 제외 게임 목록 시작") == 1
     assert "Archive_041.zip" in text and "Archive_042.zip" in text
     assert "Archive_129.zip" in text
@@ -314,3 +314,85 @@ def test_one_file_contains_no_developer_or_local_absolute_paths(tmp_path):
     assert "sanato-nb" not in contents.casefold()
     assert "C:\\Users\\" not in contents
     assert str(tmp_path) not in contents
+
+
+
+def test_129_unique_items_are_each_listed_once_without_repeating_exclusions(tmp_path):
+    import re
+    report = ScanReport(tuple(
+        Result(f"Demo_{i:03d}.zip", "archive",
+               "excluded" if i <= 41 else "confirmed")
+        for i in range(1, 130)), 129)
+    text = render_combined_txt(report)
+    # 'item_id filename' occurs exactly once; no duplicate 41-item section.
+    named = re.findall(r"^\[(\d+)\] (Demo_\d{3}\.zip|(?:공식 확인|일부 확인) \| Demo_\d{3}\.zip)$",
+                       text, flags=re.MULTILINE)
+    assert len(named) == 129
+    assert len(set(x[0] for x in named)) == 129
+    assert text.count("Demo_001.zip") == 1
+    assert text.count("Demo_041.zip") == 1
+    assert text.count("Demo_042.zip") == 1
+    assert "A. 식별번호 없음: 41개" in text
+    assert "B. 기존 식별번호 조회 실패: 0개" in text
+
+
+def test_identifier_lookup_failures_are_separated_from_unknown_ids():
+    report = ScanReport((
+        Result("No-code [v1.2].zip", "archive", "excluded"),
+        Result("DL [RJ01385626].7z", "archive", "excluded",
+               attempted_stores=("dlsite",)),
+        Result("Steam [Steam 1091500].rar", "archive", "excluded",
+               attempted_stores=("steam",)),
+    ), 3)
+    output = render_combined_txt(report)
+    assert "A. 식별번호 없음: 1개" in output
+    assert "B. 기존 식별번호 조회 실패: 2개" in output
+    assert output.index("[1] No-code") < output.index("### B.")
+    assert output.index("[2] DL [RJ01385626]") > output.index("### B.")
+    assert "DLsite RJ01385626" in output
+    assert "Steam 1091500" in output
+    assert "기존 품번부터 재확인" in output
+
+
+def test_ai_result_schema_has_all_required_table_columns():
+    prompt = make_ai_prompt(3)
+    for col in ("item_id", "원본 파일명", "판매처", "찾은 품번",
+                "공식 작품명", "공식 URL", "동일성 판단 근거", "상태",
+                "변경 제안 파일명"):
+        assert col in prompt
+    for field in ("playdock-ai-review-v1", "original_filename",
+                  "official_title", "official_url", "evidence_url",
+                  "verification", "proposed_filename"):
+        assert field in prompt
+    assert "후보·미확인은 변경" not in prompt or "변경하지" in prompt
+    assert "GitHub" not in prompt
+
+
+def test_partial_verification_kept_in_reference_section_once():
+    from experiments.dlsite_detector.code_only import Work
+    report = ScanReport((
+        Result("partial [RJ123456 RJ654321].zip", "archive", "partial",
+               works=(Work("RJ123456", "Official", "", 
+                           "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
+                           "verified", "dlsite"),
+                      Work("RJ654321", None, "", "", "unavailable", "dlsite")),
+               selected_store="dlsite"),
+        Result("Unknown.zip", "archive", "excluded"),
+    ), 2)
+    txt = render_combined_txt(report)
+    assert "일부 확인 1개" in txt
+    assert "[1] 일부 확인 | partial [RJ123456 RJ654321].zip" in txt
+    assert "일부 품번만 확인됨" in txt
+    assert txt.count("partial [RJ123456 RJ654321].zip") == 1
+    assert txt.count("Unknown.zip") == 1
+
+
+def test_no_exception_or_incorrect_no_id_claim_for_store_lookup_failure():
+    report = ScanReport((
+        Result("DL [RJ123456].zip", "archive", "excluded",
+               attempted_stores=("dlsite",)),
+    ), 1)
+    text = render_combined_txt(report)
+    assert "B. 기존 식별번호 조회 실패: 1개" in text
+    assert "실제 조회: dlsite" in text
+    assert "인터넷 조회를 하지 않음" in text  # A group only, zero entries.
