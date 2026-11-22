@@ -23,6 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install "pyinstaller>=6.11,<7" pytest
+      # 사용자용 조사자료 자동 읽기 및 누락 시 메시지 안정화까지 포함해 재검증
       - name: 프로그램 문법 및 안전 동작 테스트
         shell: pwsh
         run: |
