@@ -277,7 +277,8 @@ class CodeChecker(tk.Tk):
             return
         obj = {"program": "PlayDock DLsite → Steam Code Checker", "mode": "dlsite_steam_code_only",
                "created_at_local": datetime.now().astimezone().isoformat(),
-               "api_used": False, "archive_contents_inspected": False,
+               "api_used": any("steam" in r.attempted_stores for r in self.results),
+               "api_key_used": False, "archive_contents_inspected": False,
                "results": [r.to_dict() for r in self.results]}
         try:
             Path(path).write_text(json.dumps(obj, ensure_ascii=False, indent=2),
