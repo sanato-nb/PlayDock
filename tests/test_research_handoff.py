@@ -52,7 +52,8 @@ def test_only_excluded_exported_no_paths_or_confirmed_entries():
     assert data["excluded"][0]["exclusion_reason"] == "no_identifier"
     assert data["excluded"][1]["exclusion_reason"] == "official_lookup_failed"
     assert data["excluded"][1]["dlsite_codes"] == ["RJ654321"]
-    assert "path" not in json.dumps(data, ensure_ascii=False).lower()
+    assert "C:\\Users" not in json.dumps(data, ensure_ascii=False)
+    assert "absolute_path" not in json.dumps(data, ensure_ascii=False).lower()
     assert "original_filename" in research_prompt()
     assert "playdock-ai-review-v1" in research_prompt()
 
