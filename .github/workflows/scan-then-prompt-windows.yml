@@ -1,9 +1,6 @@
 name: PlayDock AI 인계 PS1 고정 템플릿 Windows 안전 검증
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
