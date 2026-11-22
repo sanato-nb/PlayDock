@@ -10,6 +10,7 @@ from dataclasses import dataclass
 import csv
 import json
 from pathlib import Path
+import re
 from typing import Iterable
 
 from .research_handoff import (
@@ -62,6 +63,19 @@ def load_exclusions(path: str | Path) -> list[dict]:
     return output
 
 
+def requires_manual_identity_check(filename: str) -> bool:
+    """DLC or multiple products are intrinsically ambiguous even if a store ID exists.
+
+    An ID for the base game must not be appended to a DLC archive.
+    A single product ID must not silently identify a bundle of distinct works.
+    """
+    stem = Path(filename).stem
+    return bool(
+        re.search(r"(?i)(?<![a-z0-9])DLC(?:[ _-]*[0-9]+)?(?![a-z0-9])", stem)
+        or re.search(r"\s[+＋]\s", stem)
+    )
+
+
 def load_review(scan_path: str | Path, ai_path: str | Path) -> tuple[list[ReviewRow], list[str]]:
     excluded = load_exclusions(scan_path)
     if not excluded:
@@ -88,7 +102,8 @@ def load_review(scan_path: str | Path, ai_path: str | Path) -> tuple[list[Review
         if item is None:
             status = "invalid" if claimed in ("candidate", "official_confirmed") else "unknown"
         elif item.verification == "official_confirmed":
-            status = "claimed_confirmed"
+            status = ("identity_ambiguous" if requires_manual_identity_check(name)
+                      else "claimed_confirmed")
         else:
             status = "candidate"
         if item is None:
@@ -99,6 +114,9 @@ def load_review(scan_path: str | Path, ai_path: str | Path) -> tuple[list[Review
             except ValueError:
                 status, proposal = "invalid", name
         note = str(original.get("note") or "")[:400]
+        if status == "identity_ambiguous":
+            note = ("DLC/복수 작품 합본 가능성: 해당 품번이 정확히 이 파일의 작품을 "
+                    "가리키는지 본편·DLC·합본을 구별해 수동 확인 필요. " + note)[:400]
         if status == "invalid":
             note = ("AI가 제안한 품번·URL·파일명 중 하나를 사용할 수 없습니다. "
                     + note).strip()
