@@ -1,6 +1,9 @@
-name: PlayDock 검사 완료 후 통합 TXT 단일 출력 Windows 빌드
+name: PlayDock 통합 TXT 중복 제거 및 AI 표준 결과 Windows 검증
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
@@ -72,8 +75,14 @@ jobs:
           if (-not $merged.Contains("전체 1개 | 공식 확인 0개 | 일부 확인 0개 | 제외 1개") -or
               -not $merged.Contains("실제 제외 게임 목록 시작") -or
               -not $merged.Contains("Test Unknown.zip") -or
-              -not $merged.Contains("전체 검사 결과 (참고용 / 추가 조사 대상 아님)")) {
+              -not $merged.Contains("2부. 품번 확인 완료 목록 (AI 조사 대상 아님)") -or
+              -not $merged.Contains("A. 식별번호 없음: 1개") -or
+              -not $merged.Contains("B. 기존 식별번호 조회 실패: 0개") -or
+              -not $merged.Contains("변경 제안 파일명")) {
             throw "통합 TXT의 검사 결과·제외 목록·AI 지침 중 일부가 빠졌습니다"
+          }
+          if (([regex]::Matches($merged, "Test Unknown\\.zip")).Count -ne 1) {
+            throw "제외 게임이 전체 결과 부분에 중복 기록됨"
           }
           if ($merged -match "github.com|sanato|experiment-bidirectional-lookup") {
             throw "통합 TXT에 개발 정보가 포함됐습니다"
