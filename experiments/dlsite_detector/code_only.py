@@ -1,26 +1,38 @@
-"""PlayDock DLsite 품번 확인기: 파일명/입력문에 코드가 있을 때만 공식 HTML 조회.
+"""DLsite → Steam 식별번호 전용 확인기.
 
-DLsite 제목 검색, Bing RSS, DDGS, 원제 추론, 작품명 점수 비교를 전혀 호출하지 않는다.
-압축파일 본문을 열지 않으며 파일 경로를 인터넷에 전달하지 않는다.
+* DLsite 품번(RJ/VJ/BJ/EJ)이 있으면 공식 DLsite HTML부터 확인한다.
+* 하나라도 DLsite 공식 이름을 확인하면 Steam보다 DLsite를 우선 선택한다.
+* DLsite 공식 확인이 전부 실패하거나 품번이 없으면 명시된 Steam App ID를 확인한다.
+* 둘 다 확인할 수 없으면 'excluded'로 분류한다(미등록·비게임 판정 아님).
+* 이름 검색, Bing RSS, DDGS, 번역 및 압축파일 내용 읽기는 수행하지 않는다.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Callable, Iterable
+from urllib.parse import urlsplit
 import re
 
-from .detector import CODE_PATTERN, EXACT_CODE, Product
-from .no_api_html import fetch_dlsite_html
+from .detector import CODE_PATTERN, Product, product_page_candidate
+from .no_api_html import fetch_dlsite_html, fetch_steam_html
+from .steam_client import STEAM_ID, SteamProduct
 
 SUFFIXES = (".zip", ".7z", ".rar")
 MAX_BATCH = 1000
 MAX_CODES_PER_ITEM = 12
 
+# Steam ID는 명시된 경우에만 추출. 일반 버전·빌드번호는 ID로 오인하지 않는다.
+# Steam 1091500 / SteamAppID=1091500 / Steam ID 1091500 / AppID: 1091500
+STEAM_MARKED = re.compile(
+    r"(?i)(?<![a-z0-9])(?:steam(?:[\s_-]*(?:app[\s_-]*id|id))?"
+    r"|app[\s_-]*id)[\s:=#_-]*([1-9]\d{2,9})(?![a-z0-9])"
+)
+
 
 @dataclass(frozen=True)
 class InputItem:
-    label: str  # 사용자가 보는 파일명/직접 입력 문자열(절대 경로는 잘라냄)
+    label: str
     origin: str  # archive / manual
 
 
@@ -31,22 +43,25 @@ class Work:
     category: str = ""
     url: str = ""
     status: str = "unavailable"  # verified / unavailable
+    store: str = "dlsite"  # dlsite / steam
 
 
 @dataclass(frozen=True)
 class Result:
     query: str
     input_origin: str
-    status: str  # confirmed / partial / unavailable / no_code
+    status: str  # confirmed / partial / excluded
     works: tuple[Work, ...] = ()
     warnings: tuple[str, ...] = ()
+    selected_store: str = ""  # dlsite / steam / ""
+    attempted_stores: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
 def file_name(value: str) -> str:
-    """윈도우/Unix 입력 경로에서 파일명만 추출해 외부 노출 방지."""
+    """입력된 경로에서는 이름만 보존. 로컬 경로는 웹으로 보내지 않음."""
     return re.split(r"[/\\]", str(value or ""))[-1].strip()
 
 
@@ -60,7 +75,6 @@ def selected_archives(paths: Iterable[str]) -> tuple[str, ...]:
 
 
 def folder_archives(directory: str) -> tuple[str, ...]:
-    """선택한 폴더 직하위 압축파일명만 읽으며 내부 파일 내용은 미검사."""
     folder = Path(directory)
     if not folder.is_dir():
         return ()
@@ -79,46 +93,116 @@ def inputs(text: str, files: Iterable[str], limit: int = MAX_BATCH) -> tuple[Inp
 
 
 def codes_in(value: str) -> tuple[str, ...]:
-    """DLsite 품번만 추출. 다른 숫자·Steam ID·버전은 무시하고 복수 품번 지원."""
+    """DLsite 품번을 파일명에서 순서대로 추출하고 중복 제거."""
     return tuple(dict.fromkeys(m.group(1).upper()
                                for m in CODE_PATTERN.finditer(file_name(value))))
 
 
+def steam_ids_in(value: str, *, manual: bool = False) -> tuple[str, ...]:
+    """명시적인 Steam App ID만 추출. 직접 입력한 순수 숫자는 허용."""
+    name = file_name(value)
+    ids = [m.group(1) for m in STEAM_MARKED.finditer(name)
+           if STEAM_ID.fullmatch(m.group(1))]
+    if manual and STEAM_ID.fullmatch(name):
+        ids.insert(0, name)
+    return tuple(dict.fromkeys(ids))
+
+
+def _verified_dlsite(code: str, product: Product | None) -> Work:
+    if (product is not None and product.code.upper() == code and
+            product.title.strip() and product_page_candidate(product.url) is not None and
+            product_page_candidate(product.url)[0] == code):
+        return Work(code, product.title, product.category, product.url, "verified", "dlsite")
+    return Work(code, store="dlsite")
+
+
+def _verified_steam(appid: str, product: SteamProduct | None) -> Work:
+    if product is None or product.app_id != appid or not product.title.strip():
+        return Work(appid, store="steam")
+    parts = urlsplit(product.url)
+    if not (parts.scheme == "https" and
+            parts.hostname == "store.steampowered.com" and
+            parts.username is None and parts.password is None and
+            re.fullmatch(r"/app/" + re.escape(appid) + r"(?:/[^/]*)?/?", parts.path)):
+        return Work(appid, store="steam")
+    return Work(appid, product.title, product.item_type, product.url, "verified", "steam")
+
+
 def check(item: InputItem, *,
           fetcher: Callable[[str], Product | None] = fetch_dlsite_html,
+          steam_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_html,
           cache: dict[str, Work] | None = None) -> Result:
-    """공식 작품 페이지 1개(필요한 경우 매장 2개) 이외에는 네트워크 요청이 없다."""
-    codes = codes_in(item.label)
-    if not codes:
-        return Result(item.label, item.origin, "no_code", warnings=(
-            "파일명/입력값에 RJ·VJ·BJ·EJ 품번이 없어 인터넷 조회를 건너뛰었습니다.",))
-    warnings = []
-    if len(codes) > MAX_CODES_PER_ITEM:
-        warnings.append(f"품번이 {len(codes)}개여서 첫 {MAX_CODES_PER_ITEM}개만 조회했습니다.")
-    works = []
-    for code in codes[:MAX_CODES_PER_ITEM]:
-        if cache is not None and code in cache:
-            works.append(cache[code])
-            continue
-        try:
-            product = fetcher(code)
-            if (product is not None and product.code.upper() == code and
-                    product.title.strip() and
-                    product.url.startswith("https://www.dlsite.com/")):
-                result = Work(code=code, title=product.title,
-                              category=product.category, url=product.url,
-                              status="verified")
+    """작품 식별번호만으로 공식 상품명을 조회. 실패 시 다른 사이트로 순차 폴백."""
+    dl_codes = codes_in(item.label)
+    steam_ids = steam_ids_in(item.label, manual=(item.origin == "manual"))
+    attempted: list[str] = []
+    warnings: list[str] = []
+    checked: list[Work] = []
+    selected = ""
+
+    if len(dl_codes) > MAX_CODES_PER_ITEM:
+        warnings.append(f"DLsite 품번 {len(dl_codes)}개 중 앞의 {MAX_CODES_PER_ITEM}개만 확인.")
+    if len(steam_ids) > MAX_CODES_PER_ITEM:
+        warnings.append(f"Steam App ID {len(steam_ids)}개 중 앞의 {MAX_CODES_PER_ITEM}개만 확인.")
+
+    if dl_codes:
+        attempted.append("dlsite")
+        for code in dl_codes[:MAX_CODES_PER_ITEM]:
+            if cache is not None and code in cache:
+                row = cache[code]
             else:
-                result = Work(code=code)
-        except Exception as exc:
-            warnings.append(f"{code}: 공식 페이지 조회 오류 ({type(exc).__name__})")
-            result = Work(code=code)
-        if cache is not None:
-            cache[code] = result
-        works.append(result)
-    verified = sum(w.status == "verified" for w in works)
-    status = ("confirmed" if verified == len(works) else
-              "partial" if verified else "unavailable")
-    if verified < len(works):
-        warnings.append("일부 품번의 공식 작품명을 확인하지 못했습니다. 미등록을 뜻하지 않습니다.")
-    return Result(item.label, item.origin, status, tuple(works), tuple(warnings))
+                try:
+                    row = _verified_dlsite(code, fetcher(code))
+                except Exception as exc:
+                    warnings.append(f"DLsite {code}: 공식 페이지 조회 실패 ({type(exc).__name__})")
+                    row = Work(code, store="dlsite")
+                if cache is not None:
+                    cache[code] = row
+            checked.append(row)
+        if any(row.status == "verified" for row in checked):
+            selected = "dlsite"
+        else:
+            warnings.append("DLsite에서 공식 작품명을 확인하지 못해 Steam 식별번호를 확인합니다.")
+
+    # DLsite 품번이 없어도 Steam 식별번호가 있으면 조회.
+    # DLsite와 Steam 둘 다 있을 때 DLsite가 성공하면 Steam 접속은 하지 않는다.
+    if not selected and steam_ids:
+        attempted.append("steam")
+        steam_rows: list[Work] = []
+        for appid in steam_ids[:MAX_CODES_PER_ITEM]:
+            cache_key = "STEAM:" + appid
+            if cache is not None and cache_key in cache:
+                row = cache[cache_key]
+            else:
+                try:
+                    row = _verified_steam(appid, steam_fetcher(appid))
+                except Exception as exc:
+                    warnings.append(f"Steam {appid}: 공식 페이지 조회 실패 ({type(exc).__name__})")
+                    row = Work(appid, store="steam")
+                if cache is not None:
+                    cache[cache_key] = row
+            checked.append(row)
+            steam_rows.append(row)
+        if any(row.status == "verified" for row in steam_rows):
+            selected = "steam"
+
+    if not selected:
+        if not dl_codes and not steam_ids:
+            warnings.append("DLsite 품번과 명시적인 Steam App ID가 없어 제외했습니다.")
+        else:
+            warnings.append("두 사이트 모두 공식 이름을 확인하지 못해 제외했습니다. "
+                            "접속 제한이나 조회 장애일 수 있으며 미등록 판정은 아닙니다.")
+        return Result(item.label, item.origin, "excluded", tuple(checked),
+                      tuple(warnings), "", tuple(attempted))
+
+    active = [row for row in checked if row.store == selected]
+    success = sum(row.status == "verified" for row in active)
+    status = "confirmed" if success == len(active) else "partial"
+    if status == "partial":
+        warnings.append("선택된 사이트의 일부 식별번호는 공식 이름을 확인하지 못했습니다.")
+    if selected == "steam" and dl_codes:
+        warnings.append("DLsite 공식 확인 실패 후 Steam 확인 결과를 사용했습니다.")
+    if selected == "dlsite" and steam_ids:
+        warnings.append("DLsite 우선 확인에 성공하여 Steam 조회는 생략했습니다.")
+    return Result(item.label, item.origin, status, tuple(checked),
+                  tuple(warnings), selected, tuple(attempted))
