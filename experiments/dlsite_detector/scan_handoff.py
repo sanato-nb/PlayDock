@@ -278,7 +278,7 @@ def make_ai_prompt(excluded_count: int, excluded_rows: list[dict] | None = None)
 1. 조사 결과표를 사용자에게 먼저 제시하고, 사용자가 변경 대상을 확인하게 하세요.
 2. 사용자가 승인한 공식 확인(`official_confirmed`) 항목만 다음 PS1의
    `# ===== BEGIN AI RULES` ~ `# ===== END AI RULES` 사이 JSON 배열에 넣으세요.
-3. 각 규칙은 `{"OldName":"원본 파일명.zip","NewName":"원본 게임명 [RJ123456].zip"}` 형식입니다.
+3. 각 규칙은 `{{"OldName":"원본 파일명.zip","NewName":"원본 게임명 [RJ123456].zip"}}` 형식입니다.
    원본 파일명은 한 글자도 바꾸지 않고, JSON 문법대로 따옴표/백슬래시를 이스케이프하세요.
 4. 후보(`candidate`), 미확인(`unknown`), DLC·합본의 동일성 불확실, 동일 파일명 중복,
    이미 올바른 번호를 가진 게임은 JSON 배열에서 제외하세요.
