@@ -1,6 +1,9 @@
-name: PlayDock 파일 동일성 복구·PS1 독립검증·폴더 재확인 Windows 빌드
+name: PlayDock 검사 EXE 폴더 Y 재확인·Windows 실사용 테스트
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
@@ -103,6 +106,43 @@ jobs:
           if ($merged -match "github.com|sanato|experiment-bidirectional-lookup") {
             throw "통합 TXT에 개발 정보가 포함됐습니다"
           }
+
+      - name: Windows EXE 대화형 폴더 Y 승인 및 취소 실검증
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import subprocess
+          import tempfile
+
+          exe = Path("dist/PlayDock-ID-Scan-And-Prompt.exe").resolve()
+          with tempfile.TemporaryDirectory() as tmp:
+              folder = Path(tmp) / "my games"
+              folder.mkdir()
+              (folder / "Unknown Demo.zip").write_bytes(b"FAKE-TEST-FILE")
+              result_folder = folder / "PlayDock_Results"
+              def launch(reply):
+                  run = subprocess.run([str(exe)],
+                      input=str(folder) + "\n" + reply + "\n\n",
+                      text=True, encoding="utf-8", errors="replace",
+                      capture_output=True, timeout=80)
+                  assert run.returncode == 0, run.stdout + run.stderr
+                  assert "이 폴더가 맞습니까?" in run.stdout, run.stdout
+                  assert str(folder) in run.stdout, run.stdout
+                  return run.stdout
+
+              output = launch("N")
+              assert "검사를 취소했습니다" in output, output
+              assert not result_folder.exists(), "N 취소 후 TXT가 생성됨"
+              output = launch("Y")
+              assert "모든 파일 검사 완료" in output, output
+              dirs = list(result_folder.iterdir())
+              assert len(dirs) == 1 and dirs[0].is_dir()
+              assert [p.name for p in dirs[0].iterdir()] == [
+                  "PlayDock_Complete_Scan_And_AI_Prompt.txt"]
+              assert (folder / "Unknown Demo.zip").read_bytes() == b"FAKE-TEST-FILE"
+              print("Windows interactive EXE folder Y/N confirmation PASS")
+          '@ | python -
 
       - name: 이용자 정보 없는 배포 ZIP 준비
         shell: pwsh
