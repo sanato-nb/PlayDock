@@ -1,6 +1,9 @@
-name: PlayDock AI 인계 PS1 고정 템플릿 Windows 안전 검증
+name: PlayDock 파일 동일성 복구·PS1 독립검증·폴더 재확인 Windows 빌드
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
@@ -28,8 +31,8 @@ jobs:
       - name: Windows 검사 엔진 및 TXT 인계 프롬프트 테스트
         shell: pwsh
         run: |
-          python -m compileall -q experiments/dlsite_detector/scan_handoff.py experiments/dlsite_detector/rename_template.py scripts/scan_then_prompt.py
-          python -m pytest -q tests/test_code_only.py tests/test_dlsite_steam_priority.py tests/test_scan_then_prompt.py tests/test_rename_template.py
+          python -m compileall -q experiments/dlsite_detector/scan_handoff.py experiments/dlsite_detector/rename_template.py experiments/dlsite_detector/rename_validation.py scripts/scan_then_prompt.py
+          python -m pytest -q tests/test_code_only.py tests/test_dlsite_steam_priority.py tests/test_scan_then_prompt.py tests/test_rename_template.py tests/test_rename_validation.py
 
       - name: 실제 DLsite/Steam 공식 작품 조회 진단 (실패 비치명)
         continue-on-error: true
@@ -55,6 +58,18 @@ jobs:
           $exe = (Resolve-Path "dist/PlayDock-ID-Scan-And-Prompt.exe").Path
           & $exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "EXE 자체 진단 실패: $LASTEXITCODE" }
+
+      - name: EXE 완성 PS1 독립 무결성 검사
+        shell: pwsh
+        run: |
+          python -c "from experiments.dlsite_detector.rename_template import PS1_TEMPLATE; from pathlib import Path; Path('empty_rename.ps1').write_text(PS1_TEMPLATE, encoding='utf-8-sig')"
+          $exe = (Resolve-Path "dist/PlayDock-ID-Scan-And-Prompt.exe").Path
+          & $exe --verify-rename-script "empty_rename.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "배포 EXE 완성 PS1 검증 실패" }
+          (Get-Content "empty_rename.ps1" -Raw -Encoding UTF8).Replace('Undo-Last', 'Undo-Broken') |
+            Set-Content "tampered_rename.ps1" -Encoding UTF8
+          & $exe --verify-rename-script "tampered_rename.ps1"
+          if ($LASTEXITCODE -eq 0) { throw "코드 변조 PS1을 검증 통과시켜서는 안 됩니다" }
 
       - name: 실제 Windows EXE 수행 · 결과가 TXT 하나만 생성되는지 검증
         shell: pwsh
@@ -102,7 +117,7 @@ jobs:
       - name: Windows EXE 다운로드 파일 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-Embedded-PS1-Scan-Windows
+          name: PlayDock-Verified-Rename-PS1-Windows
           path: release/
           if-no-files-found: error
           retention-days: 30
