@@ -183,7 +183,10 @@ def check(item: InputItem, *,
         if any(row.status == "verified" for row in checked):
             selected = "dlsite"
         else:
-            warnings.append("DLsite에서 공식 작품명을 확인하지 못해 Steam 식별번호를 확인합니다.")
+            if steam_ids:
+                warnings.append("DLsite 공식 작품명 확인 실패 · Steam App ID로 이어서 조회합니다.")
+            else:
+                warnings.append("DLsite 공식 작품명 확인 실패 · Steam App ID가 없어 Steam 조회는 생략했습니다.")
 
     # DLsite 품번이 없어도 Steam 식별번호가 있으면 조회.
     # DLsite와 Steam 둘 다 있을 때 DLsite가 성공하면 Steam 접속은 하지 않는다.
@@ -210,8 +213,14 @@ def check(item: InputItem, *,
     if not selected:
         if not dl_codes and not steam_ids:
             warnings.append("DLsite 품번과 명시적인 Steam App ID가 없어 제외했습니다.")
+        elif attempted == ["dlsite"]:
+            warnings.append("DLsite 공식 조회 실패로 제외했습니다. "
+                            "Steam App ID는 없어서 조회하지 않았습니다. 미등록 판정은 아닙니다.")
+        elif attempted == ["steam"]:
+            warnings.append("Steam 공식 조회 실패로 제외했습니다. "
+                            "DLsite 품번이 없어서 조회하지 않았습니다. 미등록 판정은 아닙니다.")
         else:
-            warnings.append("두 사이트 모두 공식 이름을 확인하지 못해 제외했습니다. "
+            warnings.append("DLsite와 Steam 공식 조회가 모두 실패해 제외했습니다. "
                             "접속 제한이나 조회 장애일 수 있으며 미등록 판정은 아닙니다.")
         return Result(item.label, item.origin, "excluded", tuple(checked),
                       tuple(warnings), "", tuple(attempted))
