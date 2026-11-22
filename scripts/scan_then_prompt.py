@@ -9,6 +9,8 @@ from argparse import ArgumentParser
 from pathlib import Path
 import sys
 
+from scripts.folder_picker import pick_windows_folder
+
 from experiments.dlsite_detector.scan_handoff import (
     RESULTS_DIR, COMBINED_NAME,
     scan_folder, publish_after_scan,
@@ -94,31 +96,47 @@ def main(argv=None) -> int:
         assert "Steam" in make_ai_prompt(2)
         assert not make_ai_prompt(0)
         assert "PlayDock_Excluded_Games.txt" not in make_ai_prompt(2)
-        print("PlayDock scan→prompt EXE self-test: PASS")
-        return 0
+        print("PlayDo    interactive = not bool(args.folder)
+    # A scan must never begin until the user confirms the exact path.
+    # This applies to pasted paths, the optional Windows picker AND CLI args.
+    pause_after_scan = False
+    try:
+        if interactive:
+            print("게임 압축파일이 있는 폴더 경로를 입력하세요.")
+            print("예: C:\\Games\\Archives")
+            print("경로 없이 Enter를 누르면 Windows 폴더 선택창이 열립니다.")
+            try:
+                selected = input("게임 폴더 경로 (Enter: 폴더 선택창) > ").strip()
+            except EOFError:
+                print("검사를 취소했습니다.")
+                return 0
+            except KeyboardInterrupt:
+                print("\n검사를 취소했습니다.")
+                return 130
+            if not selected:
+                try:
+                    selected = pick_windows_folder()
+                except RuntimeError as exc:
+                    print(f"[오류] {exc}", file=sys.stderr)
+                    return 1
+                if not selected:
+                    print("폴더 선택을 취소했습니다. 검사 및 결과 TXT 생성은 하지 않았습니다.")
+                    return 0
+        else:
+            selected = args.folder
 
-    interactive = not bool(args.folder)
-    if interactive:
-        print("게임 압축파일이 있는 폴더의 전체 경로를 붙여넣어 주세요.")
-        print("예: C:\\Games\\Archives")
         try:
-            selected = input("게임 폴더 경로 > ").strip()
-        except (EOFError, KeyboardInterrupt):
-            return 130
-        if not selected:
-            print("폴더가 선택되지 않았습니다.")
-            return 1
-        # The console scanner must confirm its OWN folder, independently of
-        # the later AI-generated rename PS1. Never start a scan on cancel.
-        try:
-            chosen = Path(selected.strip().strip('"')).expanduser()
+            chosen = Path(str(selected).strip().strip('"')).expanduser()
             if not chosen.is_dir():
                 print(f"[오류] 게임 폴더를 찾을 수 없습니다: {chosen}")
                 return 1
             chosen = chosen.resolve(strict=True)
-            print(f"\n선택한 검사 폴더: {chosen}")
-            answer = input("이 폴더가 맞습니까? 맞으면 Y 입력 (그 외에는 취소) > ").strip()
-        except (EOFError, KeyboardInterrupt):
+            print(f"\n선택한 검사 폴더: {chosen}", flush=True)
+            answer = input("이 폴더가 맞습니까? (Y: 진행 / N: 취소) > ").strip()
+        except EOFError:
+            print("\n확인 입력이 없어 검사를 취소했습니다. 결과 TXT를 만들지 않았습니다.")
+            return 0
+        except KeyboardInterrupt:
             print("\n폴더 확인이 취소되었습니다.")
             return 130
         except (OSError, ValueError) as exc:
@@ -127,20 +145,17 @@ def main(argv=None) -> int:
         if answer.upper() != "Y":
             print("검사를 취소했습니다. 파일 검사 및 결과 TXT 생성은 하지 않았습니다.")
             return 0
-        selected = str(chosen)
-    else:
-        selected = args.folder
-    try:
-        return run(selected, output_dir=args.output,
-                   recursive=not args.top_level)
+        pause_after_scan = interactive
+        return run(chosen, output_dir=args.output, recursive=not args.top_level)
     except KeyboardInterrupt:
         print("\n사용자가 검사를 중단했습니다. 프롬프트를 생성하지 않습니다.")
         return 130
     finally:
-        if interactive:
+        if pause_after_scan:
             try:
                 input("\n종료하려면 Enter 키를 누르세요...")
             except (EOFError, KeyboardInterrupt):
+                passpt (EOFError, KeyboardInterrupt):
                 pass
 
 

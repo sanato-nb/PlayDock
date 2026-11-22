@@ -442,14 +442,93 @@ def test_interactive_scanner_rejects_nonexistent_folder(tmp_path, monkeypatch):
     assert scan_then_prompt.main([]) == 1
 
 
-def test_positional_cli_keeps_noninteractive_operation(tmp_path, monkeypatch):
+def test_positional_cli_requires_y_before_scanning(tmp_path, monkeypatch, capsys):
     from scripts import scan_then_prompt
     folder = tmp_path / "games"
     folder.mkdir()
     seen = []
-    monkeypatch.setattr("builtins.input", lambda prompt="": (
-        _ for _ in ()).throw(AssertionError("자동 실행 인자는 입력을 요구하지 않아야 함")))
+    monkeypatch.setattr("builtins.input", lambda prompt="": "Y")
     monkeypatch.setattr(scan_then_prompt, "run", lambda p, **kw: (
         seen.append(p) or 0))
     assert scan_then_prompt.main([str(folder)]) == 0
-    assert seen == [str(folder)]
+    assert seen == [folder.resolve()]
+    assert "선택한 검사 폴더:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("decline", ["N", "", "NO", "0"])
+def test_positional_cli_cancel_does_not_scan(tmp_path, monkeypatch, decline):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "games"
+    folder.mkdir()
+    monkeypatch.setattr("builtins.input", lambda prompt="": decline)
+    monkeypatch.setattr(scan_then_prompt, "run", lambda *a, **k: (
+        _ for _ in ()).throw(AssertionError("Y 확인 전에는 검사 금지")))
+    assert scan_then_prompt.main([str(folder)]) == 0
+    assert not (folder / RESULTS_DIR).exists()
+
+
+def test_positional_cli_eof_does_not_scan(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "games"
+    folder.mkdir()
+    monkeypatch.setattr("builtins.input", lambda prompt="": (
+        _ for _ in ()).throw(EOFError()))
+    monkeypatch.setattr(scan_then_prompt, "run", lambda *a, **k: (
+        _ for _ in ()).throw(AssertionError("입력 없이 검사 금지")))
+    assert scan_then_prompt.main([str(folder)]) == 0
+    assert not (folder / RESULTS_DIR).exists()
+
+
+def test_folder_picker_confirmation_then_scan(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "Selected Folder"
+    folder.mkdir()
+    replies = iter(["", "Y", ""])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(replies))
+    monkeypatch.setattr(scan_then_prompt, "pick_windows_folder", lambda: str(folder))
+    seen = []
+    monkeypatch.setattr(scan_then_prompt, "run", lambda p, **kw: (
+        seen.append(p) or 0))
+    assert scan_then_prompt.main([]) == 0
+    assert seen == [folder.resolve()]
+
+
+def test_folder_picker_cancel_does_not_scan(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    monkeypatch.setattr("builtins.input", lambda prompt="": "")
+    monkeypatch.setattr(scan_then_prompt, "pick_windows_folder", lambda: None)
+    monkeypatch.setattr(scan_then_prompt, "run", lambda *a, **k: (
+        _ for _ in ()).throw(AssertionError("취소된 폴더 선택은 검사 금지")))
+    assert scan_then_prompt.main([]) == 0
+
+
+def test_folder_picker_n_answer_does_not_scan(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "Selected Folder"
+    folder.mkdir()
+    replies = iter(["", "N"])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(replies))
+    monkeypatch.setattr(scan_then_prompt, "pick_windows_folder", lambda: str(folder))
+    monkeypatch.setattr(scan_then_prompt, "run", lambda *a, **k: (
+        _ for _ in ()).throw(AssertionError("폴더 선택창 이후 Y 확인 필요")))
+    assert scan_then_prompt.main([]) == 0
+    assert not (folder / RESULTS_DIR).exists()
+
+
+def test_folder_picker_windows_command_uses_sta_and_utf8(monkeypatch):
+    from scripts import folder_picker
+    import base64
+    from subprocess import CompletedProcess
+    calls = []
+    monkeypatch.setattr(folder_picker.sys, "platform", "win32")
+    def fake_run(args, **kwargs):
+        calls.append((args, kwargs))
+        return CompletedProcess(args, 0, "C:\\Games\\한글\\n", "")
+    monkeypatch.setattr(folder_picker.subprocess, "run", fake_run)
+    assert folder_picker.pick_windows_folder() == "C:\\Games\\한글"
+    args, opts = calls[0]
+    assert "-STA" in args and "-EncodedCommand" in args
+    source = base64.b64decode(args[-1]).decode("utf-16le")
+    assert "FolderBrowserDialog" in source
+    assert "UTF8Encoding" in source
+    assert opts["encoding"] == "utf-8"

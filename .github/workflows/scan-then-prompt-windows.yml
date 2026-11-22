@@ -1,6 +1,13 @@
 name: PlayDock 검사 EXE 폴더 Y 재확인·Windows 실사용 테스트
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths:
+      - "scripts/scan_then_prompt.py"
+      - "scripts/folder_picker.py"
+      - "tests/test_scan_then_prompt.py"
+      - ".github/workflows/scan-then-prompt-windows.yml"
   workflow_dispatch:
 
 permissions:
@@ -76,7 +83,7 @@ jobs:
           New-Item -ItemType Directory -Force "sample_games" | Out-Null
           Set-Content "sample_games/Test Unknown.zip" "FAKE ARCHIVE"
           $exe = (Resolve-Path "dist/PlayDock-ID-Scan-And-Prompt.exe").Path
-          & $exe "sample_games" --output "sample_results"
+          "Y" | & $exe "sample_games" --output "sample_results"
           if ($LASTEXITCODE -ne 0) { throw "실제 EXE 검사 실행 실패" }
           $out = Get-ChildItem -Directory "sample_results" | Select-Object -First 1
           if (-not $out) { throw "출력 디렉터리가 없습니다" }
@@ -128,6 +135,18 @@ jobs:
                   # after N, one complete TXT after Y. Do not compare console
                   # path text: Windows may canonicalize/case-fold the input path.
                   return run.stdout
+
+              # Verify the same safety gate when a folder is passed as a CLI arg.
+              for answer in ("N", ""):
+                  destination = Path(tmp) / ("cli_cancel_" + (answer or "enter"))
+                  rejected = subprocess.run(
+                      [str(exe), str(folder), "--output", str(destination)],
+                      input=answer + "\n", text=True, encoding="utf-8",
+                      errors="replace", capture_output=True, timeout=80)
+                  assert rejected.returncode == 0, rejected.stdout + rejected.stderr
+                  assert "이 폴더가 맞습니까?" in rejected.stdout
+                  assert "검사를 취소했습니다" in rejected.stdout
+                  assert not destination.exists(), "직접 인자 취소 후 TXT 생성됨"
 
               launch("N")
               assert not result_folder.exists(), "N 취소 후 TXT가 생성됨"
