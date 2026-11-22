@@ -69,7 +69,7 @@ def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
     assert "전체 4개" in combined
     assert "Steam" in combined and "DLsite" in combined
     assert "사용자가 승인" in combined
-    assert "PowerShell" in combined and "BAT" in combined
+    assert "PowerShell" in combined and "실행.cmd" in combined
     assert "GitHub" not in combined and "github.com" not in combined
     assert "experiment-bidirectional" not in combined
     assert "실제 제외 게임 목록 시작" in combined
