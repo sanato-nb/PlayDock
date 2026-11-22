@@ -177,3 +177,32 @@ def test_multiple_steam_ids_keep_each_separately():
     assert result.status == "partial"
     assert len(result.works) == 2
     assert result.selected_store == "steam"
+
+
+
+def test_steam_public_prefers_no_key_store_data_before_html():
+    from experiments.dlsite_detector.code_only import fetch_steam_public
+    called = []
+    def public(code):
+        called.append("public")
+        return steam(code)
+    def html(code):
+        called.append("html")
+        raise AssertionError("API success should skip HTML")
+    result = fetch_steam_public("1091500", api_fetcher=public, html_fetcher=html)
+    assert result and result.title == "Steam Work"
+    assert called == ["public"]
+
+
+def test_steam_public_falls_back_to_official_html_when_public_endpoint_blocked():
+    from experiments.dlsite_detector.code_only import fetch_steam_public
+    called = []
+    def blocked(code):
+        called.append("public")
+        raise RuntimeError("HTTP 429")
+    def html(code):
+        called.append("html")
+        return steam(code)
+    result = fetch_steam_public("1091500", api_fetcher=blocked, html_fetcher=html)
+    assert result and result.app_id == "1091500"
+    assert called == ["public", "html"]
