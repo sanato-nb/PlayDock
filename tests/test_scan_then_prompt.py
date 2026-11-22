@@ -401,3 +401,55 @@ def test_no_exception_or_incorrect_no_id_claim_for_store_lookup_failure():
     assert "B. 기존 식별번호 조회 실패: 1개" in text
     assert "실제 조회: dlsite" in text
     assert "인터넷 조회를 하지 않음" in text  # A group only, zero entries.
+
+
+def test_interactive_scanner_confirms_folder_before_start(tmp_path, monkeypatch, capsys):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "Folder with spaces"
+    folder.mkdir()
+    user_inputs = iter([str(folder), "Y", ""])
+    seen = []
+
+    monkeypatch.setattr("builtins.input", lambda prompt="": user_inputs.__next__())
+    monkeypatch.setattr(scan_then_prompt, "run", lambda selected, **kw: (
+        seen.append(Path(selected)) or 0))
+    assert scan_then_prompt.main([]) == 0
+    assert seen == [folder.resolve()]
+    assert "선택한 검사 폴더:" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("decline", ["", "N", "NO", "0"])
+def test_interactive_scanner_cancel_never_starts_or_writes(tmp_path, monkeypatch, decline, capsys):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "games"
+    folder.mkdir()
+    answers = iter([str(folder), decline, ""])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    def forbidden_scan(*args, **kwargs):
+        raise AssertionError("취소한 경우 검사나 결과 생성이 실행되면 안 됩니다")
+    monkeypatch.setattr(scan_then_prompt, "run", forbidden_scan)
+    assert scan_then_prompt.main([]) == 0
+    assert not (folder / RESULTS_DIR).exists()
+    assert "검사를 취소했습니다" in capsys.readouterr().out
+
+
+def test_interactive_scanner_rejects_nonexistent_folder(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    answers = iter([str(tmp_path / "missing"), ""])
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(answers))
+    monkeypatch.setattr(scan_then_prompt, "run", lambda *a, **k: (
+        _ for _ in ()).throw(AssertionError("missing folder must not scan")))
+    assert scan_then_prompt.main([]) == 1
+
+
+def test_positional_cli_keeps_noninteractive_operation(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "games"
+    folder.mkdir()
+    seen = []
+    monkeypatch.setattr("builtins.input", lambda prompt="": (
+        _ for _ in ()).throw(AssertionError("자동 실행 인자는 입력을 요구하지 않아야 함")))
+    monkeypatch.setattr(scan_then_prompt, "run", lambda p, **kw: (
+        seen.append(p) or 0))
+    assert scan_then_prompt.main([str(folder)]) == 0
+    assert seen == [str(folder)]
