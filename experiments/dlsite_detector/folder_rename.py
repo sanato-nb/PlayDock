@@ -12,7 +12,7 @@ from pathlib import Path
 import os
 
 from .rename_companion import ReviewRow, load_review
-from .research_handoff import safe_rename, undo_last, default_journal
+from .research_handoff import VerifiedSuggestion, safe_rename, undo_last, default_journal
 
 DATA_FILENAME = "PlayDock_Rename_Data.json"
 MAX_FILES = 50000
@@ -82,8 +82,12 @@ def folder_plan(folder: str | Path, mappings: list[ReviewRow]) -> list[FolderMat
     return result
 
 
-def rename_verified(item: FolderMatch, *, journal: Path | None = None
-                    ) -> tuple[Path, str]:
+def rename_verified(item: FolderMatch, proof: VerifiedSuggestion,
+                    *, journal: Path | None = None) -> tuple[Path, str]:
     if item.status != "ready" or item.path is None:
         raise ValueError("수동/미확인/충돌 파일은 자동 이름 변경할 수 없습니다.")
-    return safe_rename(item.path, item.row.proposed, journal or default_journal())
+    if (not proof.verified or not item.row.suggestion or
+            proof.suggestion != item.row.suggestion):
+        raise ValueError("현재 품번의 공식 재조회가 성공해야 파일명을 변경할 수 있습니다.")
+    return safe_rename(item.path, item.row.proposed,
+                       journal or default_journal().with_name("folder-rename-history.jsonl"))
