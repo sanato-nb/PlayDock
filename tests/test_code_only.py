@@ -21,13 +21,13 @@ def never(*args):
 
 @pytest.mark.parametrize("name", [
     "My Game.zip", "Game Title [v1.2].7z", "구글 검색 작품.rar",
-    "Steam 12345678.zip", "only[123456].zip", "RJ12345.zip",
+    "random 12345678.zip", "only[123456].zip", "RJ12345.zip",
 ])
 def test_no_code_never_uses_internet(name):
     result = check(InputItem(name, "archive"), fetcher=never)
-    assert result.status == "no_code"
+    assert result.status == "excluded"
     assert not result.works
-    assert "인터넷 조회를 건너" in result.warnings[0]
+    assert "없어 제외" in result.warnings[0]
 
 
 def test_code_found_verifies_official_title_only():
@@ -74,17 +74,17 @@ def test_duplicate_code_across_archive_inputs_is_cached():
 def test_wrong_official_code_not_verified():
     result = check(InputItem("RJ123456", "manual"),
                    fetcher=lambda code: product(code, returned_code="RJ654321"))
-    assert result.status == "unavailable"
+    assert result.status == "excluded"
     assert result.works[0].title == ""
 
 
 def test_fetch_exception_cannot_be_claimed_not_registered():
     result = check(InputItem("RJ123456", "manual"),
                    fetcher=lambda code: 1 / 0)
-    assert result.status == "unavailable"
+    assert result.status == "excluded"
     assert result.works[0].status == "unavailable"
     assert any("ZeroDivisionError" in x for x in result.warnings)
-    assert any("미등록을 뜻하지 않" in x for x in result.warnings)
+    assert any("미등록 판정은 아닙니다" in x for x in result.warnings)
 
 
 def test_partial_multiple_codes_are_distinct():
@@ -134,7 +134,7 @@ def test_reject_non_official_product_url():
     result = check(InputItem("RJ123456", "manual"),
                    fetcher=lambda code: Product(code, "Fake", "", "maniax",
                            "https://fake.example/work/=/product_id/RJ123456.html"))
-    assert result.status == "unavailable"
+    assert result.status == "excluded"
 
 
 def test_static_ui_does_not_import_legacy_title_search():
