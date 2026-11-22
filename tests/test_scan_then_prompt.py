@@ -483,7 +483,7 @@ def test_folder_picker_confirmation_then_scan(tmp_path, monkeypatch):
     from scripts import scan_then_prompt
     folder = tmp_path / "Selected Folder"
     folder.mkdir()
-    replies = iter(["", "Y", ""])
+    replies = iter(["1", "", "Y", ""])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(replies))
     monkeypatch.setattr(scan_then_prompt, "pick_windows_folder", lambda: str(folder))
     seen = []
@@ -506,7 +506,7 @@ def test_folder_picker_n_answer_does_not_scan(tmp_path, monkeypatch):
     from scripts import scan_then_prompt
     folder = tmp_path / "Selected Folder"
     folder.mkdir()
-    replies = iter(["", "N"])
+    replies = iter(["1", "", "N"])
     monkeypatch.setattr("builtins.input", lambda prompt="": next(replies))
     monkeypatch.setattr(scan_then_prompt, "pick_windows_folder", lambda: str(folder))
     monkeypatch.setattr(scan_then_prompt, "run", lambda *a, **k: (

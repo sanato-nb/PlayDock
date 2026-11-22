@@ -1,6 +1,6 @@
 """PlayDock Windows console EXE: official ID→name scan, then AI handoff.
 
-No Tkinter, no AI services, no rename operation. Users enter a folder once.
+No Tkinter or AI services. Renaming bare-ID files is strictly opt-in.
 Double-click interactive mode pauses at the end so the completion files are visible.
 """
 from __future__ import annotations
@@ -12,6 +12,9 @@ import sys
 
 from scripts.folder_picker import pick_windows_folder
 from src.playdock.database.official_catalog import OfficialWorkCatalog
+from experiments.dlsite_detector.code_only_renamer import (
+    apply_code_only_renames, undo_last_auto_rename,
+)
 
 from experiments.dlsite_detector.scan_handoff import (
     RESULTS_DIR, COMBINED_NAME,
@@ -27,7 +30,7 @@ def _progress(done: int, total: int, result):
 
 
 def run(folder: str | Path, *, output_dir: str | Path | None = None,
-        recursive: bool = True) -> int:
+        recursive: bool = True, rename_code_only: bool = False) -> int:
     root = Path(str(folder).strip().strip('"'))
     print("\nPlayDock — DLsite → Steam 공식 품번·작품명 검사", flush=True)
     print("검사는 압축파일 이름만 사용합니다. 압축 내부 및 일반 제목 검색은 하지 않습니다.")
@@ -51,6 +54,16 @@ def run(folder: str | Path, *, output_dir: str | Path | None = None,
             print(f"DB 위치: {catalog.path}")
     except (OSError, ValueError, sqlite3.Error) as exc:
         print(f"[경고] 공식 작품정보 DB 저장 실패 ({type(exc).__name__}). 검사 TXT는 정상 생성했습니다.")
+    if rename_code_only:
+        try:
+            changed, changes = apply_code_only_renames(root, report.items, recursive=recursive)
+            print(f"\n[품번 파일 이름 변경] {changed}개 변경 (시작 옵션 2 적용)")
+            for item in changes:
+                print("  " + item)
+            if changed:
+                print("복구하려면 다음 실행 시 시작 옵션 3을 선택하세요.")
+        except (OSError, ValueError) as exc:
+            print(f"[경고] 자동 이름 변경을 진행하지 못했습니다: {type(exc).__name__}")
     stats = report.counts
     print("\n====== 모든 파일 검사 완료 ======")
     print(f"전체 {stats['total']}개 | 공식 확인 {stats['confirmed']}개 | "
@@ -85,6 +98,12 @@ def main(argv=None) -> int:
     parser.add_argument("folder", nargs="?", help="검사할 게임 압축파일 폴더")
     parser.add_argument("--output", help="결과 저장 위치 (기본: 검사 폴더/PlayDock_Results)")
     parser.add_argument("--top-level", action="store_true", help="하위 폴더 제외")
+    parser.add_argument("--rename-code-only", action="store_true",
+                        help="시작 시 품번만 있는 압축파일 이름 변경 옵션 2 선택 (폴더 Y 확인 필요)")
+    parser.add_argument("--undo-renames", action="store_true",
+                        help="이전 자동 이름 변경을 UNDO 복구 (폴더 Y 확인 필요)")
+    parser.add_argument("--self-test-renames", action="store_true",
+                        help="네트워크 없는 임시 파일로 자동 이름 변경과 복구 자체 검사")
     parser.add_argument("--self-test", action="store_true", help="로컬 무네트워크 자체 검사")
     parser.add_argument("--verify-rename-script", metavar="PS1",
                         help="AI가 완성한 PS1의 고정 코드·JSON 이름 변경 목록을 독립 검증")
@@ -111,32 +130,78 @@ def main(argv=None) -> int:
         print("PlayDock scan→prompt EXE self-test: PASS")
         return 0
 
+    if args.self_test_renames:
+        from tempfile import TemporaryDirectory
+        from experiments.dlsite_detector.code_only import Result, Work
+        with TemporaryDirectory(prefix="PlayDock_Rename_Test_") as tmp:
+            folder = Path(tmp) / "games"
+            folder.mkdir()
+            source = folder / "RJ123456.zip"
+            source.write_bytes(b"FAKE ARCHIVE - NO EXTRACTION")
+            work = Work("RJ123456", "검증된 게임", "maniax",
+                        "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
+                        "verified", "dlsite")
+            report = (Result(source.name, "archive", "confirmed", (work,),
+                             selected_store="dlsite"),)
+            changed, _ = apply_code_only_renames(
+                folder, report, journal_directory=Path(tmp) / "journals")
+            target = folder / "검증된 게임 [RJ123456].zip"
+            assert changed == 1 and target.read_bytes() == b"FAKE ARCHIVE - NO EXTRACTION"
+            restored, _ = undo_last_auto_rename(
+                folder, journal_directory=Path(tmp) / "journals")
+            assert restored == 1 and source.read_bytes() == b"FAKE ARCHIVE - NO EXTRACTION"
+        print("PlayDock code-only rename and UNDO EXE self-test: PASS")
+        return 0
+
     interactive = not bool(args.folder)
-    # A scan must never begin until the user confirms the exact path.
-    # This applies to pasted paths, the optional Windows picker AND CLI args.
+    rename_enabled = bool(args.rename_code_only)
+    operation = "undo" if args.undo_renames else "scan"
+    initial_path = ""
     pause_after_scan = False
     try:
         if interactive:
-            print("게임 압축파일이 있는 폴더 경로를 입력하세요.")
-            print("예: C:\\Games\\Archives")
-            print("경로 없이 Enter를 누르면 Windows 폴더 선택창이 열립니다.")
+            print("\n====== PlayDock 시작 옵션 ======")
+            print("1. 품번 검사만 진행 (기본값, 파일 이름 유지)")
+            print("2. 품번만 있는 파일: 검사 후 공식 작품명으로 자동 이름 변경")
+            print("3. 이전 자동 이름 변경 UNDO 복구")
             try:
-                selected = input("게임 폴더 경로 (Enter: 폴더 선택창) > ").strip()
+                choice = input("옵션 선택 (1/2/3, Enter: 1) > ").strip()
             except EOFError:
-                print("검사를 취소했습니다.")
+                print("시작 옵션 입력이 없어 종료합니다.")
                 return 0
             except KeyboardInterrupt:
-                print("\n검사를 취소했습니다.")
+                print("\n시작 옵션을 취소했습니다.")
                 return 130
-            if not selected:
+            if choice == "2":
+                rename_enabled = True
+            elif choice == "3":
+                operation = "undo"
+            elif choice not in ("", "1"):
+                # Backward compatibility with old builds: a user may paste
+                # the folder path immediately, before noticing the new menu.
+                initial_path = choice
+            if not initial_path:
+                print("게임 압축파일이 있는 폴더 경로를 입력하세요.")
+                print("예: C:\\Games\\Archives")
+                print("경로 없이 Enter를 누르면 Windows 폴더 선택창이 열립니다.")
                 try:
-                    selected = pick_windows_folder()
+                    initial_path = input("게임 폴더 경로 (Enter: 폴더 선택창) > ").strip()
+                except EOFError:
+                    print("검사를 취소했습니다.")
+                    return 0
+                except KeyboardInterrupt:
+                    print("\n검사를 취소했습니다.")
+                    return 130
+            if not initial_path:
+                try:
+                    initial_path = pick_windows_folder()
                 except RuntimeError as exc:
                     print(f"[오류] {exc}", file=sys.stderr)
                     return 1
-                if not selected:
+                if not initial_path:
                     print("폴더 선택을 취소했습니다. 검사 및 결과 TXT 생성은 하지 않았습니다.")
                     return 0
+            selected = initial_path
         else:
             selected = args.folder
 
@@ -147,9 +212,12 @@ def main(argv=None) -> int:
                 return 1
             chosen = chosen.resolve(strict=True)
             print(f"\n선택한 검사 폴더: {chosen}", flush=True)
+            mode = "원상복구" if operation == "undo" else (
+                "품번만 있는 파일 자동 이름 변경" if rename_enabled else "검사만 진행")
+            print(f"선택한 작업: {mode}", flush=True)
             answer = input("이 폴더가 맞습니까? (Y: 진행 / N: 취소) > ").strip()
         except EOFError:
-            print("\n확인 입력이 없어 검사를 취소했습니다. 결과 TXT를 만들지 않았습니다.")
+            print("\n확인 입력이 없어 취소했습니다. 파일은 변경하지 않았습니다.")
             return 0
         except KeyboardInterrupt:
             print("\n폴더 확인이 취소되었습니다.")
@@ -161,7 +229,26 @@ def main(argv=None) -> int:
             print("검사를 취소했습니다. 파일 검사 및 결과 TXT 생성은 하지 않았습니다.")
             return 0
         pause_after_scan = interactive
-        return run(chosen, output_dir=args.output, recursive=not args.top_level)
+        if operation == "undo":
+            try:
+                confirmed = input("자동 이름 변경을 복구하려면 UNDO 입력 > ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n복구를 취소했습니다.")
+                return 0
+            if confirmed != "UNDO":
+                print("복구를 취소했습니다. 파일을 변경하지 않았습니다.")
+                return 0
+            try:
+                restored, messages = undo_last_auto_rename(chosen)
+            except (OSError, ValueError) as exc:
+                print(f"[오류] 자동 이름 변경 복구 실패: {type(exc).__name__}")
+                return 1
+            for message in messages:
+                print("  " + message)
+            print(f"자동 이름 변경 복구 완료: {restored}개")
+            return 0
+        return run(chosen, output_dir=args.output,
+                   recursive=not args.top_level, rename_code_only=rename_enabled)
     except KeyboardInterrupt:
         print("\n사용자가 검사를 중단했습니다. 프롬프트를 생성하지 않습니다.")
         return 130
@@ -171,7 +258,6 @@ def main(argv=None) -> int:
                 input("\n종료하려면 Enter 키를 누르세요...")
             except (EOFError, KeyboardInterrupt):
                 pass
-
 
 if __name__ == "__main__":
     sys.exit(main())
