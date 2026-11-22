@@ -58,25 +58,34 @@ def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
     target = publish_after_scan(report, tmp_path / "out")
     assert sorted(p.name for p in target.iterdir()) == sorted(
         [FULL_NAME, EXCLUDED_NAME, PROMPT_NAME])
-    full = json.loads((target / FULL_NAME).read_text(encoding="utf-8"))
-    excluded = json.loads((target / EXCLUDED_NAME).read_text(encoding="utf-8"))
+    full = (target / FULL_NAME).read_text(encoding="utf-8-sig")
+    excluded = (target / EXCLUDED_NAME).read_text(encoding="utf-8-sig")
     prompt = (target / PROMPT_NAME).read_text(encoding="utf-8-sig")
-    assert len(full["results"]) == 4
-    assert full["summary"]["confirmed"] == 3
-    assert excluded["excluded_count"] == 1
-    assert excluded["excluded"][0]["original_filename"] == "Unknown [v1.05] [한글패치].zip"
-    assert excluded["excluded"][0]["exclusion_reason"] == "no_identifier"
+    assert "검사 파일: 4개" in full
+    assert "공식 확인: 3개" in full
+    assert "제외(품번 없음 또는 공식 조회 실패): 1개" in full
+    assert "DL and Steam [RJ654321] [Steam 1091500].rar" in full
+    assert "공식 작품명: DL Work" in full
+    assert "공식 작품명: Steam Work" in full
+    assert "제외 파일: 1개" in excluded
+    assert "Unknown [v1.05] [한글패치].zip" in excluded
+    assert "실패 유형: 식별번호 없음" in excluded
     assert "Steam" in prompt and "DLsite" in prompt
     assert "사용자 승인" in prompt
     assert "PowerShell" in prompt and "BAT" in prompt
     assert "GitHub" not in prompt and "github.com" not in prompt
     assert "experiment-bidirectional" not in prompt
-    assert "secret_local_directory" not in (target / FULL_NAME).read_text(encoding="utf-8")
-    assert "secret_local_directory" not in (target / EXCLUDED_NAME).read_text(encoding="utf-8")
+    assert "Unknown [v1.05] [한글패치].zip" in prompt
+    assert "실제 제외 게임 목록 시작" in prompt
+    assert "실제 제외 게임 목록 끝" in prompt
+    assert "별도로 JSON 파일을 요청하지 마세요" in prompt
+    assert "secret_local_directory" not in full
+    assert "secret_local_directory" not in excluded
+    assert "secret_local_directory" not in prompt
     assert all(path.read_bytes() == b"dummy; do not open" for path in folder.iterdir())
 
 
-def test_no_excluded_creates_only_full_scan_json(tmp_path):
+def test_no_excluded_creates_only_full_scan_txt(tmp_path):
     folder = tmp_path / "games"
     folder.mkdir()
     (folder / "Game [RJ123456].zip").write_bytes(b"archive")
@@ -219,3 +228,59 @@ def test_error_reporting_has_no_personal_paths(tmp_path):
     failed = json.dumps(build_excluded(report), ensure_ascii=False)
     assert "C:\\Users\\" not in full
     assert "C:\\Users\\" not in failed
+
+
+
+def test_every_excluded_entry_is_in_paste_ready_prompt(tmp_path):
+    folder = tmp_path / "games"
+    folder.mkdir()
+    for name in ("Unidentified A [v1.2].zip", "Unidentified B [한글].7z",
+                 "DL failure [RJ123456].rar"):
+        (folder / name).write_bytes(b"original")
+    report = scan_folder(folder, checker=never_http)
+    assert report.counts["excluded"] == 3
+    output = publish_after_scan(report, tmp_path / "result")
+    prompt = (output / PROMPT_NAME).read_text(encoding="utf-8-sig")
+    excluded = (output / EXCLUDED_NAME).read_text(encoding="utf-8-sig")
+    for name in ("Unidentified A [v1.2].zip", "Unidentified B [한글].7z",
+                 "DL failure [RJ123456].rar"):
+        assert name in prompt and name in excluded
+    assert "기존 DLsite 품번: RJ123456" in prompt
+    assert "공식 조회 실패/이용 불가" in prompt
+    assert all(p.suffix == ".txt" for p in output.iterdir())
+
+
+def test_duplicate_filenames_remain_in_prompt_with_original_ids(tmp_path):
+    folder = tmp_path / "games"
+    (folder / "left").mkdir(parents=True)
+    (folder / "right").mkdir()
+    for side in ("left", "right"):
+        (folder / side / "Duplicated.zip").write_bytes(b"content")
+    report = scan_folder(folder, checker=never_http)
+    output = publish_after_scan(report, tmp_path / "res")
+    prompt = (output / PROMPT_NAME).read_text(encoding="utf-8-sig")
+    assert "[1] Duplicated.zip" in prompt
+    assert "[2] Duplicated.zip" in prompt
+    assert prompt.count("동일 파일명 중복: 예") == 2
+
+
+def test_korean_files_open_in_windows_notepad(tmp_path):
+    report = ScanReport((Result("한국어 이름 [한글패치].7z", "archive", "excluded"),), 1)
+    output = publish_after_scan(report, tmp_path / "res")
+    for name in (FULL_NAME, EXCLUDED_NAME, PROMPT_NAME):
+        raw = (output / name).read_bytes()
+        assert raw.startswith(b"\xef\xbb\xbf"), name
+        assert "한국어 이름 [한글패치].7z" in raw.decode("utf-8-sig")
+    assert not list(output.glob("*.json"))
+
+
+def test_no_failed_items_means_no_prompt_or_excluded_txt(tmp_path):
+    report = ScanReport((
+        Result("Known [RJ123456].zip", "archive", "confirmed",
+               works=(Work("RJ123456", "Official Work", "",
+                           "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
+                           "verified", "dlsite"),), selected_store="dlsite"),
+    ), 1)
+    output = publish_after_scan(report, tmp_path / "results")
+    assert [p.name for p in output.iterdir()] == [FULL_NAME]
+    assert not make_ai_prompt(0)
