@@ -46,11 +46,12 @@ def run(folder: str | Path, *, output_dir: str | Path | None = None,
     if stats["excluded"]:
         print(f"  - {EXCLUDED_NAME}")
         print(f"  - {PROMPT_NAME}")
-        print("\n다음 단계 (이용자의 AI로 진행)")
-        print(f"1. 위 저장 폴더의 {EXCLUDED_NAME}과 {PROMPT_NAME}을 엽니다.")
-        print("2. 두 파일을 본인의 ChatGPT 또는 다른 AI에 첨부해 조사 요청.")
-        print("3. AI가 제공하는 이름 변경 미리보기와 파일명 변경 도구를 검토해 실행.")
-        print("4. 끝까지 못 찾은 게임은 수동 확인하고 파일 이름을 유지.")
+        print("\n==== 복사해서 AI에 붙여넣기 ====")
+        print(f"1. 위 저장 폴더의 {PROMPT_NAME} 하나만 메모장으로 엽니다.")
+        print("2. Ctrl+A -> Ctrl+C로 전체를 복사해 본인의 ChatGPT/Claude 등에 붙여넣습니다.")
+        print("3. 이 TXT에는 제외된 게임 이름과 조사 지침이 모두 포함되어 있습니다.")
+        print("4. AI가 만든 이름 변경 도구는 변경 미리보기·사용자 승인 후 사용합니다.")
+        print("5. 끝까지 품번을 찾지 못한 게임은 수동 확인하고 파일 이름을 유지합니다.")
     else:
         print("\n실패한 게임이 없습니다. AI 조사용 프롬프트는 생성하지 않았습니다.")
     return 0
@@ -79,6 +80,7 @@ def main(argv=None) -> int:
         assert "DLsite" in make_ai_prompt(2)
         assert "Steam" in make_ai_prompt(2)
         assert not make_ai_prompt(0)
+        assert "PlayDock_Excluded_Games.txt" not in make_ai_prompt(2)
         print("PlayDock scan→prompt EXE self-test: PASS")
         return 0
 
