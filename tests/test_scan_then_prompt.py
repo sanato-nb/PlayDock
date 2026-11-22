@@ -1,0 +1,189 @@
+"""After (not before) the entire DLsite/Steam scan, hand off excluded names to AI."""
+import json
+from pathlib import Path
+
+import pytest
+
+from experiments.dlsite_detector.code_only import InputItem, Result, Work, check
+from experiments.dlsite_detector.detector import Product
+from experiments.dlsite_detector.steam_client import SteamProduct
+from experiments.dlsite_detector.scan_handoff import (
+    ScanReport, build_excluded, build_full, find_archive_names,
+    scan_folder, publish_after_scan, make_ai_prompt, FULL_NAME,
+    EXCLUDED_NAME, PROMPT_NAME, RESULTS_DIR,
+)
+from scripts.scan_then_prompt import run, main
+
+
+def dl(code):
+    return Product(code, "DL Work", "", "maniax",
+                   f"https://www.dlsite.com/maniax/work/=/product_id/{code}.html")
+
+
+def steam(code):
+    return SteamProduct(code, "Steam Work", "game",
+                        f"https://store.steampowered.com/app/{code}/")
+
+
+def fake_check(item, *, cache):
+    return check(item, fetcher=dl, steam_fetcher=steam, cache=cache)
+
+
+def never_http(item, *, cache):
+    return check(item, fetcher=lambda c: 1/0, steam_fetcher=lambda c: 1/0,
+                 cache=cache)
+
+
+def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
+    folder = tmp_path / "secret_local_directory"
+    folder.mkdir()
+    files = ["Game DL [RJ123456].7z", "Steam Game [Steam 1091500].zip",
+             "DL and Steam [RJ654321] [Steam 1091500].rar",
+             "Unknown [v1.05] [한글패치].zip"]
+    for filename in files:
+        (folder / filename).write_bytes(b"dummy; do not open")
+    calls = []
+    def stub(item, *, cache):
+        calls.append(item.label)
+        return fake_check(item, cache=cache)
+
+    report = scan_folder(folder, checker=stub)
+    assert report.counts == {"total": 4, "confirmed": 3, "partial": 0, "excluded": 1}
+    assert len(calls) == 4
+    both = next(x for x in report.items if "DL and Steam" in x.query)
+    assert both.selected_store == "dlsite"
+    assert both.attempted_stores == ("dlsite",)
+    assert all("secret_local_directory" not in str(r.to_dict()) for r in report.items)
+
+    target = publish_after_scan(report, tmp_path / "out")
+    assert sorted(p.name for p in target.iterdir()) == sorted(
+        [FULL_NAME, EXCLUDED_NAME, PROMPT_NAME])
+    full = json.loads((target / FULL_NAME).read_text(encoding="utf-8"))
+    excluded = json.loads((target / EXCLUDED_NAME).read_text(encoding="utf-8"))
+    prompt = (target / PROMPT_NAME).read_text(encoding="utf-8-sig")
+    assert len(full["results"]) == 4
+    assert full["summary"]["confirmed"] == 3
+    assert excluded["excluded_count"] == 1
+    assert excluded["excluded"][0]["original_filename"] == "Unknown [v1.05] [한글패치].zip"
+    assert excluded["excluded"][0]["exclusion_reason"] == "no_identifier"
+    assert "Steam" in prompt and "DLsite" in prompt
+    assert "사용자 승인" in prompt
+    assert "PowerShell" in prompt and "BAT" in prompt
+    assert "GitHub" not in prompt and "github.com" not in prompt
+    assert "experiment-bidirectional" not in prompt
+    assert "secret_local_directory" not in (target / FULL_NAME).read_text()
+    assert "secret_local_directory" not in (target / EXCLUDED_NAME).read_text()
+    assert all(path.read_bytes() == b"dummy; do not open" for path in folder.iterdir())
+
+
+def test_no_excluded_creates_only_full_scan_json(tmp_path):
+    folder = tmp_path / "games"
+    folder.mkdir()
+    (folder / "Game [RJ123456].zip").write_bytes(b"archive")
+    report = scan_folder(folder, checker=fake_check)
+    target = publish_after_scan(report, tmp_path / "results")
+    assert sorted(p.name for p in target.iterdir()) == [FULL_NAME]
+    assert report.counts["excluded"] == 0
+
+
+def test_no_identifier_does_not_issue_any_http_requests(tmp_path):
+    folder = tmp_path / "games"
+    folder.mkdir()
+    (folder / "Unknown [v2.1].zip").write_bytes(b"z")
+    report = scan_folder(folder, checker=never_http)
+    assert report.counts["excluded"] == 1
+    assert report.items[0].attempted_stores == ()
+
+
+def test_report_contains_failed_identifier_reason(tmp_path):
+    report = ScanReport((
+        Result("No Code.zip", "archive", "excluded"),
+        Result("DL [RJ123456].7z", "archive", "excluded",
+               attempted_stores=("dlsite",), warnings=("DLsite blocked",)),
+    ), 2)
+    excluded = build_excluded(report)
+    assert [x["exclusion_reason"] for x in excluded["excluded"]] == [
+        "no_identifier", "official_lookup_failed"]
+    assert excluded["excluded"][1]["dlsite_codes"] == ["RJ123456"]
+    assert excluded["excluded"][1]["attempted_stores"] == ["dlsite"]
+    assert excluded["excluded"][1]["warnings"] == ["DLsite blocked"]
+
+
+def test_nested_folders_and_symlinks_not_followed(tmp_path):
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "Game [RJ123456].zip").write_bytes(b"x")
+    (tmp_path / "notes.txt").write_text("not a game")
+    assert find_archive_names(tmp_path) == ("Game [RJ123456].zip",)
+    assert find_archive_names(tmp_path, recursive=False) == ()
+
+
+def test_duplicate_names_kept_and_marked_ambiguous(tmp_path):
+    folder = tmp_path / "games"
+    (folder / "a").mkdir(parents=True)
+    (folder / "b").mkdir()
+    for sub in ("a", "b"):
+        (folder / sub / "Same Name.zip").write_bytes(b"x")
+    report = scan_folder(folder, checker=never_http)
+    assert report.counts["excluded"] == 2
+    excluded = build_excluded(report)
+    assert len(excluded["excluded"]) == 2
+    assert [x["item_id"] for x in excluded["excluded"]] == [1, 2]
+    assert all(x["duplicate_filename"] for x in excluded["excluded"])
+    assert "같은 파일명" in make_ai_prompt(2)
+
+
+def test_exception_in_single_checker_does_not_stop_scan(tmp_path):
+    folder = tmp_path / "games"
+    folder.mkdir()
+    for name in ("a.zip", "b.zip"):
+        (folder / name).write_bytes(b"x")
+    def crashes(item, *, cache):
+        if item.label == "a.zip":
+            raise RuntimeError("temporary")
+        return Result(item.label, "archive", "confirmed")
+    seen = []
+    report = scan_folder(folder, checker=crashes,
+                         progress=lambda i, n, r: seen.append((i, n)))
+    assert seen == [(1, 2), (2, 2)]
+    assert report.counts["excluded"] == 1
+    assert report.items[0].warnings == ("공식 검사 예외: RuntimeError",)
+
+
+def test_publish_is_called_only_after_all_items_scanned(tmp_path, monkeypatch):
+    from scripts import scan_then_prompt
+    folder = tmp_path / "games"
+    folder.mkdir()
+    (folder / "a.zip").write_bytes(b"x")
+    (folder / "b.zip").write_bytes(b"x")
+    monkeypatch.setattr(scan_then_prompt, "scan_folder",
+                        lambda *a, **k: ScanReport((Result("a.zip", "archive", "excluded"),), 2))
+    # The CLI never publishes intermediate results before scan_folder returns.
+    monkeypatch.setattr(scan_then_prompt, "publish_after_scan",
+                        lambda r, d: tmp_path / "saved")
+    assert run(folder) == 0
+
+
+def test_missing_folder_does_not_write_prompt(tmp_path):
+    folder = tmp_path / "not_exists"
+    assert run(folder, output_dir=tmp_path / "results") == 1
+    assert not (tmp_path / "results").exists()
+
+
+def test_empty_folder_does_not_write_prompt(tmp_path):
+    folder = tmp_path / "empty"
+    folder.mkdir()
+    assert run(folder) == 1
+    assert not (folder / RESULTS_DIR).exists()
+
+
+def test_self_test_and_prompt_absent_without_exclusions():
+    assert main(["--self-test"]) == 0
+    assert make_ai_prompt(0) == ""
+
+
+def test_external_query_only_never_contains_developer_details():
+    prompt = make_ai_prompt(4)
+    for x in ["github", "repository", "branch", "owner", "sanato", "PrivateKey"]:
+        assert x.lower() not in prompt.lower()
+    assert "이용자" in prompt
