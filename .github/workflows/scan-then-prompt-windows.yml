@@ -1,9 +1,6 @@
 name: PlayDock 통합 TXT 중복 제거 및 AI 표준 결과 Windows 검증
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
