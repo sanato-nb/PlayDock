@@ -53,6 +53,12 @@ jobs:
         run: |
           @'
           from experiments.dlsite_detector.no_api_html import fetch_steam_html
+          from experiments.dlsite_detector.steam_client import fetch_steam_product
+          try:
+              product = fetch_steam_product("1091500", timeout=4.0)
+              print("STEAM_PUBLIC_STORE_SMOKE", "1091500", "title_found", bool(product and product.title), flush=True)
+          except Exception as exc:
+              print("STEAM_PUBLIC_STORE_SMOKE", type(exc).__name__, flush=True)
           try:
               product = fetch_steam_html("1091500", timeout=4.0)
               print("STEAM_DIRECT_HTML_SMOKE", "1091500", "title_found", bool(product and product.title), flush=True)
