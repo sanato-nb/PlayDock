@@ -181,7 +181,10 @@ def test_undo_rejects_modified_renamed_file(tmp_path):
     undo = _run(script, "Undo", games, stdin="Y\nUNDO\n", env=env)
     assert renamed.exists() and not original.exists()
     assert b"modified" in renamed.read_bytes()
-    assert "실패: 1건" in undo.stdout or "복구 실패" in undo.stdout + undo.stderr
+    journal = json.loads(next((tmp_path / "history").glob("*.json")).read_text(encoding="utf-8-sig"))
+    assert journal["Undone"] is False
+    assert journal["Records"][0]["State"] == "done"
+    assert len(journal["Records"][0]["ContentSignature"]) == 64
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Windows PowerShell 5.1 required")
@@ -205,7 +208,10 @@ def test_undo_rejects_same_size_replaced_file(tmp_path):
     undo = _run(script, "Undo", games, stdin="Y\nUNDO\n", env=env)
     assert new.read_bytes() == b"123456"
     assert not old.exists()
-    assert "실패: 1건" in undo.stdout or "복구 실패" in undo.stdout + undo.stderr
+    journal = json.loads(next((tmp_path / "history").glob("*.json")).read_text(encoding="utf-8-sig"))
+    assert journal["Undone"] is False
+    assert journal["Records"][0]["State"] == "done"
+    assert len(journal["Records"][0]["ContentSignature"]) == 64
 
 
 def test_template_has_original_code_digest_and_file_identity():
@@ -217,4 +223,6 @@ def test_template_has_original_code_digest_and_file_identity():
     assert "PlayDockFileId" in PS1_TEMPLATE
     assert "CreationUtcTicks" in PS1_TEMPLATE
     assert "LastWriteUtcTicks" in PS1_TEMPLATE
+    assert "Get-ArchiveSignature" in PS1_TEMPLATE
+    assert "ContentSignature" in PS1_TEMPLATE
     assert "이 폴더가 맞습니까?" in PS1_TEMPLATE
