@@ -12,6 +12,12 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import webbrowser
 
+from experiments.dlsite_detector.research_handoff import (
+    research_export, research_prompt, read_ai_response,
+    excluded_from_results, load_previous_excluded,
+)
+from scripts.research_review_window import ResearchReview
+
 from experiments.dlsite_detector.code_only import (
     MAX_BATCH, Result, Work, check, codes_in, steam_ids_in, folder_archives, inputs,
     selected_archives,
@@ -33,6 +39,8 @@ class CodeChecker(tk.Tk):
         self.cancel = Event()
         self.busy = False
         self.files: list[str] = []
+        # Only stored in memory on the local PC. Never exported or sent to stores/AI.
+        self.file_paths: list[Path] = []
         self.results: list[Result] = []
         self.item_urls: dict[str, str] = {}
         self.item_details: dict[str, str] = {}
@@ -77,6 +85,23 @@ class CodeChecker(tk.Tk):
         self.clear.pack(side="left", padx=6)
         self.csvbtn = ttk.Button(controls, text="CSV 저장", command=self.save_csv, state="disabled")
         self.csvbtn.pack(side="right")
+
+        research = ttk.Frame(root)
+        research.pack(fill="x", pady=(0, 6))
+        self.load_scan_btn = ttk.Button(
+            research, text="이전 검사 JSON에서 제외 목록 가져오기", command=self.load_previous_scan)
+        self.load_scan_btn.pack(side="left")
+        self.export_ai_btn = ttk.Button(
+            research, text="제외 목록 + AI 조사 프롬프트 내보내기",
+            command=self.export_research, state="disabled")
+        self.export_ai_btn.pack(side="left", padx=5)
+        self.copy_prompt_btn = ttk.Button(
+            research, text="AI 조사 프롬프트 복사", command=self.copy_research_prompt)
+        self.copy_prompt_btn.pack(side="left")
+        self.import_ai_btn = ttk.Button(
+            research, text="AI 조사 결과 JSON 가져오기 · 이름 변경 검토",
+            command=self.import_research)
+        self.import_ai_btn.pack(side="right")
         self.jsonbtn = ttk.Button(controls, text="JSON 저장", command=self.save_json, state="disabled")
         self.jsonbtn.pack(side="right", padx=6)
 
@@ -118,7 +143,7 @@ class CodeChecker(tk.Tk):
         paths = filedialog.askopenfilenames(
             title="품번을 확인할 압축파일 선택",
             filetypes=[("게임 압축파일", "*.zip *.7z *.rar")])
-        self.append_files(selected_archives(paths))
+        self.append_files(paths)
 
     def choose_folder(self):
         if self.busy:
@@ -133,17 +158,35 @@ class CodeChecker(tk.Tk):
             if not names:
                 messagebox.showinfo("압축파일 없음", "폴더 바로 아래에 ZIP/7z/RAR이 없습니다.")
                 return
-            self.append_files(names)
+            self.append_files([str(Path(directory) / name) for name in names])
 
-    def append_files(self, names):
+    def append_files(self, paths):
+        """Only basename is used for lookup; absolute paths stay in this GUI."""
         if self.busy:
             return
-        if len(self.files) + len(names) > MAX_BATCH:
+        selected = [(Path(p), Path(p).name) for p in paths
+                    if Path(p).is_file() and Path(p).suffix.casefold() in (".zip", ".7z", ".rar")]
+        if len(self.files) + len(selected) > MAX_BATCH:
             messagebox.showwarning("선택 제한", f"최대 {MAX_BATCH}개까지 선택할 수 있습니다.")
             return
-        for name in names:
+        known = set(str(p) for p in self.file_paths)
+        for path, name in selected:
+            if str(path) in known:
+                continue
             self.files.append(name)
+            self.file_paths.append(path)
             self.filelist.insert("end", name)
+            known.add(str(path))
+        self.filecount.set(f"선택한 파일: {len(self.files)}개")
+
+    def local_path_changed(self, original: Path, changed: Path):
+        """Update local file binding without changing exported research history."""
+        for i, path in enumerate(self.file_paths):
+            if Path(path) == Path(original):
+                self.file_paths[i] = Path(changed)
+                self.files[i] = Path(changed).name
+                self.filelist.delete(i)
+                self.filelist.insert(i, self.files[i])
         self.filecount.set(f"선택한 파일: {len(self.files)}개")
 
     def remove_selected(self):
@@ -152,6 +195,7 @@ class CodeChecker(tk.Tk):
         for index in reversed(self.filelist.curselection()):
             self.filelist.delete(index)
             del self.files[index]
+            del self.file_paths[index]
         self.filecount.set(f"선택한 파일: {len(self.files)}개")
 
     def clear_inputs(self):
@@ -160,6 +204,7 @@ class CodeChecker(tk.Tk):
         self.input.delete("1.0", "end")
         self.filelist.delete(0, "end")
         self.files.clear()
+        self.file_paths.clear()
         self.filecount.set("선택한 파일: 0개")
 
     def start_check(self):
@@ -186,6 +231,9 @@ class CodeChecker(tk.Tk):
         self.stop.configure(state="normal")
         self.jsonbtn.configure(state="disabled")
         self.csvbtn.configure(state="disabled")
+        self.export_ai_btn.configure(state="disabled")
+        self.load_scan_btn.configure(state="disabled")
+        self.import_ai_btn.configure(state="disabled")
         Thread(target=self.worker, args=(items,), daemon=True).start()
 
     def worker(self, items):
@@ -240,6 +288,9 @@ class CodeChecker(tk.Tk):
                     self.stop.configure(state="disabled")
                     self.jsonbtn.configure(state="normal" if self.results else "disabled")
                     self.csvbtn.configure(state="normal" if self.results else "disabled")
+                    self.export_ai_btn.configure(state="normal" if excluded_from_results(self.results) else "disabled")
+                    self.load_scan_btn.configure(state="normal")
+                    self.import_ai_btn.configure(state="normal")
                     total = len(self.results)
                     verified = sum(r.status in ("confirmed", "partial") for r in self.results)
                     excluded = sum(r.status == "excluded" for r in self.results)
@@ -265,6 +316,109 @@ class CodeChecker(tk.Tk):
             if (url.startswith("https://www.dlsite.com/") or
                     url.startswith("https://store.steampowered.com/app/")):
                 webbrowser.open(url)
+
+    def load_previous_scan(self):
+        """Load excluded rows from old v8/v9 JSON; does NOT bind local file paths."""
+        if self.busy:
+            return
+        path = filedialog.askopenfilename(
+            title="이전 PlayDock 검사 JSON 선택",
+            filetypes=[("PlayDock JSON", "*.json")])
+        if not path:
+            return
+        try:
+            rows = load_previous_excluded(path)
+        except (ValueError, OSError, UnicodeError) as exc:
+            messagebox.showerror("불러오기 실패", str(exc))
+            return
+        if not rows:
+            messagebox.showinfo("제외 목록 없음", "검사 결과에 제외된 파일이 없습니다.")
+            return
+        self.results = rows
+        self.item_urls.clear()
+        self.item_details.clear()
+        for old in self.table.get_children():
+            self.table.delete(old)
+        for i, r in enumerate(rows):
+            key = str(i)
+            self.item_urls[key] = ""
+            self.item_details[key] = (f"입력: {r.query}\n상태: 제외\n"
+                                      "이전 JSON에서 파일명만 가져왔습니다.\n"
+                                      "실제 파일명 변경을 하려면 압축파일을 별도로 연결하세요.")
+            self.table.insert("", "end", iid=key,
+                              values=(r.query, "제외 · 조사 대상", "-", "-", "-"))
+        self.export_ai_btn.configure(state="normal")
+        self.jsonbtn.configure(state="normal")
+        self.csvbtn.configure(state="normal")
+        self.status.set(f"이전 JSON에서 제외 목록 {len(rows)}개 불러옴 · 로컬 파일은 별도 연결 필요")
+
+    def copy_research_prompt(self):
+        prompt = research_prompt()
+        self.clipboard_clear()
+        self.clipboard_append(prompt)
+        self.update()
+        self.status.set("AI 조사 프롬프트 복사 완료 · 제외 목록 JSON도 함께 첨부하세요")
+
+    def export_research(self):
+        """Write only excluded filenames and investigation instructions."""
+        excluded = excluded_from_results(self.results)
+        if not excluded:
+            messagebox.showinfo("제외 목록 없음",
+                                "먼저 검사를 실행하거나 이전 검사 JSON을 가져오세요.")
+            return
+        chosen = filedialog.asksaveasfilename(
+            title="AI에 전달할 제외 목록 JSON 저장", defaultextension=".json",
+            initialfile="PlayDock_Excluded_Research.json",
+            filetypes=[("JSON", "*.json")])
+        if not chosen:
+            return
+        path = Path(chosen)
+        prompt_path = path.with_name(path.stem + "_AI_Prompt.txt")
+        if (prompt_path.exists() and not messagebox.askyesno(
+                "프롬프트 파일 덮어쓰기",
+                f"{prompt_path.name} 파일이 존재합니다. 덮어쓸까요?")):
+            return
+        try:
+            path.write_text(json.dumps(research_export(self.results),
+                                       ensure_ascii=False, indent=2),
+                            encoding="utf-8")
+            prompt_path.write_text(research_prompt(), encoding="utf-8")
+        except OSError as exc:
+            messagebox.showerror("내보내기 오류", str(exc))
+            return
+        self.status.set(f"AI 조사자료 내보냄: 제외 {len(excluded)}개 · "
+                        f"{path.name} / {prompt_path.name}")
+        messagebox.showinfo(
+            "AI 조사자료 저장 완료",
+            "제외 목록 JSON과 AI 조사 프롬프트 TXT 파일을 저장했습니다.\n"
+            "두 파일을 AI에 제공하고, AI가 만든 결과 JSON을 다시 가져오세요.\n"
+            "실제 파일 경로는 어느 파일에도 포함되지 않습니다.")
+
+    def import_research(self):
+        if self.busy:
+            return
+        allowed = [r["original_filename"] for r in excluded_from_results(self.results)]
+        if not allowed:
+            messagebox.showinfo("제외 목록 없음",
+                                "먼저 검사하거나 이전 검사 JSON에서 제외 목록을 가져오세요.")
+            return
+        path = filedialog.askopenfilename(
+            title="AI가 작성한 조사 결과 JSON 선택",
+            filetypes=[("AI 조사 결과 JSON", "*.json")])
+        if not path:
+            return
+        try:
+            suggestions, errors = read_ai_response(path, allowed)
+        except (ValueError, OSError, UnicodeError) as exc:
+            messagebox.showerror("AI JSON 검증 실패", str(exc))
+            return
+        if not suggestions:
+            messagebox.showinfo(
+                "유효한 조사 후보 없음",
+                "가져온 JSON에 검사 가능한 공식 식별번호가 없습니다.\n"
+                + "\n".join(errors[:6]))
+            return
+        ResearchReview(self, suggestions, errors)
 
     def save_json(self):
         if not self.results:
