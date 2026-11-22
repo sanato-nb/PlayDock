@@ -74,7 +74,7 @@ def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
     assert "experiment-bidirectional" not in combined
     assert "실제 제외 게임 목록 시작" in combined
     assert "실제 제외 게임 목록 끝" in combined
-    assert "별도로 JSON 파일을 요청하지 마세요" in combined
+    assert "추가 JSON 첨부를 요구하지 마세요" in combined
     assert "secret_local_directory" not in combined
     assert all(path.read_bytes() == b"dummy; do not open" for path in folder.iterdir())
 
@@ -133,7 +133,7 @@ def test_duplicate_names_kept_and_marked_ambiguous(tmp_path):
     assert len(excluded["excluded"]) == 2
     assert [x["item_id"] for x in excluded["excluded"]] == [1, 2]
     assert all(x["duplicate_filename"] for x in excluded["excluded"])
-    assert "같은 파일명" in make_ai_prompt(2)
+    assert "같은 이름" in make_ai_prompt(2)
 
 
 def test_exception_in_single_checker_does_not_stop_scan(tmp_path):
@@ -351,7 +351,7 @@ def test_identifier_lookup_failures_are_separated_from_unknown_ids():
     assert output.index("[2] DL [RJ01385626]") > output.index("### B.")
     assert "DLsite RJ01385626" in output
     assert "Steam 1091500" in output
-    assert "기존 품번부터 재확인" in output
+    assert "해당 번호부터 재확인" in output
 
 
 def test_ai_result_schema_has_all_required_table_columns():
