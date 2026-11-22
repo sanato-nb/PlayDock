@@ -28,6 +28,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "pyinstaller>=6.11,<7" pytest
 
+      # DLC·합본 자동변경 차단 추가 후 독립 이름 변경기 최종 검사
       - name: AI 조사·파일명 변경 검수와 Python 문법 검사
         shell: pwsh
         run: |
