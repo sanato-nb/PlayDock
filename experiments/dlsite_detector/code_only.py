@@ -16,7 +16,7 @@ import re
 
 from .detector import CODE_PATTERN, Product, product_page_candidate
 from .no_api_html import fetch_dlsite_html, fetch_steam_html
-from .steam_client import STEAM_ID, SteamProduct
+from .steam_client import STEAM_ID, SteamProduct, fetch_steam_product
 
 SUFFIXES = (".zip", ".7z", ".rar")
 MAX_BATCH = 1000
@@ -128,9 +128,28 @@ def _verified_steam(appid: str, product: SteamProduct | None) -> Work:
     return Work(appid, product.title, product.item_type, product.url, "verified", "steam")
 
 
+def fetch_steam_public(appid: str, *,
+                       api_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_product,
+                       html_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_html
+                       ) -> SteamProduct | None:
+    """API 키가 없는 Steam 공개 Store appdetails 우선, 공식 HTML로 대체.
+
+    Steam 스토어의 일반 HTML은 GitHub Windows 환경에서 작품명을 제공하지 않을
+    수 있으므로 공개 Store JSON을 먼저 시도한다. 계정/토큰/키는 사용하지 않는다.
+    """
+    try:
+        product = api_fetcher(appid)
+        if product is not None:
+            return product
+    except Exception:
+        # Store 공개 endpoint 차단·HTTP 429 때 HTML 직접 조회로 폴백.
+        pass
+    return html_fetcher(appid)
+
+
 def check(item: InputItem, *,
           fetcher: Callable[[str], Product | None] = fetch_dlsite_html,
-          steam_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_html,
+          steam_fetcher: Callable[[str], SteamProduct | None] = fetch_steam_public,
           cache: dict[str, Work] | None = None) -> Result:
     """작품 식별번호만으로 공식 상품명을 조회. 실패 시 다른 사이트로 순차 폴백."""
     dl_codes = codes_in(item.label)
