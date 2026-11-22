@@ -10,8 +10,8 @@ from pathlib import Path
 import sys
 
 from experiments.dlsite_detector.scan_handoff import (
-    RESULTS_DIR, FULL_NAME, EXCLUDED_NAME, PROMPT_NAME,
-    find_archive_names, scan_folder, publish_after_scan,
+    RESULTS_DIR, COMBINED_NAME,
+    scan_folder, publish_after_scan,
 )
 
 
@@ -42,18 +42,16 @@ def run(folder: str | Path, *, output_dir: str | Path | None = None,
     print(f"전체 {stats['total']}개 | 공식 확인 {stats['confirmed']}개 | "
           f"일부 확인 {stats['partial']}개 | 제외 {stats['excluded']}개")
     print(f"저장 폴더: {destination}")
-    print(f"  - {FULL_NAME}")
+    print(f"생성된 파일: {COMBINED_NAME} (TXT 하나)")
     if stats["excluded"]:
-        print(f"  - {EXCLUDED_NAME}")
-        print(f"  - {PROMPT_NAME}")
-        print("\n==== 복사해서 AI에 붙여넣기 ====")
-        print(f"1. 위 저장 폴더의 {PROMPT_NAME} 하나만 메모장으로 엽니다.")
+        print("\n==== 통합 TXT 한 개만 복사하면 됩니다 ====")
+        print("1. 위 TXT 파일을 메모장으로 엽니다.")
         print("2. Ctrl+A -> Ctrl+C로 전체를 복사해 본인의 ChatGPT/Claude 등에 붙여넣습니다.")
-        print("3. 이 TXT에는 제외된 게임 이름과 조사 지침이 모두 포함되어 있습니다.")
-        print("4. AI가 만든 이름 변경 도구는 변경 미리보기·사용자 승인 후 사용합니다.")
-        print("5. 끝까지 품번을 찾지 못한 게임은 수동 확인하고 파일 이름을 유지합니다.")
+        print("3. 파일에는 조사 지침, 제외 게임 목록, 전체 검사 결과가 모두 들어 있습니다.")
+        print("4. AI가 만든 이름 변경 도구는 미리보기와 사용자 승인 후 사용합니다.")
+        print("5. 끝까지 품번을 찾지 못한 게임은 수동 확인하고 기존 이름을 유지합니다.")
     else:
-        print("\n실패한 게임이 없습니다. AI 조사용 프롬프트는 생성하지 않았습니다.")
+        print("\n실패한 게임이 없습니다. 이 TXT에는 전체 검사 결과만 기록했습니다.")
     return 0
 
 
