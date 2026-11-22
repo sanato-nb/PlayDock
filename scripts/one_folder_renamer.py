@@ -65,13 +65,14 @@ class FolderRenamer(tk.Tk):
             if warnings:
                 self.info.set(self.info.get() + f" · 조사자료 주의 {len(warnings)}건")
         except (OSError, ValueError, UnicodeError) as exc:
-            self.info.set(f"조사자료를 읽을 수 없습니다: {exc}")
+            error_message = str(exc)
+            self.info.set(f"조사자료를 읽을 수 없습니다: {error_message}")
             self.choose_button.configure(state="disabled")
-            self.after(400, lambda: messagebox.showerror(
+            self.after(400, lambda msg=error_message: messagebox.showerror(
                 "조사자료 파일이 없습니다",
                 f"{DATA_FILENAME} 파일을 실행파일과 같은 폴더에 둬야 합니다.\n"
                 "제공된 ZIP 전체를 압축 해제해서 실행하세요.\n\n"
-                f"자세한 오류: {exc}", parent=self))
+                f"자세한 오류: {msg}", parent=self))
         self.after(120, self.poll)
 
     def setup(self):
