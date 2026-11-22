@@ -1,9 +1,6 @@
 name: PlayDock 제외 게임 독립 파일명 변경기 Windows 검증·빌드
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/excluded-renamer-windows.yml"]
   workflow_dispatch:
 
 permissions:
