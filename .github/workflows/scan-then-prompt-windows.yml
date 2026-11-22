@@ -1,6 +1,9 @@
-name: PlayDock 품번 이름 확인 후 AI 프롬프트 제공 Windows 빌드
+name: PlayDock 검사 결과 TXT·AI 한 파일 복사 Windows 빌드
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
@@ -23,7 +26,7 @@ jobs:
           python -m pip install "pyinstaller>=6.11,<7" pytest
 
       # UTF-8 Windows 테스트 및 실제 조회 실패 문구 개선 후 최종 검사
-      - name: Windows 검사 엔진 및 AI 프롬프트 테스트
+      - name: Windows 검사 엔진 및 TXT 인계 프롬프트 테스트
         shell: pwsh
         run: |
           python -m compileall -q experiments/dlsite_detector/scan_handoff.py scripts/scan_then_prompt.py
@@ -54,7 +57,7 @@ jobs:
           & $exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "EXE 자체 진단 실패: $LASTEXITCODE" }
 
-      - name: 테스트 폴더 실제 EXE 수행 · 종료 후 3개 파일 검사
+      - name: 테스트 폴더 실제 EXE 수행 · 종료 후 3개 TXT 및 한 번 복사 확인
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "sample_games" | Out-Null
@@ -64,12 +67,21 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "실제 EXE 검사 실행 실패" }
           $out = Get-ChildItem -Directory "sample_results" | Select-Object -First 1
           if (-not $out) { throw "출력 디렉터리가 없습니다" }
-          foreach($name in @("PlayDock_Scan_Results.json", "PlayDock_Excluded_Games.json", "PlayDock_AI_Prompt.txt")) {
+          foreach($name in @("PlayDock_Scan_Results.txt", "PlayDock_Excluded_Games.txt", "PlayDock_AI_Prompt.txt")) {
             if (-not (Test-Path (Join-Path $out.FullName $name))) { throw "누락: $name" }
           }
-          $full = Get-Content (Join-Path $out.FullName "PlayDock_Scan_Results.json") -Raw -Encoding UTF8 | ConvertFrom-Json
-          if ($full.summary.total -ne 1 -or $full.summary.excluded -ne 1) { throw "분류 수가 잘못되었습니다" }
+          if ((Get-ChildItem $out.FullName -File -Filter "*.json").Count -gt 0) { throw "JSON 출력 금지" }
+          $full = Get-Content (Join-Path $out.FullName "PlayDock_Scan_Results.txt") -Raw -Encoding UTF8
+          $excl = Get-Content (Join-Path $out.FullName "PlayDock_Excluded_Games.txt") -Raw -Encoding UTF8
           $prompt = Get-Content (Join-Path $out.FullName "PlayDock_AI_Prompt.txt") -Raw -Encoding UTF8
+          if ($full -notmatch "검사 파일: 1개|검사 파일: 1" -or
+              $full -notmatch "제외\\(품번 없음 또는 공식 조회 실패\\): 1개") {
+            throw "TXT 결과의 분류 수가 잘못되었습니다"
+          }
+          if ($prompt -notmatch "Test Unknown.zip" -or $prompt -notmatch "실제 제외 게임 목록 시작" -or
+              $excl -notmatch "Test Unknown.zip") {
+            throw "AI 프롬프트 또는 제외 목록에 실제 사용자 실패 파일명이 빠졌습니다"
+          }
           if ($prompt -match "github.com|sanato|experiment-bidirectional-lookup") {
             throw "이용자 AI 프롬프트에 개발자 정보가 포함됨"
           }
@@ -86,7 +98,7 @@ jobs:
       - name: Windows EXE 다운로드 파일 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-ID-Scan-And-Prompt-Windows
+          name: PlayDock-ID-Scan-TXT-Prompt-Windows
           path: release/
           if-no-files-found: error
           retention-days: 30
