@@ -375,3 +375,37 @@ def default_journal() -> Path:
     if root:
         return Path(root) / "PlayDock" / "rename-history.jsonl"
     return Path.home() / ".playdock" / "rename-history.jsonl"
+
+
+
+def load_previous_excluded(path: str | Path) -> list[Result]:
+    """Read an earlier PlayDock scan solely to recover excluded filenames.
+
+    Does not import candidates, filesystem paths, scripts, or automatic rename
+    authority from that JSON.
+    """
+    file = Path(path)
+    if file.stat().st_size > MAX_IMPORT_BYTES * 4:
+        raise ValueError("이전 검사 JSON 파일이 너무 큽니다.")
+    obj = json.loads(file.read_text(encoding="utf-8-sig"))
+    if not isinstance(obj, dict) or not isinstance(obj.get("results"), list):
+        raise ValueError("PlayDock 검사 결과 JSON 형식이 아닙니다.")
+    if len(obj["results"]) > 5000:
+        raise ValueError("검사 결과가 너무 많습니다.")
+    out: list[Result] = []
+    for entry in obj["results"]:
+        if not isinstance(entry, dict) or entry.get("status") != "excluded":
+            continue
+        name = _public_basename(entry.get("query"))
+        if not name:
+            continue
+        out.append(Result(
+            name,
+            "archive" if entry.get("input_origin") == "archive" else "manual",
+            "excluded",
+            warnings=tuple(str(x)[:200] for x in entry.get("warnings", [])
+                           if isinstance(x, str))[:5],
+            attempted_stores=tuple(s for s in entry.get("attempted_stores", [])
+                                   if s in ("dlsite", "steam"))[:2],
+        ))
+    return out
