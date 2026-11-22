@@ -1,9 +1,6 @@
 name: PlayDock 파일 동일성 복구·PS1 독립검증·폴더 재확인 Windows 빌드
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
