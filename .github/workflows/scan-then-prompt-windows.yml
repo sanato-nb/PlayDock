@@ -1,9 +1,6 @@
 name: PlayDock 품번 이름 확인 후 AI 프롬프트 제공 Windows 빌드
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
