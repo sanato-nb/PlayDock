@@ -66,6 +66,7 @@ jobs:
               print("STEAM_DIRECT_HTML_SMOKE", type(exc).__name__, flush=True)
           '@ | python -
 
+      # 공개 Steam Store API 및 JSON 파일 최종 검증 빌드
       - name: DLsite 우선·Steam 폴백 단일 EXE 빌드
         shell: pwsh
         run: |
