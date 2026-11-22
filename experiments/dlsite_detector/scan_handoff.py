@@ -271,7 +271,7 @@ def make_ai_prompt(excluded_count: int, excluded_rows: list[dict] | None = None)
   `proposed_filename` 필드를 포함해야 합니다.
   미확인 품번은 빈 문자열로 남기고, JSON에도 없는 품번을 생성하지 마세요.
 
-## 3단계. 본인의 AI가 간단한 Windows 이름 변경 도구 제공
+## 3단계. 이용자 본인의 AI가 간단한 Windows 이름 변경 도구 제공
 
 조사 결과와 함께, **사용자가 ZIP/7z/RAR 게임 폴더 하나만 선택**하면
 원본 파일명 → 변경할 파일명을 미리 보고 선택·승인할 수 있는 도구를 제공하세요.
