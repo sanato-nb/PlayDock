@@ -57,6 +57,14 @@ def run(folder: str | Path, *, output_dir: str | Path | None = None,
 
 
 def main(argv=None) -> int:
+    # Windows PowerShell/영문 로캘은 cp1252로 리디렉션될 수 있으므로
+    # PyInstaller 콘솔 실행 파일에서 한국어 출력으로 인한 크래시를 막는다.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
     parser = ArgumentParser(
         prog="PlayDock-ID-Scan-And-Prompt",
         description="ZIP/7z/RAR 파일명에서 DLsite→Steam 식별번호로 공식 작품명 확인 후 AI 인계 파일을 만듭니다."
