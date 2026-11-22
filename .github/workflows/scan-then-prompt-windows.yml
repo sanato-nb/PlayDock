@@ -49,6 +49,7 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --console --name PlayDock-ID-Scan-And-Prompt --paths . --exclude-module tkinter --exclude-module PySide6 --exclude-module ddgs scripts/scan_then_prompt.py
 
+      # 영문 로캘에서 UTF-8 한글 출력까지 검증하는 최종 빌드
       - name: Windows EXE 자체 진단
         shell: pwsh
         run: |
