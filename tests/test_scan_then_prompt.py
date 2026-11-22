@@ -354,18 +354,23 @@ def test_identifier_lookup_failures_are_separated_from_unknown_ids():
     assert "해당 번호부터 재확인" in output
 
 
-def test_ai_result_schema_has_all_required_table_columns():
-    prompt = make_ai_prompt(3)
-    for col in ("item_id", "원본 파일명", "판매처", "찾은 품번",
-                "공식 작품명", "공식 URL", "동일성 판단 근거", "상태",
-                "변경 제안 파일명"):
-        assert col in prompt
-    for field in ("playdock-ai-review-v1", "original_filename",
-                  "official_title", "official_url", "evidence_url",
-                  "verification", "proposed_filename"):
-        assert field in prompt
-    assert "후보·미확인은 변경" not in prompt or "변경하지" in prompt
-    assert "GitHub" not in prompt
+def test_ai_prompt_contains_fixed_powershell_and_simple_mapping():
+    from experiments.dlsite_detector.rename_template import PS1_TEMPLATE
+    report = ScanReport((Result("No code [v1.0].zip", "archive", "excluded"),), 1)
+    full = render_combined_txt(report)
+    assert "item_id" in full and "판매처" in full and "공식 URL" in full
+    assert "official_confirmed" in full and "candidate" in full and "unknown" in full
+    assert "JSON 이름 목록만 채우세요" in full
+    assert "```powershell\\n" in full
+    assert PS1_TEMPLATE.strip() in full
+    assert "$renameJson = @'" in full
+    assert "[]\\n'@" in full
+    assert 'OldName' in full and 'NewName' in full
+    assert "Select-GameFolder" in full and "Undo-Last" in full
+    assert "PowerShell 코드블록" in full
+    assert "GitHub" not in full
+    assert "C:\\\\Users\\\\" not in full
+
 
 
 def test_partial_verification_kept_in_reference_section_once():
