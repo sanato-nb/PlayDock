@@ -158,7 +158,6 @@ def main(argv=None) -> int:
             try:
                 input("\n종료하려면 Enter 키를 누르세요...")
             except (EOFError, KeyboardInterrupt):
-                passpt (EOFError, KeyboardInterrupt):
                 pass
 
 
