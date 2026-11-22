@@ -108,6 +108,26 @@ def main(argv=None) -> int:
         if not selected:
             print("폴더가 선택되지 않았습니다.")
             return 1
+        # The console scanner must confirm its OWN folder, independently of
+        # the later AI-generated rename PS1. Never start a scan on cancel.
+        try:
+            chosen = Path(selected.strip().strip('"')).expanduser()
+            if not chosen.is_dir():
+                print(f"[오류] 게임 폴더를 찾을 수 없습니다: {chosen}")
+                return 1
+            chosen = chosen.resolve(strict=True)
+            print(f"\n선택한 검사 폴더: {chosen}")
+            answer = input("이 폴더가 맞습니까? 맞으면 Y 입력 (그 외에는 취소) > ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n폴더 확인이 취소되었습니다.")
+            return 130
+        except (OSError, ValueError) as exc:
+            print(f"[오류] 폴더를 확인하지 못했습니다: {exc}")
+            return 1
+        if answer.upper() != "Y":
+            print("검사를 취소했습니다. 파일 검사 및 결과 TXT 생성은 하지 않았습니다.")
+            return 0
+        selected = str(chosen)
     else:
         selected = args.folder
     try:
