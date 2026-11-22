@@ -81,7 +81,7 @@ jobs:
               -not $merged.Contains("B. 기존 식별번호 조회 실패: 0개") -or
               -not $merged.Contains("변경 제안 파일명") -or
               -not $merged.Contains("BEGIN AI RULES") -or
-              -not $merged.Contains("$renameJson = @'") -or
+              -not $merged.Contains('$renameJson') -or
               -not $merged.Contains("Undo-Last")) {
             throw "통합 TXT의 검사 결과·제외 목록·AI 지침 중 일부가 빠졌습니다"
           }
