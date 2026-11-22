@@ -1,6 +1,9 @@
-name: PlayDock 검사 결과 TXT·AI 한 파일 복사 Windows 빌드
+name: PlayDock 검사 완료 후 통합 TXT 단일 출력 Windows 빌드
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
@@ -54,7 +57,7 @@ jobs:
           & $exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "EXE 자체 진단 실패: $LASTEXITCODE" }
 
-      - name: 테스트 폴더 실제 EXE 수행 · 종료 후 3개 TXT 및 한 번 복사 확인
+      - name: 실제 Windows EXE 수행 · 결과가 TXT 하나만 생성되는지 검증
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "sample_games" | Out-Null
@@ -64,23 +67,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "실제 EXE 검사 실행 실패" }
           $out = Get-ChildItem -Directory "sample_results" | Select-Object -First 1
           if (-not $out) { throw "출력 디렉터리가 없습니다" }
-          foreach($name in @("PlayDock_Scan_Results.txt", "PlayDock_Excluded_Games.txt", "PlayDock_AI_Prompt.txt")) {
-            if (-not (Test-Path (Join-Path $out.FullName $name))) { throw "누락: $name" }
+          $files = @(Get-ChildItem -File $out.FullName)
+          if ($files.Count -ne 1 -or $files[0].Name -ne "PlayDock_Complete_Scan_And_AI_Prompt.txt") {
+            throw "결과가 TXT 하나가 아닙니다: $($files.Name -join ', ')"
           }
-          if ((Get-ChildItem $out.FullName -File -Filter "*.json").Count -gt 0) { throw "JSON 출력 금지" }
-          $full = Get-Content (Join-Path $out.FullName "PlayDock_Scan_Results.txt") -Raw -Encoding UTF8
-          $excl = Get-Content (Join-Path $out.FullName "PlayDock_Excluded_Games.txt") -Raw -Encoding UTF8
-          $prompt = Get-Content (Join-Path $out.FullName "PlayDock_AI_Prompt.txt") -Raw -Encoding UTF8
-          if (-not $full.Contains("검사 파일: 1개") -or
-              -not $full.Contains("제외(품번 없음 또는 공식 조회 실패): 1개")) {
-            throw "TXT 결과의 분류 수가 잘못되었습니다"
+          $merged = Get-Content $files[0].FullName -Raw -Encoding UTF8
+          if (-not $merged.Contains("전체 1개 | 공식 확인 0개 | 일부 확인 0개 | 제외 1개") -or
+              -not $merged.Contains("실제 제외 게임 목록 시작") -or
+              -not $merged.Contains("Test Unknown.zip") -or
+              -not $merged.Contains("전체 검사 결과 (참고용 / 추가 조사 대상 아님)")) {
+            throw "통합 TXT의 검사 결과·제외 목록·AI 지침 중 일부가 빠졌습니다"
           }
-          if ($prompt -notmatch "Test Unknown.zip" -or $prompt -notmatch "실제 제외 게임 목록 시작" -or
-              $excl -notmatch "Test Unknown.zip") {
-            throw "AI 프롬프트 또는 제외 목록에 실제 사용자 실패 파일명이 빠졌습니다"
-          }
-          if ($prompt -match "github.com|sanato|experiment-bidirectional-lookup") {
-            throw "이용자 AI 프롬프트에 개발자 정보가 포함됨"
+          if ($merged -match "github.com|sanato|experiment-bidirectional-lookup") {
+            throw "통합 TXT에 개발 정보가 포함됐습니다"
           }
 
       - name: 이용자 정보 없는 배포 ZIP 준비
@@ -95,7 +94,7 @@ jobs:
       - name: Windows EXE 다운로드 파일 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-ID-Scan-TXT-Prompt-Windows
+          name: PlayDock-Single-TXT-Scan-Windows
           path: release/
           if-no-files-found: error
           retention-days: 30
