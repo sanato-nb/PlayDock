@@ -45,6 +45,8 @@ class WindowActionControllerMixin:
             lambda _checked=False: self.open_title_editor())
         menu.addAction('DLsite 작품 정보 조회 · DB 저장...').triggered.connect(
             lambda _checked=False: self.lookup_work_database())
+        menu.addAction('저장된 공식 작품 페이지 열기').triggered.connect(
+            lambda _checked=False: self.open_saved_official_page())
         menu.addSeparator()
         menu.addAction('실행 옵션 설정...').triggered.connect(
             lambda _checked=False: self.edit_launch_options())

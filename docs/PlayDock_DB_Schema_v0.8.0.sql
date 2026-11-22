@@ -42,3 +42,14 @@ CREATE TABLE works (
                 );
 
 CREATE INDEX idx_library_links_code ON library_links(product_code);
+
+-- PlayDock v2: imported DLsite/Steam official metadata from scanner (per-user)
+CREATE TABLE IF NOT EXISTS official_works (
+    store TEXT NOT NULL CHECK(store IN ('dlsite', 'steam')),
+    product_id TEXT NOT NULL,
+    official_title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    page_url TEXT NOT NULL,
+    verified_at_utc TEXT NOT NULL,
+    PRIMARY KEY(store, product_id)
+);

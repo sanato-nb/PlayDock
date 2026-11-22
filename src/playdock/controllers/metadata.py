@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import webbrowser
 
 from PySide6.QtWidgets import QDialog
 
@@ -12,6 +13,7 @@ from ui.artwork_dialog import OnlineArtworkDialog
 from title_editor_entry import title_editor_command
 from services.work_lookup_worker import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
+from services.official_work_service import official_metadata_for_game
 
 
 from ui.dialogs.common import ask_yes_no, show_message
@@ -19,6 +21,22 @@ from ui.dialogs.common import ask_yes_no, show_message
 
 class MetadataControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
+
+    def open_saved_official_page(self):
+        """Open only a verified official store page from PlayDock's local DB."""
+        game = self.current()
+        if game is None:
+            return
+        try:
+            record = official_metadata_for_game(self.library, game, self.work_db)
+        except (OSError, ValueError):
+            record = None
+        if not record:
+            show_message(self, '공식 작품정보 없음',
+                         '해당 게임의 품번 / Steam App ID와 일치하는 저장된 정보가 없습니다.\n'
+                         '정체 판독기를 실행했다면 PlayDock에서 새로고침을 눌러주세요.')
+            return
+        webbrowser.open(record['page_url'])
 
     def lookup_work_database(self):
         """Retrieve one user-selected work; no automatic site crawling."""

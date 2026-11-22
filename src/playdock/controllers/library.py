@@ -24,6 +24,7 @@ from artwork import discover_local
 from ui.widgets.launcher import collection_chevron, friendly_bytes, game_placeholder_icon
 from ui.dialogs.common import ask_text, ask_yes_no, show_message
 from ui.dialogs.library import GameCollectionsDialog
+from services.official_work_service import official_metadata_for_game, official_info_rows
 
 
 class LibraryControllerMixin:
@@ -72,6 +73,11 @@ class LibraryControllerMixin:
             self.library.settings['title_language'] = fresh_config.get('title_language', 'ko')
         previous = prefer_id or self.selected_id
         self.games = self.library.scan()
+        try:
+            self.work_db.import_scanner_catalog()
+        except (OSError, ValueError) as exc:
+            # A damaged/missing scanner DB must never prevent loading PlayDock.
+            self.set_message(f'공식 작품정보 DB 가져오기 실패: {exc}')
         try:
             self.work_db.sync_library(self.library, self.games)
         except Exception as exc:
@@ -267,6 +273,7 @@ class LibraryControllerMixin:
             launch = menu.addAction('플레이 / 설치')
             edit_name = menu.addAction('게임 이름 수정...')
             db_lookup = menu.addAction('DLsite 작품 정보 조회·DB 저장...')
+            official_page = menu.addAction('저장된 공식 작품 페이지 열기')
             game = self.current()
             remove = None
             if game is not None and game.installed and not game.external:
@@ -285,6 +292,8 @@ class LibraryControllerMixin:
                 self.open_title_editor()
             elif picked == db_lookup:
                 self.lookup_work_database()
+            elif picked == official_page:
+                self.open_saved_official_page()
             elif remove is not None and picked == remove:
                 self.uninstall_game()
             elif disconnect is not None and picked == disconnect:
@@ -342,22 +351,29 @@ class LibraryControllerMixin:
 
 
     def work_db_info_rows(self, game):
+        """Show stored catalogue details without editing user's custom title."""
+        rows = []
         code = self.library.product_code(game)
-        if not code:
-            return []
+        if code:
+            try:
+                record = self.work_db.get_work(code)
+            except Exception:
+                record = None
+            if record:
+                language = self.library.settings.get('title_language', 'ko')
+                title = record['titles'].get(language) or record['fallback_title']
+                rows.extend([
+                    ('DB 작품명', title),
+                    ('제작사', record.get('maker') or '정보 없음'),
+                    ('발매일', record.get('release_date') or '정보 없음'),
+                    ('장르', ', '.join(record.get('tags', [])[:8]) or '정보 없음'),
+                ])
         try:
-            record = self.work_db.get_work(code)
-        except Exception:
-            return []
-        if not record:
-            return []
-        language = self.library.settings.get('title_language', 'ko')
-        title = record['titles'].get(language) or record['fallback_title']
-        return [('DB 작품명', title),
-                ('제작사', record.get('maker') or '정보 없음'),
-                ('발매일', record.get('release_date') or '정보 없음'),
-                ('장르', ', '.join(record.get('tags', [])[:8]) or '정보 없음')]
-
+            official = official_metadata_for_game(self.library, game, self.work_db)
+            rows.extend(official_info_rows(official))
+        except (OSError, ValueError):
+            pass  # Damaged/locked public catalogue must not block the detail UI.
+        return rows
 
     def present_game(self):
         game = self.current()
