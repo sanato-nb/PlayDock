@@ -96,7 +96,10 @@ def main(argv=None) -> int:
         assert "Steam" in make_ai_prompt(2)
         assert not make_ai_prompt(0)
         assert "PlayDock_Excluded_Games.txt" not in make_ai_prompt(2)
-        print("PlayDo    interactive = not bool(args.folder)
+        print("PlayDock scan→prompt EXE self-test: PASS")
+        return 0
+
+    interactive = not bool(args.folder)
     # A scan must never begin until the user confirms the exact path.
     # This applies to pasted paths, the optional Windows picker AND CLI args.
     pause_after_scan = False
