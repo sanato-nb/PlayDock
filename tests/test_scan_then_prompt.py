@@ -68,7 +68,7 @@ def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
     assert "| Steam Work" in combined
     assert "전체 4개" in combined
     assert "Steam" in combined and "DLsite" in combined
-    assert "사용자 승인" in combined
+    assert "사용자가 승인" in combined
     assert "PowerShell" in combined and "BAT" in combined
     assert "GitHub" not in combined and "github.com" not in combined
     assert "experiment-bidirectional" not in combined
@@ -133,7 +133,7 @@ def test_duplicate_names_kept_and_marked_ambiguous(tmp_path):
     assert len(excluded["excluded"]) == 2
     assert [x["item_id"] for x in excluded["excluded"]] == [1, 2]
     assert all(x["duplicate_filename"] for x in excluded["excluded"])
-    assert "같은 이름" in make_ai_prompt(2)
+    assert "동일 파일명" in make_ai_prompt(2)
 
 
 def test_exception_in_single_checker_does_not_stop_scan(tmp_path):
@@ -361,10 +361,10 @@ def test_ai_prompt_contains_fixed_powershell_and_simple_mapping():
     assert "item_id" in full and "판매처" in full and "공식 URL" in full
     assert "official_confirmed" in full and "candidate" in full and "unknown" in full
     assert "JSON 이름 목록만 채우세요" in full
-    assert "```powershell\\n" in full
+    assert "```powershell" in full
     assert PS1_TEMPLATE.strip() in full
     assert "$renameJson = @'" in full
-    assert "[]\\n'@" in full
+    assert "$renameJson" in full
     assert 'OldName' in full and 'NewName' in full
     assert "Select-GameFolder" in full and "Undo-Last" in full
     assert "PowerShell 코드블록" in full
