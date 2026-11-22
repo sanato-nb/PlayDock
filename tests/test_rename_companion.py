@@ -146,3 +146,34 @@ def test_source_buttons_are_not_automatic_apply(tmp_path):
     assert "write_manual_csv" in source
     assert "safe_rename(" in source
     assert "if __name__ == \"__main__\":" in source
+
+
+
+@pytest.mark.parametrize("old", [
+    "Universe Treasure [v2.5] [DLC1·노모].7z",
+    "Sister Fantasy [DLC 2.0.1] [한국어].7z",
+    "Fate Empire of Dirt [v1.12] + Made in Heaven [v1.03].7z",
+])
+def test_dlc_and_multi_product_claims_require_manual_review(tmp_path, old):
+    from experiments.dlsite_detector.rename_companion import requires_manual_identity_check
+    assert requires_manual_identity_check(old)
+    scan = write(tmp_path / "exclude.json", {
+        "schema": SCHEMA,
+        "excluded": [{"original_filename": old, "exclusion_reason": "no_identifier"}]
+    })
+    ai = write(tmp_path / "ai.json", {
+        "schema": SCHEMA,
+        "results": [{"original_filename": old, "store": "dlsite", "code": "RJ123456",
+                     "official_url": "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
+                     "verification": "official_confirmed"}]
+    })
+    rows, errors = load_review(scan, ai)
+    assert not errors
+    assert rows[0].ai_status == "identity_ambiguous"
+    assert "수동 확인" in rows[0].note
+
+
+def test_regular_archive_not_blocked_as_dlc():
+    from experiments.dlsite_detector.rename_companion import requires_manual_identity_check
+    assert not requires_manual_identity_check("BUZAMA 2 [v1.2].7z")
+    assert not requires_manual_identity_check("Treasure Hunter Claire [Korean].zip")
