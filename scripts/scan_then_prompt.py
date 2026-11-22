@@ -72,8 +72,23 @@ def main(argv=None) -> int:
     parser.add_argument("--output", help="결과 저장 위치 (기본: 검사 폴더/PlayDock_Results)")
     parser.add_argument("--top-level", action="store_true", help="하위 폴더 제외")
     parser.add_argument("--self-test", action="store_true", help="로컬 무네트워크 자체 검사")
+    parser.add_argument("--verify-rename-script", metavar="PS1",
+                        help="AI가 완성한 PS1의 고정 코드·JSON 이름 변경 목록을 독립 검증")
     args = parser.parse_args(argv)
+    if args.verify_rename_script:
+        from experiments.dlsite_detector.rename_validation import verify_rename_script
+        try:
+            result = verify_rename_script(args.verify_rename_script)
+        except (OSError, ValueError, RuntimeError) as exc:
+            print(f"[검증 실패] 이름 변경 PS1을 실행하지 마세요: {exc}", file=sys.stderr)
+            return 1
+        print(f"[검증 통과] 고정 PowerShell 코드 일치 · 이름 변경 목록 {result.number_of_rules}건")
+        print("검증은 코드 구조와 데이터 형식을 확인한 것입니다. 작품 품번의 정확성은 별도 확인하세요.")
+        return 0
     if args.self_test:
+        from experiments.dlsite_detector.rename_template import PS1_TEMPLATE
+        from experiments.dlsite_detector.rename_validation import verify_rename_script
+        assert verify_rename_script(PS1_TEMPLATE, from_text=True).number_of_rules == 0
         from experiments.dlsite_detector.scan_handoff import make_ai_prompt
         assert "DLsite" in make_ai_prompt(2)
         assert "Steam" in make_ai_prompt(2)
