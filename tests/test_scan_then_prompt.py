@@ -523,7 +523,7 @@ def test_folder_picker_windows_command_uses_sta_and_utf8(monkeypatch):
     monkeypatch.setattr(folder_picker.sys, "platform", "win32")
     def fake_run(args, **kwargs):
         calls.append((args, kwargs))
-        return CompletedProcess(args, 0, "C:\\Games\\한글\\n", "")
+        return CompletedProcess(args, 0, "C:\\Games\\한글\n", "")
     monkeypatch.setattr(folder_picker.subprocess, "run", fake_run)
     assert folder_picker.pick_windows_folder() == "C:\\Games\\한글"
     args, opts = calls[0]
