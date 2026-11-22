@@ -71,8 +71,8 @@ def test_dl_then_steam_and_exclusions_end_to_end(tmp_path):
     assert "PowerShell" in prompt and "BAT" in prompt
     assert "GitHub" not in prompt and "github.com" not in prompt
     assert "experiment-bidirectional" not in prompt
-    assert "secret_local_directory" not in (target / FULL_NAME).read_text()
-    assert "secret_local_directory" not in (target / EXCLUDED_NAME).read_text()
+    assert "secret_local_directory" not in (target / FULL_NAME).read_text(encoding="utf-8")
+    assert "secret_local_directory" not in (target / EXCLUDED_NAME).read_text(encoding="utf-8")
     assert all(path.read_bytes() == b"dummy; do not open" for path in folder.iterdir())
 
 
