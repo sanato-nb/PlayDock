@@ -68,7 +68,8 @@ def file_name(value: str) -> str:
 
 def archive_name(value: str) -> str:
     name = file_name(value)
-    return name if len(name) > 4 and name.casefold().endswith(SUFFIXES) else ""
+    return name if any(name.casefold().endswith(s) and len(name) > len(s)
+                       for s in SUFFIXES) else ""
 
 
 def selected_archives(paths: Iterable[str]) -> tuple[str, ...]:
