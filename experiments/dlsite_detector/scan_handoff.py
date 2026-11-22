@@ -19,6 +19,8 @@ import re
 import shutil
 import uuid
 
+from .rename_template import PS1_TEMPLATE
+
 from .code_only import (
     MAX_BATCH, InputItem, Result, Work, archive_name, check, codes_in,
     steam_ids_in,
@@ -263,27 +265,39 @@ def make_ai_prompt(excluded_count: int, excluded_rows: list[dict] | None = None)
 - `official_confirmed`가 아닌 항목은 변경 제안 파일명을 '변경 안 함'으로 작성하세요.
 - 원본에 이미 정확한 품번이 포함되었다면 중복해서 붙이지 마세요.
 - 동일 이름 파일이 여러 개거나 DLC/합본의 정확한 동일성이 불명확하면 '변경 안 함'으로 남기세요.
-- **표 작성 후** 프로그램에서 사용할 결과 데이터도
-  `schema: "playdock-ai-review-v1"`, `results` 배열의 JSON으로 제공하세요.
-  각 항목은 `item_id`, `original_filename`, `store`(`dlsite`/`steam`/빈 문자열),
-  `code`, `official_title`, `official_url`, `evidence_url`,
-  `verification`(`official_confirmed`/`candidate`/`unknown`), `note`,
-  `proposed_filename` 필드를 포함해야 합니다.
-  미확인 품번은 빈 문자열로 남기고, JSON에도 없는 품번을 생성하지 마세요.
+- 조사 결과는 위 표 하나로 정리하세요. 별도 연구용 JSON 파일은 요구하지 않습니다.
+- 공식 페이지가 존재하는 것만으로 동일 작품이라고 확정하지 마세요.
+- 조사 항목이 많아 한 번에 모두 끝낼 수 없다면 10개씩 나눠 처리하되,
+  누락 없이 전체를 검토한 후에만 파일명 변경 스크립트를 완성하세요.
 
-## 3단계. 이용자 본인의 AI가 간단한 Windows 이름 변경 도구 제공
+## 3단계. 이미 제공된 PowerShell 기본 코드를 완성하세요
 
-조사 결과와 함께, **사용자가 ZIP/7z/RAR 게임 폴더 하나만 선택**하면
-원본 파일명 → 변경할 파일명을 미리 보고 선택·승인할 수 있는 도구를 제공하세요.
-AI 환경에서 가능하면 독립 EXE, 불가능하면 Python 설치 없이 실행할 수 있는
-PowerShell 스크립트와 BAT 파일을 제공하세요.
+**아래 'PowerShell 이름 변경 기본 틀'에 완성된 코드가 들어 있습니다.**
+이름 변경 프로그램을 처음부터 새로 만들거나 임의의 EXE를 생성하지 마세요.
 
-- '공식 확인' 항목만 사용자의 최종 동일 작품 검토 후 변경하도록 하세요.
-- 원래 버전·번역·패치·DLC 표기와 확장자를 유지하세요.
-- DLsite는 `[RJ123456]`, Steam은 `[Steam 1091500]` 형식을 사용하세요.
-- 같은 이름의 파일이 여러 개거나 파일명 충돌·심볼릭 링크·경로 탈출이 있으면 중단하세요.
-- 압축파일 내부는 읽거나 수정하지 마세요. 덮어쓰기 금지, 변경 이력·원상복구 필수.
-- 명시적 사용자 승인 전에는 실제 파일명을 변경하지 마세요.
+1. 조사 결과표를 사용자에게 먼저 제시하고, 사용자가 변경 대상을 확인하게 하세요.
+2. 사용자가 승인한 공식 확인(`official_confirmed`) 항목만 다음 PS1의
+   `# ===== BEGIN AI RULES` ~ `# ===== END AI RULES` 사이 JSON 배열에 넣으세요.
+3. 각 규칙은 `{"OldName":"원본 파일명.zip","NewName":"원본 게임명 [RJ123456].zip"}` 형식입니다.
+   원본 파일명은 한 글자도 바꾸지 않고, JSON 문법대로 따옴표/백슬래시를 이스케이프하세요.
+4. 후보(`candidate`), 미확인(`unknown`), DLC·합본의 동일성 불확실, 동일 파일명 중복,
+   이미 올바른 번호를 가진 게임은 JSON 배열에서 제외하세요.
+5. 버전·번역·패치·DLC 표기와 ZIP/7z/RAR 확장자를 보존하고, 번호는 중복 추가하지 마세요.
+6. **기본 코드의 나머지 줄은 수정하지 마세요.** 실행 로직은 이미 포함되어 있습니다.
+7. 수정된 `rename_games.ps1` 전체를 파일로 제공하세요. 파일을 만들 수 없는 AI 환경이면
+   PowerShell 코드블록으로 전체를 출력하고, Windows에서 UTF-8로 저장하는 방법을 안내하세요.
+8. 실행 안내: 이용자는 스크립트를 실행해 게임 폴더를 수동으로 선택하고,
+   `1 = 미리보기`, `2 = YES 승인 후 이름 변경`, `3 = UNDO 승인 후 되돌리기`를 선택합니다.
+   Windows에서 PS1을 직접 실행하기 어렵다면 다음 3줄짜리 `실행.cmd`를 함께 제공하세요.
+
+```bat
+@echo off
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0rename_games.ps1"
+pause
+```
+
+**중요:** 사용자 확인과 YES 입력 전에는 이름을 변경하면 안 됩니다.
+AI는 로컬 PC 파일에 직접 접근한다고 가정하지 마세요.
 
 ## 4단계. 끝까지 못 찾은 게임
 
@@ -300,7 +314,11 @@ DLsite·Steam 공식 사이트에서 직접 확인하거나 원래 파일명을 
     if len(excluded_rows) != excluded_count:
         raise ValueError("제외 항목 수와 실제 목록 수가 일치하지 않습니다.")
     return (intro + _render_excluded_rows(excluded_rows) +
-            "\n===== 실제 제외 게임 목록 끝 =====\n")
+            "\n===== 실제 제외 게임 목록 끝 =====\n\n" +
+            "## PowerShell 이름 변경 기본 틀 — AI는 JSON 이름 목록만 채우세요\n" +
+            "다음 코드를 그대로 복사해서 'rename_games.ps1'로 저장할 수 있습니다. " +
+            "현재 JSON 배열은 비어 있어 실행해도 어떤 파일도 이름 변경하지 않습니다.\n\n" +
+            "```powershell\n" + PS1_TEMPLATE.rstrip() + "\n```\n")
 
 
 def render_verified_summary(report: ScanReport) -> str:
