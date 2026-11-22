@@ -27,7 +27,7 @@ jobs:
 
       # UTF-8 Windows 테스트 및 실제 조회 실패 문구 개선 후 최종 검사
       # AI 조사 지시 주체 명확화 후 최종 테스트 재검증
-      # 포함된 PS1 JSON 이스케이프 수정 후 재검증
+      # PS1 템플릿 내장·중복 방지와 Windows 복구 최종 확인
       - name: Windows 검사 엔진 및 TXT 인계 프롬프트 테스트
         shell: pwsh
         run: |
