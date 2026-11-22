@@ -39,8 +39,10 @@ PlayDock — DLsite 우선 · Steam 식별번호 확인기
   공식 작품명 확인은 실제 압축파일 속 게임의 동일성까지 확인한 결과가 아닙니다.
 
 주의
-  DLsite와 Steam의 공개 HTML 작품 페이지만 조회합니다.
-  API 키, 유료 API, Bing RSS, DDGS, Google 제목 검색, 기계번역을 사용하지 않습니다.
+  DLsite는 공식 HTML을 사용합니다. Steam은 API 키가 필요 없는 공개 Store
+  상품정보 JSON을 먼저 확인하고 실패 시 공식 HTML을 시도합니다.
+  별도의 API 키·유료 API를 요구하지 않습니다. Bing RSS, DDGS, Google 제목 검색,
+  기계번역은 사용하지 않습니다.
   Steam App ID는 파일명에 Steam 또는 AppID 등으로 명시된 경우만 인정합니다.
   조회 실패는 사이트의 차단/연령 확인/장애일 수 있습니다.
   사용자 개인 경로와 게임 목록을 공개 배포판에 넣지 않습니다.
