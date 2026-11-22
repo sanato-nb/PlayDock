@@ -7,9 +7,11 @@ from __future__ import annotations
 
 from argparse import ArgumentParser
 from pathlib import Path
+import sqlite3
 import sys
 
 from scripts.folder_picker import pick_windows_folder
+from src.playdock.database.official_catalog import OfficialWorkCatalog
 
 from experiments.dlsite_detector.scan_handoff import (
     RESULTS_DIR, COMBINED_NAME,
@@ -39,6 +41,16 @@ def run(folder: str | Path, *, output_dir: str | Path | None = None,
         print(f"\n[오류] 검사를 완료하지 못했습니다: {exc}", file=sys.stderr)
         print("중간 결과를 성공으로 표시하거나 AI 프롬프트를 생성하지 않았습니다.")
         return 1
+    # Keep the existing single-TXT handoff unchanged. Metadata is a separate
+    # per-user SQLite catalog, written only after a fully successful scan/TXT.
+    catalog = OfficialWorkCatalog()
+    try:
+        saved = catalog.save_verified_results(report.items)
+        print(f"공식 작품정보 공유 DB: {saved}건 저장/갱신")
+        if saved:
+            print(f"DB 위치: {catalog.path}")
+    except (OSError, ValueError, sqlite3.Error) as exc:
+        print(f"[경고] 공식 작품정보 DB 저장 실패 ({type(exc).__name__}). 검사 TXT는 정상 생성했습니다.")
     stats = report.counts
     print("\n====== 모든 파일 검사 완료 ======")
     print(f"전체 {stats['total']}개 | 공식 확인 {stats['confirmed']}개 | "
