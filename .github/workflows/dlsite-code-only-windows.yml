@@ -1,6 +1,9 @@
-name: PlayDock DLsite 코드 전용 Windows 빌드
+name: PlayDock DLsite→Steam Windows 빌드
 
 on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths: [".github/workflows/dlsite-code-only-windows.yml"]
   workflow_dispatch:
 
 permissions:
@@ -27,8 +30,8 @@ jobs:
       - name: 경량 확인기 문법 및 회귀검사
         shell: pwsh
         run: |
-          python -m compileall -q experiments/dlsite_detector/code_only.py scripts/code_only_window.py scripts/dlsite_code_checker.py
-          python -m pytest -q tests/test_code_only.py
+          python -m compileall -q experiments/dlsite_detector/code_only.py experiments/dlsite_detector/steam_client.py scripts/code_only_window.py scripts/dlsite_code_checker.py
+          python -m pytest -q tests/test_code_only.py tests/test_dlsite_steam_priority.py
 
       - name: 공식 품번 페이지 접속 진단 (실패 비치명)
         continue-on-error: true
@@ -44,15 +47,28 @@ jobs:
                   print("DIRECT_CODE_SMOKE", code, "error", type(exc).__name__, flush=True)
           '@ | python -
 
-      - name: 품번 전용 경량 EXE 빌드
+      - name: DLsite·Steam 공개 HTML 접근 테스트 (실패 비치명)
+        continue-on-error: true
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-DLsite-Code-Checker --paths . --exclude-module ddgs --exclude-module PySide6 scripts/dlsite_code_checker.py
+          @'
+          from experiments.dlsite_detector.no_api_html import fetch_steam_html
+          try:
+              product = fetch_steam_html("1091500", timeout=4.0)
+              print("STEAM_DIRECT_HTML_SMOKE", "1091500", "title_found", bool(product and product.title), flush=True)
+          except Exception as exc:
+              print("STEAM_DIRECT_HTML_SMOKE", type(exc).__name__, flush=True)
+          '@ | python -
+
+      - name: DLsite 우선·Steam 폴백 단일 EXE 빌드
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-DLsite-Steam-Checker --paths . --exclude-module ddgs --exclude-module PySide6 scripts/dlsite_code_checker.py
 
       - name: Windows EXE 자체 진단 (인터넷 불필요)
         shell: pwsh
         run: |
-          $path = (Resolve-Path "dist/PlayDock-DLsite-Code-Checker.exe").Path
+          $path = (Resolve-Path "dist/PlayDock-DLsite-Steam-Checker.exe").Path
           $p = Start-Process -FilePath $path -ArgumentList "--self-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "품번 전용 확인기 자체 진단 실패: $($p.ExitCode)" }
 
@@ -60,18 +76,18 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force "code_only_release" | Out-Null
-          Copy-Item "dist/PlayDock-DLsite-Code-Checker.exe" "code_only_release/"
+          Copy-Item "dist/PlayDock-DLsite-Steam-Checker.exe" "code_only_release/"
           Copy-Item "scripts/Code-Only-README_KO.txt" "code_only_release/사용법_먼저_읽기.txt"
           if ((Get-ChildItem "code_only_release" -File).Count -ne 2) {
             throw "예상치 못한 배포 파일"
           }
           Get-ChildItem "code_only_release" | Select-Object Name,Length
-          Get-FileHash "code_only_release/PlayDock-DLsite-Code-Checker.exe" -Algorithm SHA256
+          Get-FileHash "code_only_release/PlayDock-DLsite-Steam-Checker.exe" -Algorithm SHA256
 
       - name: 품번 전용 프로그램 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-DLsite-Code-Only-Windows
+          name: PlayDock-DLsite-Steam-ID-Only-Windows
           path: code_only_release/
           if-no-files-found: error
           retention-days: 30
