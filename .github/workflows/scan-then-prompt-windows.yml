@@ -74,8 +74,8 @@ jobs:
           $full = Get-Content (Join-Path $out.FullName "PlayDock_Scan_Results.txt") -Raw -Encoding UTF8
           $excl = Get-Content (Join-Path $out.FullName "PlayDock_Excluded_Games.txt") -Raw -Encoding UTF8
           $prompt = Get-Content (Join-Path $out.FullName "PlayDock_AI_Prompt.txt") -Raw -Encoding UTF8
-          if ($full -notmatch "검사 파일: 1개|검사 파일: 1" -or
-              $full -notmatch "제외\\(품번 없음 또는 공식 조회 실패\\): 1개") {
+          if (-not $full.Contains("검사 파일: 1개") -or
+              -not $full.Contains("제외(품번 없음 또는 공식 조회 실패): 1개")) {
             throw "TXT 결과의 분류 수가 잘못되었습니다"
           }
           if ($prompt -notmatch "Test Unknown.zip" -or $prompt -notmatch "실제 제외 게임 목록 시작" -or
