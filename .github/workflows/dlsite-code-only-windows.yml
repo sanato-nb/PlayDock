@@ -1,9 +1,6 @@
 name: PlayDock 제외 게임 AI 조사·파일명 변경 Windows 빌드
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/dlsite-code-only-windows.yml"]
   workflow_dispatch:
 
 permissions:
