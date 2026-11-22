@@ -3,6 +3,7 @@ from pathlib import Path
 import sqlite3
 
 from experiments.dlsite_detector.code_only import Result, Work
+from experiments.dlsite_detector.scan_handoff import ScanReport
 from src.playdock.database.official_catalog import (
     OfficialWorkCatalog, default_catalog_path,
 )
@@ -99,7 +100,7 @@ def test_scanner_saves_catalog_after_successful_txt(tmp_path, monkeypatch):
     work = Work("RJ123456", "Stored Game", "maniax",
                 "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
                 "verified", "dlsite")
-    report = scan_then_prompt.ScanReport((_result(work),), 1)
+    report = ScanReport((_result(work),), 1)
     monkeypatch.setattr(scan_then_prompt, "scan_folder", lambda *a, **kw: report)
     output_dir = tmp_path / "output"
     result = scan_then_prompt.run(source, output_dir=output_dir)
@@ -118,6 +119,6 @@ def test_scanner_still_succeeds_if_catalog_unwritable(tmp_path, monkeypatch):
                 "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
                 "verified", "dlsite")
     monkeypatch.setattr(scan_then_prompt, "scan_folder", lambda *a, **kw:
-                        scan_then_prompt.ScanReport((_result(work),), 1))
+                        ScanReport((_result(work),), 1))
     assert scan_then_prompt.run(source, output_dir=tmp_path / "out") == 0
     assert list((tmp_path / "out").rglob("*.txt"))
