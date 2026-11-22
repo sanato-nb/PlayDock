@@ -406,3 +406,7 @@ def main():
         return
     app = SimpleRenamer()
     app.mainloop()
+
+
+if __name__ == "__main__":
+    main()
