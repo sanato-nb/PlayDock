@@ -187,3 +187,35 @@ def test_external_query_only_never_contains_developer_details():
     for x in ["github", "repository", "branch", "owner", "sanato", "PrivateKey"]:
         assert x.lower() not in prompt.lower()
     assert "이용자" in prompt
+
+
+
+def test_no_false_claim_that_both_sites_failed_when_only_one_queried():
+    from experiments.dlsite_detector.code_only import check, InputItem
+    dl_only = check(InputItem("Game RJ123456.zip", "archive"),
+                    fetcher=lambda code: None,
+                    steam_fetcher=lambda code: (_ for _ in ()).throw(
+                        AssertionError("Steam must not be called without App ID")))
+    assert dl_only.status == "excluded"
+    assert dl_only.attempted_stores == ("dlsite",)
+    assert any("Steam App ID는 없어서 조회하지 않았습니다" in w for w in dl_only.warnings)
+    assert not any("DLsite와 Steam 공식 조회가 모두" in w for w in dl_only.warnings)
+    steam_only = check(InputItem("Game Steam 1091500.zip", "archive"),
+                       fetcher=lambda code: (_ for _ in ()).throw(
+                           AssertionError("DLsite must not be called")),
+                       steam_fetcher=lambda code: None)
+    assert steam_only.status == "excluded"
+    assert steam_only.attempted_stores == ("steam",)
+    assert any("DLsite 품번이 없어서 조회하지 않았습니다" in w for w in steam_only.warnings)
+
+
+def test_error_reporting_has_no_personal_paths(tmp_path):
+    report = ScanReport((
+        Result("Archive [RJ123456].zip", "archive", "excluded",
+               warnings=("DLsite RJ123456: 공식 페이지 조회 실패 (TimeoutError)",),
+               attempted_stores=("dlsite",)),
+    ), 1)
+    full = json.dumps(build_full(report), ensure_ascii=False)
+    failed = json.dumps(build_excluded(report), ensure_ascii=False)
+    assert "C:\\Users\\" not in full
+    assert "C:\\Users\\" not in failed
