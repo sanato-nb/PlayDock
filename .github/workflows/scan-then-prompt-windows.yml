@@ -82,7 +82,7 @@ jobs:
               -not $merged.Contains("변경 제안 파일명")) {
             throw "통합 TXT의 검사 결과·제외 목록·AI 지침 중 일부가 빠졌습니다"
           }
-          if (([regex]::Matches($merged, "Test Unknown\\.zip")).Count -ne 1) {
+          if (([regex]::Matches($merged, [regex]::Escape("Test Unknown.zip"))).Count -ne 1) {
             throw "제외 게임이 전체 결과 부분에 중복 기록됨"
           }
           if ($merged -match "github.com|sanato|experiment-bidirectional-lookup") {
