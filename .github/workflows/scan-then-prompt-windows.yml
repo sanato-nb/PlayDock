@@ -127,15 +127,22 @@ jobs:
                       text=True, encoding="utf-8", errors="replace",
                       capture_output=True, timeout=80)
                   assert run.returncode == 0, run.stdout + run.stderr
-                  assert "이 폴더가 맞습니까?" in run.stdout, run.stdout
+                  # Some Windows redirected consoles emit literal unicode
+                  # escapes instead of Hangul; accept both representations.
+                  def printed(text, needle):
+                      return (needle in text or
+                              needle.encode("unicode_escape").decode("ascii") in text)
+                  assert printed(run.stdout, "이 폴더가 맞습니까?"), run.stdout
                   assert str(folder) in run.stdout, run.stdout
                   return run.stdout
 
               output = launch("N")
-              assert "검사를 취소했습니다" in output, output
+              assert (("검사를 취소했습니다" in output) or
+                      ("검사를 취소했습니다".encode("unicode_escape").decode("ascii") in output)), output
               assert not result_folder.exists(), "N 취소 후 TXT가 생성됨"
               output = launch("Y")
-              assert "모든 파일 검사 완료" in output, output
+              assert (("모든 파일 검사 완료" in output) or
+                      ("모든 파일 검사 완료".encode("unicode_escape").decode("ascii") in output)), output
               dirs = list(result_folder.iterdir())
               assert len(dirs) == 1 and dirs[0].is_dir()
               assert [p.name for p in dirs[0].iterdir()] == [
