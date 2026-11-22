@@ -247,9 +247,9 @@ def make_ai_prompt(excluded_count: int, excluded_rows: list[dict] | None = None)
   공식 페이지가 존재하는 사실만으로 동일 게임이라고 주장하지 마세요.
 - 본편·DLC·합본·패치와 게임을 혼동하지 마세요. 확실치 않으면 품번을 추측하지 마세요.
 - 확인 상태는 아래 세 값만 사용하세요.
-  \`official_confirmed\` = 동일 작품이라는 근거가 충분함
-  \`candidate\` = 후보만 있음 / 추가 확인 필요
-  \`unknown\` = 공식 식별번호를 찾지 못함
+  `official_confirmed` = 동일 작품이라는 근거가 충분함
+  `candidate` = 후보만 있음 / 추가 확인 필요
+  `unknown` = 공식 식별번호를 찾지 못함
 - 항목 번호와 **원본 파일명은 글자 하나도 바꾸지 마세요.**
 
 ### 출력 형식 (전체 항목 필수)
@@ -260,15 +260,15 @@ def make_ai_prompt(excluded_count: int, excluded_rows: list[dict] | None = None)
 | item_id | 원본 파일명 | 판매처 | 찾은 품번 | 공식 작품명 | 공식 URL | 동일성 판단 근거 | 상태 | 변경 제안 파일명 |
 |---|---|---|---|---|---|---|---|---|
 
-- \`official_confirmed\`가 아닌 항목은 변경 제안 파일명을 '변경 안 함'으로 작성하세요.
+- `official_confirmed`가 아닌 항목은 변경 제안 파일명을 '변경 안 함'으로 작성하세요.
 - 원본에 이미 정확한 품번이 포함되었다면 중복해서 붙이지 마세요.
 - 동일 이름 파일이 여러 개거나 DLC/합본의 정확한 동일성이 불명확하면 '변경 안 함'으로 남기세요.
 - **표 작성 후** 프로그램에서 사용할 결과 데이터도
-  \`schema: "playdock-ai-review-v1"\`, \`results\` 배열의 JSON으로 제공하세요.
-  각 항목은 \`item_id\`, \`original_filename\`, \`store\`(\`dlsite\`/\`steam\`/빈 문자열),
-  \`code\`, \`official_title\`, \`official_url\`, \`evidence_url\`,
-  \`verification\`(\`official_confirmed\`/\`candidate\`/\`unknown\`), \`note\`,
-  \`proposed_filename\` 필드를 포함해야 합니다.
+  `schema: "playdock-ai-review-v1"`, `results` 배열의 JSON으로 제공하세요.
+  각 항목은 `item_id`, `original_filename`, `store`(`dlsite`/`steam`/빈 문자열),
+  `code`, `official_title`, `official_url`, `evidence_url`,
+  `verification`(`official_confirmed`/`candidate`/`unknown`), `note`,
+  `proposed_filename` 필드를 포함해야 합니다.
   미확인 품번은 빈 문자열로 남기고, JSON에도 없는 품번을 생성하지 마세요.
 
 ## 3단계. 본인의 AI가 간단한 Windows 이름 변경 도구 제공
@@ -280,14 +280,14 @@ PowerShell 스크립트와 BAT 파일을 제공하세요.
 
 - '공식 확인' 항목만 사용자의 최종 동일 작품 검토 후 변경하도록 하세요.
 - 원래 버전·번역·패치·DLC 표기와 확장자를 유지하세요.
-- DLsite는 \`[RJ123456]\`, Steam은 \`[Steam 1091500]\` 형식을 사용하세요.
+- DLsite는 `[RJ123456]`, Steam은 `[Steam 1091500]` 형식을 사용하세요.
 - 같은 이름의 파일이 여러 개거나 파일명 충돌·심볼릭 링크·경로 탈출이 있으면 중단하세요.
 - 압축파일 내부는 읽거나 수정하지 마세요. 덮어쓰기 금지, 변경 이력·원상복구 필수.
 - 명시적 사용자 승인 전에는 실제 파일명을 변경하지 마세요.
 
 ## 4단계. 끝까지 못 찾은 게임
 
-\`candidate\`/\`unknown\`/공식 재확인 실패 항목의 수동 처리 목록을 작성하고,
+`candidate`/`unknown`/공식 재확인 실패 항목의 수동 처리 목록을 작성하고,
 DLsite·Steam 공식 사이트에서 직접 확인하거나 원래 파일명을 유지하도록 안내하세요.
 
 개인정보: 사용자 전체 경로, 자격증명, 파일 내용은 요구하거나 외부로 보내지 마세요.
