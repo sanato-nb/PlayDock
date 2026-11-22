@@ -27,6 +27,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "pyinstaller>=6.11,<7" pytest
 
+      # 1글자 압축파일명 유효성 수정 후 Windows 회귀검사 재실행
       - name: 경량 확인기 문법 및 회귀검사
         shell: pwsh
         run: |
