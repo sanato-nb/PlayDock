@@ -69,8 +69,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "배포 EXE 완성 PS1 검증 실패" }
           (Get-Content "empty_rename.ps1" -Raw -Encoding UTF8).Replace('Undo-Last', 'Undo-Broken') |
             Set-Content "tampered_rename.ps1" -Encoding UTF8
-          & $exe --verify-rename-script "tampered_rename.ps1"
-          if ($LASTEXITCODE -eq 0) { throw "코드 변조 PS1을 검증 통과시켜서는 안 됩니다" }
+          # 검증 실패(종료 코드 1)는 이 시험의 예상 결과이므로 프로세스 결과만 읽습니다.
+          $process = Start-Process -FilePath $exe -ArgumentList @('--verify-rename-script', 'tampered_rename.ps1') -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -eq 0) { throw "코드 변조 PS1을 검증 통과시켜서는 안 됩니다" }
 
       - name: 실제 Windows EXE 수행 · 결과가 TXT 하나만 생성되는지 검증
         shell: pwsh
