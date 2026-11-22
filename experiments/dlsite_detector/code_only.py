@@ -2,7 +2,8 @@
 
 * DLsite 품번(RJ/VJ/BJ/EJ)이 있으면 공식 DLsite HTML부터 확인한다.
 * 하나라도 DLsite 공식 이름을 확인하면 Steam보다 DLsite를 우선 선택한다.
-* DLsite 공식 확인이 전부 실패하거나 품번이 없으면 명시된 Steam App ID를 확인한다.
+* DLsite 공식 확인이 전부 실패하거나 품번이 없으면 명시된 Steam App ID를
+  공개 Store 상품정보(JSON, 키 불필요) 우선·공식 HTML 폴백으로 확인한다.
 * 둘 다 확인할 수 없으면 'excluded'로 분류한다(미등록·비게임 판정 아님).
 * 이름 검색, Bing RSS, DDGS, 번역 및 압축파일 내용 읽기는 수행하지 않는다.
 """
