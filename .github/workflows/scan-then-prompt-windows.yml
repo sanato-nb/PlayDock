@@ -1,9 +1,6 @@
 name: PlayDock 검사 완료 후 통합 TXT 단일 출력 Windows 빌드
 
 on:
-  push:
-    branches: [experiment-bidirectional-lookup-20261121]
-    paths: [".github/workflows/scan-then-prompt-windows.yml"]
   workflow_dispatch:
 
 permissions:
