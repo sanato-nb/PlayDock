@@ -13,20 +13,20 @@ from tkinter import filedialog, messagebox, ttk
 import webbrowser
 
 from experiments.dlsite_detector.code_only import (
-    MAX_BATCH, Result, Work, check, codes_in, folder_archives, inputs,
+    MAX_BATCH, Result, Work, check, codes_in, steam_ids_in, folder_archives, inputs,
     selected_archives,
 )
 
 STATUSES = {
     "confirmed": "공식 이름 확인", "partial": "일부 확인",
-    "unavailable": "조회 불가", "no_code": "품번 없음 · 건너뜀",
+    "excluded": "제외 · 확인되지 않음",
 }
 
 
 class CodeChecker(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("PlayDock — DLsite 품번 확인기 (API 키 불필요)")
+        self.title("PlayDock — DLsite 우선 / Steam 품번 확인기")
         self.geometry("1100x710")
         self.minsize(830, 520)
         self.queue: Queue = Queue()
@@ -39,14 +39,14 @@ class CodeChecker(tk.Tk):
 
         root = ttk.Frame(self, padding=12)
         root.pack(fill="both", expand=True)
-        ttk.Label(root, text="PlayDock — DLsite 품번 확인기",
+        ttk.Label(root, text="PlayDock — DLsite → Steam 식별번호 확인기",
                   font=("맑은 고딕", 17, "bold")).pack(anchor="w")
-        ttk.Label(root, text="RJ·VJ·BJ·EJ 품번만 직접 조회합니다. 제목 검색·DDGS·Bing RSS는 사용하지 않습니다.").pack(
+        ttk.Label(root, text="DLsite 품번 먼저 확인 → 실패하거나 없으면 Steam App ID 확인 → 둘 다 실패하면 제외.").pack(
             anchor="w", pady=(4, 3))
-        ttk.Label(root, text="압축파일은 열지 않고 이름만 읽습니다. 품번이 없는 파일은 인터넷 검색 없이 건너뜁니다.",
+        ttk.Label(root, text="RJ·VJ·BJ·EJ / Steam 1091500 / AppID=1091500 · 제목 검색과 압축파일 내부 검사는 하지 않습니다.",
                   foreground="#555").pack(anchor="w", pady=(0, 10))
 
-        ttk.Label(root, text="품번 직접 입력 (한 줄에 하나, 복수 입력 가능) 또는 품번이 포함된 파일명").pack(anchor="w")
+        ttk.Label(root, text="DLsite 품번 또는 Steam App ID 직접 입력 (한 줄에 하나) / 식별번호가 포함된 파일명").pack(anchor="w")
         self.input = tk.Text(root, height=4, undo=True, wrap="none")
         self.input.pack(fill="x", pady=(3, 8))
 
@@ -69,7 +69,7 @@ class CodeChecker(tk.Tk):
 
         controls = ttk.Frame(root)
         controls.pack(fill="x", pady=(0, 6))
-        self.start = ttk.Button(controls, text="품번 확인 시작", command=self.start_check)
+        self.start = ttk.Button(controls, text="DLsite → Steam 확인 시작", command=self.start_check)
         self.start.pack(side="left")
         self.stop = ttk.Button(controls, text="중단", command=self.cancel.set, state="disabled")
         self.stop.pack(side="left", padx=6)
@@ -92,7 +92,7 @@ class CodeChecker(tk.Tk):
             ("file", "입력 파일명 / 품번", 260),
             ("status", "처리 상태", 150),
             ("code", "품번", 140),
-            ("title", "DLsite 공식 작품명", 410),
+            ("title", "공식 작품명 (DLsite / Steam)", 410),
             ("source", "확인 경로", 130),
         ):
             self.table.heading(col, text=name)
@@ -106,7 +106,7 @@ class CodeChecker(tk.Tk):
         self.table.bind("<<TreeviewSelect>>", self.on_select)
         self.table.bind("<Double-1>", self.open_official)
 
-        ttk.Label(root, text="상세 정보 · 공식 확인된 행을 더블클릭하면 DLsite 페이지로 이동").pack(
+        ttk.Label(root, text="상세 정보 · 확인된 행 더블클릭 시 해당 공식 스토어 페이지로 이동").pack(
             anchor="w", pady=(8, 2))
         self.detail = tk.Text(root, height=5, state="disabled", wrap="word")
         self.detail.pack(fill="x")
@@ -209,7 +209,7 @@ class CodeChecker(tk.Tk):
                     _, result, index, total = item
                     self.results.append(result)
                     self.progress.configure(value=100 * index / total)
-                    self.status.set(f"{index}/{total}개 처리 · {STATUSES[result.status]}")
+                    self.status.set(f"{index}/{total}개 처리 · {STATUSES.get(result.status, result.status)}")
                     works = result.works or (None,)
                     for work in works:
                         iid = str(len(self.item_urls))
@@ -218,15 +218,20 @@ class CodeChecker(tk.Tk):
                         self.item_details[iid] = (
                             f"입력: {result.query}\n"
                             f"입력 유형: {result.input_origin}\n"
-                            f"상태: {STATUSES[result.status]}\n"
-                            + (f"품번: {work.code}\n공식 작품명: {work.title or '(확인 불가)'}\n"
+                            f"상태: {STATUSES.get(result.status, result.status)}\n"
+                            f"우선 확인한 스토어: {result.selected_store or '없음'}\n"
+                            f"조회 순서: {', '.join(result.attempted_stores) or '식별번호 없음'}\n"
+                            + (f"스토어: {work.store}\n식별번호: {work.code}\n공식 작품명: {work.title or '(확인 불가)'}\n"
                                f"공식 페이지: {work.url or '(확인 불가)'}\n" if work else "")
                             + ("\n".join(result.warnings) if result.warnings else "")
                         )
                         self.table.insert("", "end", iid=iid, values=(
-                            result.query, STATUSES[result.status],
+                            result.query, (
+                                f"{work.store.upper()} 확인" if work and work.status == "verified"
+                                else f"{work.store.upper()} 조회 불가" if work
+                                else STATUSES.get(result.status, result.status)),
                             work.code if work else "-", work.title if work else "-",
-                            "DLsite 공식 HTML" if work and work.status == "verified" else "-",
+                            (work.store.upper() + " 공식 HTML") if work and work.status == "verified" else "-",
                         ))
                 elif item[0] == "done":
                     self.busy = False
@@ -236,9 +241,9 @@ class CodeChecker(tk.Tk):
                     self.jsonbtn.configure(state="normal" if self.results else "disabled")
                     self.csvbtn.configure(state="normal" if self.results else "disabled")
                     total = len(self.results)
-                    verified = sum(r.status == "confirmed" for r in self.results)
-                    missing = sum(r.status == "no_code" for r in self.results)
-                    self.status.set(f"완료 {total}개 · 공식 확인 {verified}개 · 품번 없어 건너뜀 {missing}개"
+                    verified = sum(r.status in ("confirmed", "partial") for r in self.results)
+                    excluded = sum(r.status == "excluded" for r in self.results)
+                    self.status.set(f"완료 {total}개 · 공식 확인 {verified}개 · 제외 {excluded}개"
                                     + (" · 사용자가 중단함" if self.cancel.is_set() else ""))
         except Empty:
             pass
@@ -255,19 +260,22 @@ class CodeChecker(tk.Tk):
 
     def open_official(self, _event=None):
         chosen = self.table.selection()
-        if chosen and self.item_urls.get(chosen[0], "").startswith("https://www.dlsite.com/"):
-            webbrowser.open(self.item_urls[chosen[0]])
+        if chosen:
+            url = self.item_urls.get(chosen[0], "")
+            if (url.startswith("https://www.dlsite.com/") or
+                    url.startswith("https://store.steampowered.com/app/")):
+                webbrowser.open(url)
 
     def save_json(self):
         if not self.results:
             return
         path = filedialog.asksaveasfilename(
             title="품번 조회 결과 저장", defaultextension=".json",
-            initialfile="PlayDock_DLsite_Code_Results.json",
+            initialfile="PlayDock_DLsite_Steam_Results.json",
             filetypes=[("JSON", "*.json")])
         if not path:
             return
-        obj = {"program": "PlayDock DLsite Code Checker", "mode": "code_only",
+        obj = {"program": "PlayDock DLsite → Steam Code Checker", "mode": "dlsite_steam_code_only",
                "created_at_local": datetime.now().astimezone().isoformat(),
                "api_used": False, "archive_contents_inspected": False,
                "results": [r.to_dict() for r in self.results]}
@@ -282,23 +290,23 @@ class CodeChecker(tk.Tk):
             return
         path = filedialog.asksaveasfilename(
             title="품번 조회 결과 CSV", defaultextension=".csv",
-            initialfile="PlayDock_DLsite_Code_Results.csv",
+            initialfile="PlayDock_DLsite_Steam_Results.csv",
             filetypes=[("CSV", "*.csv")])
         if not path:
             return
         try:
             with open(path, "w", encoding="utf-8-sig", newline="") as handle:
                 writer = csv.writer(handle)
-                writer.writerow(("파일명/입력", "입력 유형", "상태", "품번", "공식 작품명",
-                                 "DLsite URL", "세부 상태", "경고"))
+                writer.writerow(("파일명/입력", "입력 유형", "최종 분류", "선택 사이트",
+                                 "조회 사이트", "식별번호", "공식 작품명", "공식 URL", "세부 상태", "경고"))
                 for result in self.results:
                     for work in result.works or (None,):
                         writer.writerow((
                             result.query, result.input_origin, result.status,
-                            work.code if work else "",
+                            result.selected_store,
+                            work.store if work else "", work.code if work else "",
                             work.title if work else "", work.url if work else "",
-                            work.status if work else "",
-                            " / ".join(result.warnings),
+                            work.status if work else "", " / ".join(result.warnings),
                         ))
         except OSError as exc:
             messagebox.showerror("저장 실패", str(exc))
@@ -308,7 +316,8 @@ def main():
     if "--self-test" in sys.argv:
         from experiments.dlsite_detector.code_only import InputItem
         assert codes_in("foo [RJ123456].zip") == ("RJ123456",)
-        assert check(InputItem("missing.zip", "archive")).status == "no_code"
+        assert check(InputItem("missing.zip", "archive")).status == "excluded"
+        assert steam_ids_in("game [SteamAppID=1091500].zip") == ("1091500",)
         print("PlayDock code-only self-test: PASS")
         return
     app = CodeChecker()
