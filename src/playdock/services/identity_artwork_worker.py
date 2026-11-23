@@ -63,9 +63,10 @@ class IdentityArtworkThread(QThread):
                         and row.get("kind") in ("hero", "icon")
                         and trusted_image_url(work.store, work.code, row.get("url", ""))
                     }
-                artwork = prepare_official_images(
-                    work, candidates=candidates if candidates else None
-                )
+                if candidates:
+                    artwork = prepare_official_images(work, candidates=candidates)
+                else:
+                    artwork = prepare_official_images(work)
             except Exception:
                 # Successful identity lookup must not fail because an image CDN is down.
                 artwork = {}
