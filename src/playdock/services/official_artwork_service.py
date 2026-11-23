@@ -75,11 +75,14 @@ def _steam_api_art(app_id: str, *, opener=urlopen):
     if not isinstance(body, dict) or (body.get("steam_appid") is not None
                                        and str(body["steam_appid"]) != app_id):
         return {}
-    return {kind: url for kind, url in (
-        ("hero", body.get("header_image")),
-        ("icon", body.get("capsule_imagev5") or body.get("capsule_image")
-         or body.get("header_image")),
-    ) if isinstance(url, str) and trusted_image_url("steam", app_id, url)}
+    header = body.get("header_image")
+    icon = next((candidate for candidate in
+                 (body.get("capsule_imagev5"), body.get("capsule_image"), header)
+                 if isinstance(candidate, str)
+                 and trusted_image_url("steam", app_id, candidate)), None)
+    choices = {"hero": header, "icon": icon}
+    return {kind: url for kind, url in choices.items()
+            if isinstance(url, str) and trusted_image_url("steam", app_id, url)}
 
 
 def official_image_urls(work, *, dlsite_fetch=fetch_dlsite_work,
