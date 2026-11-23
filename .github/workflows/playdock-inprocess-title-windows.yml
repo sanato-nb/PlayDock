@@ -1,10 +1,20 @@
-name: PlayDock 설정 메뉴·DB 상태 통합 Windows 빌드
+name: PlayDock 통합 SQLite v3 · Windows 배포 검증
 
 on:
   push:
     branches: [experiment-bidirectional-lookup-20261121]
     paths:
       - "app.py"
+      - "src/playdock/database/work_repository.py"
+      - "src/playdock/database/official_catalog.py"
+      - "src/playdock/services/official_work_service.py"
+      - "src/playdock/services/data_service.py"
+      - "src/playdock/services/library_service.py"
+      - "tests/test_work_database_v080.py"
+      - "tests/test_playdock_official_import.py"
+      - "tests/test_shared_db_location_v3.py"
+      - "tests/test_official_catalog.py"
+      - "tests/test_top_settings_and_db_status.py"
       - "title_editor.py"
       - "src/playdock/controllers/title_editor.py"
       - "src/playdock/controllers/metadata.py"
@@ -52,7 +62,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q app.py title_editor.py src/playdock tests
-          python -m pytest -q tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_top_settings_and_db_status.py tests/test_playdock_rebrand_v077.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
+          python -m pytest -q tests/test_work_database_v080.py tests/test_playdock_official_import.py tests/test_shared_db_location_v3.py tests/test_official_catalog.py tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_top_settings_and_db_status.py tests/test_playdock_rebrand_v077.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
           if ($LASTEXITCODE -ne 0) { throw "이름 설정 통합 회귀 테스트 실패" }
       - name: PlayDock 전체 Windows 테스트
         shell: pwsh
@@ -87,7 +97,7 @@ jobs:
       - name: Windows 완성 EXE · 사용자 중립 설치 파일 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-Settings-DB-Status-Windows
+          name: PlayDock-Unified-SQLite-v3-Windows
           path: |
             dist/PlayDock.exe
             public_release/PlayDock_Public_v0.8.3.zip

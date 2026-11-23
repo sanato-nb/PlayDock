@@ -27,7 +27,6 @@ class WorkPreviewDialog(QDialog):
         for label, value in (
             ('작품 코드', record['code']),
             ('제작사', record.get('maker') or '정보 없음'),
-            ('발매일', record.get('release_date') or '정보 없음'),
             ('장르·태그', ', '.join(record.get('tags', [])[:12]) or '정보 없음'),
             ('이미지', f"표지/샘플 URL {len(record.get('images', []))}개 (이미지는 자동 저장하지 않음)"),
         ):

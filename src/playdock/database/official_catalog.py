@@ -1,36 +1,36 @@
-"""Shared, per-user official work metadata catalog for PlayDock.
+"""Shared site/code validation and PlayDock installation-relative DB location.
 
-The independent filename scanner writes only verified public store facts.
-Other PlayDock features can query the same SQLite file without importing the
-scanner or touching user library/game records. No network requests here.
+The independent scanner does NOT create an official_works.sqlite3 file. It
+writes to the same installed PlayDock/data/playdock.db as the main app.
+A one-time remembered install-folder path is only a pointer, not a second DB.
 """
 from __future__ import annotations
 
-from contextlib import closing
-from datetime import datetime, timezone
+import json
 import os
 from pathlib import Path
 import re
-import sqlite3
+import sys
+import tempfile
 from urllib.parse import urlsplit
 
-DATABASE_FILENAME = "official_works.sqlite3"
 DL_CODE = re.compile(r"(?:RJ|VJ|BJ|EJ)\d{6,8}\Z", re.I)
 STEAM_ID = re.compile(r"[1-9]\d{2,9}\Z")
+_CONFIG_FILE = "scanner_install_folder.json"
 
 
-def default_catalog_path() -> Path:
-    """Stable user-specific location; never in the scanned games folder."""
-    override = os.environ.get("PLAYDOCK_OFFICIAL_CATALOG_PATH")
-    if override:
-        return Path(override).expanduser()
+def _profile_root() -> Path:
     if os.name == "nt":
-        root = Path(os.environ.get("LOCALAPPDATA") or
-                    (Path.home() / "AppData" / "Local"))
-    else:
-        root = Path(os.environ.get("XDG_DATA_HOME") or
-                    (Path.home() / ".local" / "share"))
-    return root / "PlayDock" / DATABASE_FILENAME
+        path = os.environ.get("LOCALAPPDATA")
+        return (Path(path) if path else (Path.home() / "AppData" / "Local")) / "PlayDock"
+    return Path(os.environ.get("XDG_DATA_HOME") or
+                (Path.home() / ".local" / "share")) / "PlayDock"
+
+
+def legacy_catalog_path() -> Path:
+    """Historical scanner DB path; migration input only, never new output."""
+    return Path(os.environ.get("PLAYDOCK_OFFICIAL_CATALOG_PATH") or
+                (_profile_root() / "official_works.sqlite3")).expanduser()
 
 
 def _valid_identity(store: str, product_id: str, page_url: str) -> bool:
@@ -52,81 +52,88 @@ def _valid_identity(store: str, product_id: str, page_url: str) -> bool:
                 parts.path.casefold())
 
 
+def installed_database_path(folder: str | Path) -> Path | None:
+    """Recognize only a genuine PlayDock installation with an installer marker."""
+    root = Path(folder).expanduser()
+    if not root.is_dir() or root.is_symlink() or root.is_junction():
+        return None
+    # Imported lazily so the scanner can use this module without Qt.
+    from local_storage import marker_is_valid
+    if not marker_is_valid(root):
+        return None
+    data_dir = root / "data"
+    if data_dir.is_symlink() or data_dir.is_junction():
+        return None
+    return data_dir / "playdock.db"
+
+
+def default_catalog_path() -> Path | None:
+    """Find B-location DB without creating an unrelated user-profile DB."""
+    direct = os.environ.get("PLAYDOCK_DB_PATH")
+    if direct:
+        return Path(direct).expanduser()
+    install = os.environ.get("PLAYDOCK_INSTALL_DIR")
+    if install:
+        path = installed_database_path(install)
+        if path:
+            return path
+    if getattr(sys, "frozen", False):
+        nearby = installed_database_path(Path(sys.executable).resolve().parent)
+        if nearby:
+            return nearby
+    remembered = _profile_root() / _CONFIG_FILE
+    if remembered.is_file() and not remembered.is_symlink():
+        try:
+            saved = json.loads(remembered.read_text(encoding="utf-8"))
+            if isinstance(saved, dict):
+                return installed_database_path(saved.get("install_folder", ""))
+        except (OSError, ValueError, TypeError):
+            return None
+    return None
+
+
+def remember_install_folder(folder: str | Path) -> Path:
+    """Record a verified PlayDock install folder, never store a second SQLite DB."""
+    db = installed_database_path(folder)
+    if db is None:
+        raise ValueError("PlayDock 설치 표식을 찾을 수 없습니다. PlayDock 설치 폴더를 선택해 주세요.")
+    target = _profile_root() / _CONFIG_FILE
+    target.parent.mkdir(parents=True, exist_ok=True)
+    data = json.dumps({"install_folder": str(Path(folder).resolve())},
+                      ensure_ascii=False, indent=2)
+    fd, staging = tempfile.mkstemp(prefix=".pd-scanner-", suffix=".tmp",
+                                   dir=target.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as writer:
+            writer.write(data)
+        os.replace(staging, target)
+    finally:
+        if os.path.exists(staging):
+            os.unlink(staging)
+    return db
+
+
 class OfficialWorkCatalog:
-    """Read/write official facts using the composite (store, product_id) key."""
+    """Thin backward-compatible scanner adapter to the shared works table."""
 
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path) if path is not None else default_catalog_path()
 
     def save_verified_results(self, results) -> int:
-        """Store confirmed works from any scan status, ignoring failed lookups.
-
-        Duplicate IDs across multiple scanned filenames are written only once.
-        Failed/unknown lookups cannot erase previously verified metadata.
-        The database is not created when nothing was verified.
-        """
-        records: dict[tuple[str, str], tuple[str, ...]] = {}
-        checked_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
-        for result in results:
-            for work in result.works:
-                if work.status != "verified":
-                    continue
-                store = str(work.store).lower().strip()
-                product_id = str(work.code).strip().upper() if store == "dlsite" else str(work.code).strip()
-                title = str(work.title or "").strip()
-                category = str(work.category or "").strip()
-                url = str(work.url or "").strip()
-                if (not title or len(title) > 1000 or len(category) > 240 or
-                        len(url) > 2048 or
-                        not _valid_identity(store, product_id, url)):
-                    continue
-                records[(store, product_id)] = (
-                    store, product_id, title, category, url, checked_at)
-        if not records:
+        # Never create a new works DB for a scan with no verified official row.
+        if not any(w.status == "verified" and w.title and
+                   _valid_identity(str(w.store).lower(), str(w.code).strip(),
+                                   str(w.url).strip())
+                   for row in results for w in row.works):
             return 0
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with closing(sqlite3.connect(self.path, timeout=8)) as con:
-            con.execute("PRAGMA busy_timeout=8000")
-            with con:
-                con.execute("""
-                    CREATE TABLE IF NOT EXISTS official_works (
-                        store TEXT NOT NULL CHECK(store IN ('dlsite','steam')),
-                        product_id TEXT NOT NULL,
-                        official_title TEXT NOT NULL,
-                        category TEXT NOT NULL DEFAULT '',
-                        page_url TEXT NOT NULL,
-                        verified_at_utc TEXT NOT NULL,
-                        PRIMARY KEY (store, product_id)
-                    )
-                """)
-                con.executemany("""
-                    INSERT INTO official_works
-                    (store, product_id, official_title, category, page_url, verified_at_utc)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(store, product_id) DO UPDATE SET
-                        official_title=excluded.official_title,
-                        category=excluded.category,
-                        page_url=excluded.page_url,
-                        verified_at_utc=excluded.verified_at_utc
-                """, records.values())
-        return len(records)
+        if self.path is None:
+            raise FileNotFoundError("PlayDock 설치 폴더의 공용 DB 경로가 지정되지 않았습니다.")
+        from database.work_repository import WorkDatabase
+        return WorkDatabase(self.path.parent, db_path=self.path).save_verified_results(results)
 
-    def get_work(self, store: str, product_id: str) -> dict | None:
-        """Read existing metadata without creating or modifying the DB."""
-        store = str(store).lower().strip()
-        product_id = str(product_id).strip().upper() if store == "dlsite" else str(product_id).strip()
-        if (not self.path.is_file() or
-                not _valid_identity(store, product_id,
-                                    f"https://www.dlsite.com/a/{product_id}" if store == "dlsite"
-                                    else f"https://store.steampowered.com/app/{product_id}/")):
+    def get_work(self, store: str, product_id: str):
+        if self.path is None or not self.path.is_file():
             return None
-        with closing(sqlite3.connect(self.path.resolve().as_uri() + "?mode=ro", uri=True)) as con:
-            con.row_factory = sqlite3.Row
-            try:
-                row = con.execute(
-                    """SELECT store, product_id, official_title, category, page_url, verified_at_utc
-                       FROM official_works WHERE store=? AND product_id=?""",
-                    (store, product_id)).fetchone()
-            except sqlite3.OperationalError:
-                return None
-        return dict(row) if row else None
+        from database.work_repository import WorkDatabase
+        return WorkDatabase(self.path.parent, db_path=self.path).get_official_work(
+            store, product_id)

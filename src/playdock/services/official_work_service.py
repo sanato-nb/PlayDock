@@ -1,13 +1,9 @@
-"""Bridge between local game library and imported scanner metadata.
+"""Resolve explicit DLsite/Steam identities and display unified work details.
 
-No scanner dependency, network access, automatic renaming or metadata mutation.
-DLsite wins when an explicit code has an imported match; otherwise accept an
-explicitly marked Steam App ID from the original archive or game name.
+No network calls, no archive contents read, no guessing Steam from bare numbers.
 """
 from __future__ import annotations
-
 import re
-
 from database.official_catalog import _valid_identity
 
 STEAM_MARKED = re.compile(
@@ -16,41 +12,58 @@ STEAM_MARKED = re.compile(
 )
 
 
-def official_metadata_for_game(library, game, db) -> dict | None:
-    """Never infer a store ID from an unmarked version/build number."""
+def explicit_work_identity(library, game):
+    meta = library.meta(game)
+    # A manually cleared ID must override all automatic file-name guesses.
+    if "product_code" in meta and not meta.get("product_code"):
+        return None
+    # Explicit store+code wins; retained for future generic code-editor UI.
+    store = str(meta.get("product_store") or "").strip().lower()
+    if store == "steam":
+        code = str(meta.get("product_code") or meta.get("steam_app_id") or "").strip()
+        if code.isdigit() and code[0] != "0" and 3 <= len(code) <= 10:
+            return ("steam", code)
+    if store == "dlsite":
+        code = library.product_code(game)
+        return ("dlsite", code) if code else None
     code = library.product_code(game)
     if code:
-        record = db.get_official_work("dlsite", code)
-        if record and _valid_identity("dlsite", record["product_id"], record["page_url"]):
-            return record
-
-    meta = library.meta(game)
-    # An explicitly cleared product_code means the user rejected auto-linking.
-    # Do not infer another ID from filename or old metadata in that case.
-    if "product_code" in meta and not code:
-        return None
-
-    sources = [game.archive.name if game.archive else "", game.name]
-    manual = meta.get("steam_app_id")
-    if manual:
-        sources.insert(0, f"Steam {manual}")
-    for source in sources:
-        for match in STEAM_MARKED.finditer(source):
-            app_id = match.group(1)
-            record = db.get_official_work("steam", app_id)
-            if record and _valid_identity("steam", record["product_id"], record["page_url"]):
-                return record
+        return ("dlsite", code)
+    candidates = []
+    if meta.get("steam_app_id"):
+        candidates.append("Steam " + str(meta["steam_app_id"]))
+    candidates.extend((game.archive.name if game.archive else "", game.name))
+    for name in candidates:
+        match = STEAM_MARKED.search(name)
+        if match:
+            return ("steam", match.group(1))
     return None
 
 
-def official_info_rows(record: dict | None) -> list[tuple[str, str]]:
+def official_metadata_for_game(library, game, db):
+    identity = explicit_work_identity(library, game)
+    if not identity:
+        return None
+    store, code = identity
+    record = db.get_official_work(store, code)
+    return record if record and _valid_identity(store, code, record["page_url"]) else None
+
+
+def official_info_rows(record):
     if not record:
         return []
     store = "DLsite" if record["store"] == "dlsite" else "Steam"
-    return [
+    rows = [
         ("공식 판매처", store),
-        ("공식 품번 / App ID", record["product_id"]),
-        ("공식 작품명", record["official_title"]),
-        ("공식 작품 종류·분류", record["category"] or "정보 없음"),
+        ("공식 품번 / App ID", record["code"]),
+        ("공식 작품명", record["title"]),
+        ("공식 작품 종류·분류", record.get("category") or "정보 없음"),
         ("공식 작품 페이지", record["page_url"]),
     ]
+    if record.get("maker"):
+        rows.append(("제작사", record["maker"]))
+    if record.get("release_date"):
+        rows.append(("발매일", record["release_date"]))
+    if record.get("tags"):
+        rows.append(("장르·태그", ", ".join(record["tags"][:8])))
+    return rows

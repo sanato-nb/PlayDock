@@ -74,11 +74,6 @@ class LibraryControllerMixin:
         previous = prefer_id or self.selected_id
         self.games = self.library.scan()
         try:
-            self.work_db.import_scanner_catalog()
-        except (OSError, ValueError) as exc:
-            # A damaged/missing scanner DB must never prevent loading PlayDock.
-            self.set_message(f'공식 작품정보 DB 가져오기 실패: {exc}')
-        try:
             self.work_db.sync_library(self.library, self.games)
         except Exception as exc:
             # A corrupted/locked catalogue must not prevent game installation.
@@ -351,29 +346,13 @@ class LibraryControllerMixin:
 
 
     def work_db_info_rows(self, game):
-        """Show stored catalogue details without editing user's custom title."""
-        rows = []
-        code = self.library.product_code(game)
-        if code:
-            try:
-                record = self.work_db.get_work(code)
-            except Exception:
-                record = None
-            if record:
-                language = self.library.settings.get('title_language', 'ko')
-                title = record['titles'].get(language) or record['fallback_title']
-                rows.extend([
-                    ('DB 작품명', title),
-                    ('제작사', record.get('maker') or '정보 없음'),
-                    ('발매일', record.get('release_date') or '정보 없음'),
-                    ('장르', ', '.join(record.get('tags', [])[:8]) or '정보 없음'),
-                ])
+        """Unified official works table: one row per store/code, no duplicate headings."""
         try:
-            official = official_metadata_for_game(self.library, game, self.work_db)
-            rows.extend(official_info_rows(official))
+            record = official_metadata_for_game(self.library, game, self.work_db)
+            return official_info_rows(record)
         except (OSError, ValueError):
-            pass  # Damaged/locked public catalogue must not block the detail UI.
-        return rows
+            return []
+
 
     def present_game(self):
         game = self.current()

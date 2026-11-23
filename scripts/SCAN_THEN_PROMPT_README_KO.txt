@@ -25,9 +25,12 @@ Windows 10/11 콘솔 실행파일: PlayDock-ID-Scan-And-Prompt.exe
        검사 폴더\PlayDock_Results\검사일시\
   6. 검사 결과 파일은 하나입니다:
        PlayDock_Complete_Scan_And_AI_Prompt.txt
-  7. 공식 확인된 품번의 사이트·ID·공식 작품명·작품 종류·URL을
-     별도 사용자 DB (%LOCALAPPDATA%\PlayDock\official_works.sqlite3)에 저장합니다.
-     게임 폴더와 기존 PlayDock 데이터베이스는 변경하지 않습니다.
+  7. 공식 확인된 작품정보는 설치된 PlayDock의
+       <PlayDock 설치 폴더>\data\playdock.db
+     한 곳의 works 테이블에 저장합니다.
+     스캐너가 설치 위치를 모르면 PlayDock 설치 폴더를 지정할 수 있습니다.
+     PlayDock가 설치되지 않았으면 TXT만 생성하고 임의의 DB를 만들지 않습니다.
+     과거 %LOCALAPPDATA%\PlayDock\official_works.sqlite3는 이전용으로만 남깁니다.
 
 검사에 실패한 게임이 있다면 TXT 내용:
   - 요약: 전체/공식 확인/일부 확인/제외 수
@@ -111,3 +114,5 @@ Windows 10/11 콘솔 실행파일: PlayDock-ID-Scan-And-Prompt.exe
   --rename-code-only    시작 옵션 2를 명령행에서 명시적으로 활성화
   --undo-renames        자동 이름 변경 복구 (폴더 Y와 UNDO 승인 필요)
   --self-test-renames   임시 가짜 파일로 이름 변경 및 복구 자체 테스트
+
+  --playdock-folder "C:\Program Files\PlayDock"  PlayDock 설치 폴더 지정 및 기억

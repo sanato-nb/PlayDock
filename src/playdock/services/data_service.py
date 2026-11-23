@@ -131,7 +131,7 @@ def _validate_file(member: str, content: bytes):
                     version = db.execute('PRAGMA user_version').fetchone()[0]
                     ok = db.execute('PRAGMA quick_check').fetchone()[0]
                     names = {row[0] for row in db.execute('SELECT name FROM sqlite_master WHERE type="table"')}
-                    if version > 2 or ok != 'ok' or not {'works', 'library_links'}.issubset(names):
+                    if version > 3 or ok != 'ok' or not {'works', 'library_links'}.issubset(names):
                         raise ValueError('PlayDock 작품 DB 구조 또는 무결성이 잘못되었습니다.')
             except sqlite3.DatabaseError as exc:
                 raise ValueError('작품 DB 파일이 손상되었습니다.') from exc

@@ -1,3 +1,5 @@
+-- LEGACY HISTORICAL SCHEMA (v0.8.0/v2). DO NOT APPLY TO NEW PLAYDOCK INSTALLATIONS.
+-- Use docs/PlayDock_DB_Schema_v3.sql for the current 2-table schema.
 -- PlayDock v0.8.0 SQLite database structure (reference only)
 -- Empty DB is automatically created in data/playdock.db on first launch.
 

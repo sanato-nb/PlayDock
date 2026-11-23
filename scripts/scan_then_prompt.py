@@ -11,7 +11,13 @@ import sqlite3
 import sys
 
 from scripts.folder_picker import pick_windows_folder
-from src.playdock.database.official_catalog import OfficialWorkCatalog
+# The standalone scanner shares PlayDock's Python service modules but does not
+# import any Qt UI package or create a second metadata database.
+if not getattr(sys, "frozen", False):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src" / "playdock"))
+from database.official_catalog import (
+    OfficialWorkCatalog, default_catalog_path, remember_install_folder,
+)
 from experiments.dlsite_detector.code_only_renamer import (
     apply_code_only_renames, undo_last_auto_rename,
 )
@@ -44,16 +50,16 @@ def run(folder: str | Path, *, output_dir: str | Path | None = None,
         print(f"\n[오류] 검사를 완료하지 못했습니다: {exc}", file=sys.stderr)
         print("중간 결과를 성공으로 표시하거나 AI 프롬프트를 생성하지 않았습니다.")
         return 1
-    # Keep the existing single-TXT handoff unchanged. Metadata is a separate
-    # per-user SQLite catalog, written only after a fully successful scan/TXT.
+    # Keep the existing single-TXT handoff unchanged. Verified metadata
+    # goes to installed PlayDock/data/playdock.db, never a second SQLite DB.
     catalog = OfficialWorkCatalog()
     try:
         saved = catalog.save_verified_results(report.items)
-        print(f"공식 작품정보 공유 DB: {saved}건 저장/갱신")
+        print(f"PlayDock 공용 works 테이블: {saved}건 저장/갱신")
         if saved:
             print(f"DB 위치: {catalog.path}")
     except (OSError, ValueError, sqlite3.Error) as exc:
-        print(f"[경고] 공식 작품정보 DB 저장 실패 ({type(exc).__name__}). 검사 TXT는 정상 생성했습니다.")
+        print(f"[안내] 공용 DB 저장 생략 ({exc}). 통합 TXT는 정상 생성했습니다.")
     if rename_code_only:
         try:
             changed, changes = apply_code_only_renames(root, report.items, recursive=recursive)
@@ -97,6 +103,7 @@ def main(argv=None) -> int:
     )
     parser.add_argument("folder", nargs="?", help="검사할 게임 압축파일 폴더")
     parser.add_argument("--output", help="결과 저장 위치 (기본: 검사 폴더/PlayDock_Results)")
+    parser.add_argument("--playdock-folder", help="DB 저장을 위해 PlayDock 설치 폴더 지정 (설치 표식 필요)")
     parser.add_argument("--top-level", action="store_true", help="하위 폴더 제외")
     parser.add_argument("--rename-code-only", action="store_true",
                         help="시작 시 품번만 있는 압축파일 이름 변경 옵션 2 선택 (폴더 Y 확인 필요)")
@@ -229,6 +236,34 @@ def main(argv=None) -> int:
             print("검사를 취소했습니다. 파일 검사 및 결과 TXT 생성은 하지 않았습니다.")
             return 0
         pause_after_scan = interactive
+        if operation != "undo":
+            if args.playdock_folder:
+                try:
+                    db_path = remember_install_folder(args.playdock_folder)
+                    print(f"PlayDock 공용 DB 위치: {db_path}")
+                except (OSError, ValueError) as exc:
+                    print(f"[경고] PlayDock DB 위치를 저장하지 못했습니다: {exc}")
+                    print("검사 TXT는 계속 생성되지만 공용 DB에는 쓰지 않습니다.")
+            elif default_catalog_path() is None and interactive and sys.stdin.isatty():
+                print("\nPlayDock 공용 작품 DB가 아직 연결되지 않았습니다.")
+                print("설치된 PlayDock 폴더를 지정하면 data\\playdock.db 한 곳에만 공식정보를 저장합니다.")
+                try:
+                    install_choice = input("설치 폴더 경로 (F: 폴더 선택 / Enter: DB 저장 건너뛰기) > ").strip().strip('"')
+                except (EOFError, KeyboardInterrupt):
+                    install_choice = ""
+                if install_choice.upper() == "F":
+                    try:
+                        install_choice = pick_windows_folder() or ""
+                    except RuntimeError as exc:
+                        print(f"[경고] 폴더 선택 불가: {exc}")
+                        install_choice = ""
+                if install_choice:
+                    try:
+                        db_path = remember_install_folder(install_choice)
+                        print(f"공용 DB 위치: {db_path}")
+                    except (OSError, ValueError) as exc:
+                        print(f"[경고] PlayDock 설치 경로 확인 실패: {exc}")
+                        print("검사는 계속하며 DB 파일을 별도로 생성하지 않습니다.")
         if operation == "undo":
             try:
                 confirmed = input("자동 이름 변경을 복구하려면 UNDO 입력 > ").strip()

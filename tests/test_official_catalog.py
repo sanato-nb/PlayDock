@@ -36,9 +36,9 @@ def test_catalog_persists_both_stores_and_categories(tmp_path):
     assert steam["official_title"] == "Steam Official Name"
     assert steam["category"] == "game"
     with sqlite3.connect(folder) as con:
-        assert con.execute("SELECT COUNT(*) FROM official_works").fetchone()[0] == 2
+        assert con.execute("SELECT COUNT(*) FROM works").fetchone()[0] == 2
         assert "private archive name.zip" not in str(con.execute(
-            "SELECT * FROM official_works").fetchall())
+            "SELECT * FROM works").fetchall())
 
 
 def test_catalog_deduplicates_and_updates_without_erasing_on_failure(tmp_path):
@@ -85,14 +85,14 @@ def test_catalog_saves_verified_row_from_partial_scan(tmp_path):
 
 def test_default_location_can_be_isolated_without_user_data(tmp_path, monkeypatch):
     path = tmp_path / "safe_test_catalog.sqlite3"
-    monkeypatch.setenv("PLAYDOCK_OFFICIAL_CATALOG_PATH", str(path))
+    monkeypatch.setenv("PLAYDOCK_DB_PATH", str(path))
     assert default_catalog_path() == path
     assert not path.exists()
 
 
 def test_scanner_saves_catalog_after_successful_txt(tmp_path, monkeypatch):
     target = tmp_path / "scanner_catalog.sqlite3"
-    monkeypatch.setenv("PLAYDOCK_OFFICIAL_CATALOG_PATH", str(target))
+    monkeypatch.setenv("PLAYDOCK_DB_PATH", str(target))
     source = tmp_path / "archives"
     source.mkdir()
     archive = source / "Fake [RJ123456].zip"
@@ -114,7 +114,7 @@ def test_scanner_still_succeeds_if_catalog_unwritable(tmp_path, monkeypatch):
     source = tmp_path / "games"
     source.mkdir()
     (source / "Fake [RJ123456].zip").write_bytes(b"untouched")
-    monkeypatch.setenv("PLAYDOCK_OFFICIAL_CATALOG_PATH", str(tmp_path))
+    monkeypatch.setenv("PLAYDOCK_DB_PATH", str(tmp_path))
     work = Work("RJ123456", "Stored Game", "maniax",
                 "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
                 "verified", "dlsite")

@@ -131,7 +131,7 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         super().__init__()
         self.library = Library()
         self.collections = CollectionStore(self.library.store)
-        self.work_db = WorkDatabase(self.library.store)
+        self.work_db = WorkDatabase(self.library.store, import_legacy=True)
         self.work_lookup_worker = None
         self.games: list[Game] = []
         self.data_actions = DataManagementController(self)

@@ -1,4 +1,4 @@
-"""Read-only database status in the same theme as PlayDock's settings."""
+"""Read-only unified database status in PlayDock's settings."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -15,13 +15,13 @@ class DatabaseStatusDialog(ThemedDialog):
         super().__init__("PlayDock · DB 상태", parent, 720)
         self.resize(790, 570)
         self.store = Path(store)
-        self.scanner_path = scanner_path
+        self.scanner_path = scanner_path  # ignored: unified shared DB
         self.live_games = live_games
         heading = QLabel("데이터베이스 상태")
         heading.setObjectName("Heading")
         self.body.addWidget(heading)
-        note = QLabel("PlayDock 본체와 정체 판독기의 두 SQLite DB를 각각 확인합니다.\n"
-                      "보기 및 다시 확인은 읽기 전용이며 게임 파일이나 DB를 변경하지 않습니다.")
+        note = QLabel("PlayDock 본체와 정체 판독기가 공용으로 사용하는 DB를 확인합니다.\n"
+                      "상태 확인은 읽기 전용이며 게임 파일이나 DB를 변경하지 않습니다.")
         note.setWordWrap(True)
         note.setObjectName("Subtle")
         self.body.addWidget(note)

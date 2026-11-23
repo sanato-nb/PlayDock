@@ -5,6 +5,9 @@ on:
     branches: [experiment-bidirectional-lookup-20261121]
     paths:
       - "scripts/scan_then_prompt.py"
+      - "src/playdock/database/work_repository.py"
+      - "src/playdock/services/official_work_service.py"
+      - "tests/test_shared_db_location_v3.py"
       - "scripts/folder_picker.py"
       - "tests/test_scan_then_prompt.py"
       - "tests/test_official_catalog.py"
@@ -41,7 +44,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q experiments/dlsite_detector/scan_handoff.py experiments/dlsite_detector/rename_template.py experiments/dlsite_detector/rename_validation.py scripts/scan_then_prompt.py src/playdock/database/official_catalog.py experiments/dlsite_detector/code_only_renamer.py
-          python -m pytest -q tests/test_code_only.py tests/test_dlsite_steam_priority.py tests/test_scan_then_prompt.py tests/test_rename_template.py tests/test_rename_validation.py tests/test_official_catalog.py tests/test_code_only_auto_rename.py
+          python -m pytest -q tests/test_shared_db_location_v3.py tests/test_code_only.py tests/test_dlsite_steam_priority.py tests/test_scan_then_prompt.py tests/test_rename_template.py tests/test_rename_validation.py tests/test_official_catalog.py tests/test_code_only_auto_rename.py
 
       - name: 실제 DLsite/Steam 공식 작품 조회 진단 (실패 비치명)
         continue-on-error: true
@@ -58,7 +61,7 @@ jobs:
       - name: GUI 없는 Windows 콘솔 EXE 빌드
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --console --name PlayDock-ID-Scan-And-Prompt --paths . --exclude-module tkinter --exclude-module PySide6 --exclude-module ddgs scripts/scan_then_prompt.py
+          python -m PyInstaller --noconfirm --clean --onefile --console --name PlayDock-ID-Scan-And-Prompt --paths . --paths src/playdock --exclude-module tkinter --exclude-module PySide6 --exclude-module ddgs scripts/scan_then_prompt.py
 
       # 영문 로캘에서 UTF-8 한글 출력까지 검증하는 최종 빌드
       - name: Windows EXE 자체 진단
