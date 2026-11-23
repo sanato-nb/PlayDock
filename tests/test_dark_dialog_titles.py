@@ -38,7 +38,7 @@ def test_file_dialogs_are_qt_themed_instead_of_native_windows():
 def test_windows_titlebar_keeps_native_window_frame():
     assert 'class ThemedDialog(QDialog)' in APP
     assert 'Qt.WindowType.FramelessWindowHint' in APP  # only custom small dialogs
-    main_class = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8').split('class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, WindowActionControllerMixin, QMainWindow):', 1)[1]
+    main_class = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8').split('class MainWindow(', 1)[1]
     assert 'FramelessWindowHint' not in main_class
     assert 'DwmSetWindowAttribute' in (ROOT / 'src/playdock/native_caption.py').read_text(encoding='utf-8')
     if native.sys.platform != 'win32':

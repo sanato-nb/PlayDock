@@ -261,8 +261,10 @@ def test_steam_name_preview_uses_unified_db_without_web(tmp_path, monkeypatch):
     monkeypatch.setattr(title_workers, "lookup_localized_title",
                         lambda *args: (_ for _ in ()).throw(
                             AssertionError("Steam lookup must not use DLsite lookup")))
+    library = Library(tmp_path / "data")
+    game = Game("steam-id", "Local [Steam 1091500]", tmp_path)
     worker = BulkTitleWorker(
-        [("steam-id", "Local [Steam 1091500]", "1091500", "steam")],
+        [(game.id, "Local [Steam 1091500]", "1091500", "steam")],
         "ko", tmp_path / "data" / "localized_product_titles.json")
     responses = []
     worker.complete.connect(responses.append)
@@ -271,8 +273,6 @@ def test_steam_name_preview_uses_unified_db_without_web(tmp_path, monkeypatch):
     assert record["title"] == "Steam 정식 작품명"
     assert record["store"] == "steam"
     assert record["language"] == "en"
-    library = Library(tmp_path / "data")
-    game = Game("steam-id", "Local [Steam 1091500]", tmp_path)
     previews = BulkTitleActions(library).lookup_preview(
         [game], responses[0], "ko", save_as_localized=True)
     assert len(previews) == 1

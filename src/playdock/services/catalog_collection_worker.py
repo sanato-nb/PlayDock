@@ -25,5 +25,6 @@ class CatalogCollectionThread(QThread):
                 callback=lambda i, total, event: self.progress.emit(i, total, event),
             )
             self.complete.emit(events, len(events) < len(self.entries))
-        except (OSError, ValueError, RuntimeError) as exc:
-            self.failed.emit(f"공식정보 수집 오류: {type(exc).__name__}: {str(exc)[:180]}")
+        except Exception as exc:
+            # Keep the PlayDock window alive on unexpected SQLite failures.
+            self.failed.emit(f"공식정보 수집 오류: {type(exc).__name__}")

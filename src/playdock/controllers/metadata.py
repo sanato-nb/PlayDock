@@ -9,7 +9,6 @@ import webbrowser
 from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
-from ui.artwork_dialog import OnlineArtworkDialog
 from title_editor import TitleEditor
 from ui.dialogs.title import BulkTitleSettingsDialog
 from services.work_lookup_worker import WorkLookupThread
@@ -51,7 +50,7 @@ class MetadataControllerMixin:
         if not code:
             show_message(self, '작품 코드가 없습니다',
                          '이 게임은 작품 코드가 없습니다. 게임 이름 관리자에서 RJ/VJ/BJ/EJ 코드를 등록하거나\n'
-                         '기존 무료 이미지 검색 기능으로 작품을 찾아주세요.')
+                         '게임 정보 수집으로 공식정보를 확인해 주세요.')
             return
         if self.work_lookup_worker is not None and self.work_lookup_worker.isRunning():
             show_message(self, '조회 중', '다른 작품의 정보를 조회하고 있습니다.')
@@ -238,20 +237,6 @@ class MetadataControllerMixin:
         if dialog.exec() == QDialog.DialogCode.Accepted:
             self.reload(prefer_id=self.selected_id)
             self.set_message('선택한 게임들의 이름을 변경했습니다. 원본 압축파일은 그대로입니다.')
-
-
-    def open_online_artwork(self):
-        game = self.current()
-        if game is None:
-            return
-        def confirm_replace(kind: str) -> bool:
-            label = '배너' if kind == 'hero' else '아이콘'
-            return ask_yes_no(self, '기존 이미지 교체',
-                              f'이미 저장된 {label} 이미지가 있어.\n교체하면 이전 이미지는 data/backups/artwork에 백업돼.\n진행할까?',
-                              '교체', '취소')
-        dialog = OnlineArtworkDialog(self.library, game, self, confirm_replace=confirm_replace)
-        dialog.applied.connect(lambda _kind: self.reload(prefer_id=game.id))
-        dialog.exec()
 
 
     def open_artwork_library(self):

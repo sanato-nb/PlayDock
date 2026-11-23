@@ -54,7 +54,9 @@ def game_catalog_entries(library, games):
         code = ""
         if not (isinstance(manual, str) and not manual.strip()):
             code = library.product_code(game) or ""
-        appid = str(meta.get("steam_app_id") or "").strip()
+        confirmed = (meta.get("artwork_identity_code")
+                     if meta.get("artwork_identity_store") == "steam" else "")
+        appid = str(meta.get("steam_app_id") or confirmed or "").strip()
         output.append(CatalogEntry(
             game.id, label, "archive" if game.archive else "manual",
             code, appid, "product_code" in meta and not meta.get("product_code"),
@@ -203,7 +205,8 @@ def collect_batch(entries, db_path, *, is_cancelled=lambda: False,
             break
         try:
             event = collector.collect_one(entry)
-        except (OSError, ValueError, RuntimeError) as exc:
+        except Exception as exc:
+            # Fail this game only; never include absolute local paths in logs.
             event = CatalogEvent(entry.game_id, entry.label, "error",
                                  f"처리 오류: {type(exc).__name__}")
         events.append(event)

@@ -43,8 +43,8 @@ class IdentityArtworkThread(QThread):
                                                record.get("category") or "",
                                                record["page_url"], "verified", store)
                             store_records[(store, code)] = record
-            result = check(InputItem(self.label, self.origin),
-                           cache=cache if cache else None)
+            item = InputItem(self.label, self.origin)
+            result = check(item, cache=cache) if cache else check(item)
             verified = [row for row in result.works
                         if row.status == "verified" and row.store == result.selected_store]
             if len(verified) != 1:
