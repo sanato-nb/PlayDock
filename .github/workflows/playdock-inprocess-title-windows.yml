@@ -1,4 +1,4 @@
-name: PlayDock 정체 판독·공식 배너/아이콘 Windows 검증
+name: PlayDock Windows 다운로드 용량 최적화
 
 on:
   push:
@@ -98,14 +98,48 @@ jobs:
           print("Single PlayDock.exe title editor + empty public user data: PASS")
           '@ | python -
           Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256
-      - name: Windows 완성 EXE · 사용자 중립 설치 파일 업로드
+      # GitHub Actions downloads each artifact as its own ZIP. Never put the
+      # EXE, installer (contains the EXE), and full ZIP (contains both) in a
+      # single download: that made a ~345MB duplicate-filled artifact.
+      - name: 다운로드 크기 확인 · 배포 종류별 분리
+        shell: pwsh
+        run: |
+          foreach ($file in @(
+            "dist/PlayDock.exe",
+            "public_release/PlayDock_Setup_v0.8.3.exe",
+            "public_release/PlayDock_Public_v0.8.3.zip"
+          )) {
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+              throw "배포 파일 없음: $file"
+            }
+            $mb = [math]::Round((Get-Item -LiteralPath $file).Length / 1MB, 1)
+            Write-Host "$file : $mb MB"
+          }
+      - name: 기존 사용자 업데이트용 PlayDock.exe만 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-Identity-Artwork-Checkbox-Windows
+          name: PlayDock-Update-EXE-Windows
           path: |
             dist/PlayDock.exe
+            dist/SHA256SUMS.txt
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - name: 새 설치용 PlayDock_Setup.exe만 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Installer-Only-Windows
+          path: public_release/PlayDock_Setup_v0.8.3.exe
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - name: 전체 배포 패키지는 별도 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Full-Package-Windows
+          path: |
             public_release/PlayDock_Public_v0.8.3.zip
-            public_release/PlayDock_Setup_v0.8.3.exe
             public_release/PlayDock_Public_v0.8.3_검사결과.txt
+          compression-level: 0
           if-no-files-found: error
           retention-days: 30
