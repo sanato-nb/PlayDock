@@ -63,7 +63,7 @@ def test_ai_handoff_lists_only_no_code_without_private_paths():
     assert "DLsite" in p and "Steam" in p
     assert "품번" in p and "미확인" in p
     assert "private-1" not in p and "private-2" not in p
-    assert "이름 변경 스크립트" in p
+    assert "파일명 변경 스크립트" in p
     assert "C:\\\\" not in p and "/Users/" not in p
     assert make_missing_code_prompt([]) == ""
 
