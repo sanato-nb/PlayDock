@@ -35,6 +35,11 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collections_nav.setObjectName("Soft")
     top_layout.addWidget(collections_nav)
     top_layout.addStretch(1)
+    collect_btn = self.action_button("게임 정보 수집", self.collect_library_information)
+    collect_btn.setObjectName("Blue")
+    collect_btn.setToolTip("품번이 있는 게임의 공식 작품정보를 확인하고 PlayDock DB에 저장합니다.")
+    top_layout.addWidget(collect_btn)
+    self.catalog_collection_btn = collect_btn
     refresh_button = self.action_button("새로고침", self.reload)
     refresh_button.setObjectName("Soft")
     top_layout.addWidget(refresh_button)
@@ -177,10 +182,6 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collection_button = self.action_button("＋  모음집에 추가 / 제거", self.edit_game_collections)
     tools.addWidget(collection_button)
     tools.addStretch(1)
-    collect_btn = self.action_button("게임 정보 수집", self.collect_library_information)
-    collect_btn.setObjectName("Soft")
-    tools.addWidget(collect_btn)
-    self.catalog_collection_btn = collect_btn
     scan_button = self.action_button("배너·아이콘 설정", self.identify_selected_game)
     scan_button.setObjectName("Blue")
     scan_button.setEnabled(False)

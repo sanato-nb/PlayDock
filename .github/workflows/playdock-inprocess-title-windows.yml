@@ -1,4 +1,4 @@
-name: PlayDock 수집-이미지-이름 설정 통합 Windows 검증
+name: PlayDock 정보 수집 사전 필터·AI 프롬프트·이미지 잠금 수정 Windows 검증
 
 on:
   push:
@@ -18,6 +18,7 @@ on:
       - "src/playdock/services/bulk_title_service.py"
       - "src/playdock/ui/dialogs/title.py"
       - "tests/test_catalog_collection_v3.py"
+      - "tests/test_catalog_preflight_ai_handoff.py"
       - "tests/test_collected_game_workflow_v3.py"
       - "src/playdock/simple_title_edit.py"
       - "src/playdock/ui/dialogs/identity_artwork.py"
@@ -76,7 +77,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q app.py title_editor.py src/playdock tests
-          python -m pytest -q tests/test_collected_game_workflow_v3.py tests/test_catalog_collection_v3.py tests/test_identity_artwork_checkboxes.py tests/test_work_database_v080.py tests/test_playdock_official_import.py tests/test_shared_db_location_v3.py tests/test_official_catalog.py tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_top_settings_and_db_status.py tests/test_playdock_rebrand_v077.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
+          python -m pytest -q tests/test_catalog_preflight_ai_handoff.py tests/test_collected_game_workflow_v3.py tests/test_catalog_collection_v3.py tests/test_identity_artwork_checkboxes.py tests/test_work_database_v080.py tests/test_playdock_official_import.py tests/test_shared_db_location_v3.py tests/test_official_catalog.py tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_top_settings_and_db_status.py tests/test_playdock_rebrand_v077.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
           if ($LASTEXITCODE -ne 0) { throw "이름 설정 통합 회귀 테스트 실패" }
       - name: PlayDock 전체 Windows 테스트
         shell: pwsh

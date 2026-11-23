@@ -68,10 +68,12 @@ def test_corrupt_single_sqlite_reported_without_changing_file(tmp_path):
     assert path.read_bytes() == b"not a SQLite file"
 
 
-def test_topbar_contains_only_refresh_and_settings_after_navigation():
+def test_topbar_has_catalog_collection_refresh_and_settings():
     source = (Path(__file__).resolve().parents[1] /
               "src/playdock/ui/launcher_layout.py").read_text(encoding="utf-8")
     top = source.split("outer.addWidget(top)", 1)[0]
+    assert 'self.action_button("게임 정보 수집", self.collect_library_information)' in top
+    assert top.index('"게임 정보 수집"') < top.index('"새로고침"')
     assert 'self.action_button("새로고침", self.reload)' in top
     assert 'ChevronMenuButton("설정")' in top
     assert 'self.settings_menu_btn.clicked.connect(self.show_settings_menu)' in top

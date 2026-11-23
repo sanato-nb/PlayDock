@@ -146,6 +146,8 @@ class LibraryControllerMixin:
             self.folder_btn.setEnabled(False)
             self.uninstall_btn.setVisible(False)
             self.select_exe_btn.setEnabled(False)
+            self.identity_scan_btn.setEnabled(False)
+            self.game_name_btn.setEnabled(False)
 
 
     def on_tree_select(self):
@@ -418,4 +420,13 @@ class LibraryControllerMixin:
             for label, value in info_rows
         )
         self.game_info.setText('<table cellspacing="0" cellpadding="0">' + rows + '</table>')
+        # Critical: information has been linked, but the previous UI never
+        # re-enabled this button when selection changed/collection completed.
+        self.identity_scan_btn.setEnabled(confirmed is not None)
+        self.identity_scan_btn.setToolTip(
+            "확인된 공식 이미지에서 배너·아이콘을 선택합니다."
+            if confirmed else
+            "먼저 게임 정보 수집으로 이 게임의 공식 작품을 확인하세요."
+        )
+        self.game_name_btn.setEnabled(True)
 

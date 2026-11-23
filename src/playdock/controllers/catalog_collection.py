@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QDialog
 
-from services.catalog_collection_service import game_catalog_entries
+from services.catalog_collection_service import (
+    game_catalog_entries, partition_catalog_entries, make_missing_code_prompt,
+)
 from services.catalog_collection_worker import CatalogCollectionThread
 from ui.dialogs.catalog_collection import CatalogCollectionDialog
 from ui.dialogs.common import ask_yes_no, show_message
@@ -21,13 +23,15 @@ class CatalogCollectionControllerMixin:
         if not self.games:
             show_message(self, "게임 정보 수집", "라이브러리에 등록된 게임이 없습니다.")
             return
-        entries = game_catalog_entries(self.library, self.games)
+        all_entries = game_catalog_entries(self.library, self.games)
+        entries, no_code = partition_catalog_entries(all_entries)
         if not ask_yes_no(
             self, "게임 정보 수집",
-            f"현재 라이브러리 {len(entries)}개 게임의 품번을 확인해\n"
-            "DLsite → Steam 공식정보를 playdock.db에 저장할까요?\n\n"
-            "이미 저장된 작품은 재사용하며, 확인되지 않은 게임은 실패 목록에 표시합니다.\n"
-            "게임 제목·압축파일·기존 배너·아이콘은 변경하지 않습니다.",
+            f"전체 {len(all_entries)}개 게임 중 품번·Steam App ID가 확인된 "
+            f"{len(entries)}개만 공식 사이트에서 조회합니다.\n"
+            f"품번 없는 압축게임 {len(no_code)}개는 사전 제외하고, 수집 완료 후 "
+            "AI 조사용 프롬프트를 만들 수 있습니다.\n\n"
+            "기존 DB 정보는 재사용하며, 게임 이름·압축파일·이미지는 변경하지 않습니다.",
             "수집 시작", "취소",
         ):
             return
@@ -40,9 +44,21 @@ class CatalogCollectionControllerMixin:
                     self.library.update_meta(
                         game, original_archive_name=game.archive.name,
                     )
-        dialog = CatalogCollectionDialog(len(entries), parent=self)
-        worker = CatalogCollectionThread(entries, self.work_db.path, parent=self)
+        dialog = CatalogCollectionDialog(
+            len(entries),
+            excluded_no_code=tuple(entry.label for entry in no_code),
+            prompt_text=make_missing_code_prompt(no_code),
+            parent=self,
+        )
         self.catalog_dialog = dialog
+        if not entries:
+            # No network calls needed; still offer the AI handoff after finish.
+            dialog.on_complete([], interrupted=False)
+            dialog.show()
+            if self.current() is not None:
+                self.present_game()
+            return
+        worker = CatalogCollectionThread(entries, self.work_db.path, parent=self)
         self.catalog_worker = worker
         dialog.cancelRequested.connect(worker.requestInterruption)
         worker.progress.connect(dialog.on_progress)
