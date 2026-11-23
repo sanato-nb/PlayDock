@@ -271,7 +271,7 @@ class LibraryControllerMixin:
         elif kind == 'game':
             choice = menu.addAction('모음집에 추가 / 제거')
             launch = menu.addAction('플레이 / 설치')
-            edit_name = menu.addAction('게임 이름 수정...')
+            edit_name = menu.addAction('이 게임 이름 설정...')
             db_lookup = menu.addAction('DLsite 작품 정보 조회·DB 저장...')
             official_page = menu.addAction('저장된 공식 작품 페이지 열기')
             game = self.current()

@@ -45,7 +45,6 @@ from setup_paths import save_folder_settings, proposed_paths
 from native_caption import windows_dark_caption
 from launch_options import parse_game_arguments
 from save_backups import create_save_backup, restore_save_backup
-from title_editor_entry import title_editor_command
 from work_db import WorkDatabase
 from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
 
@@ -144,14 +143,8 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.removing_game: Game | None = None
         self.save_worker: SaveBackupThread | None = None
         self.sort_mode = "name"
-        # The editor is an independent process. Polling lets the launcher
-        # refresh edited titles after it exits without keeping Qt process
-        # objects alive if the main window is closed first.
-        self.title_editor_process: subprocess.Popen | None = None
-        self.title_editor_game_id: str | None = None
-        self.title_editor_monitor = QTimer(self)
-        self.title_editor_monitor.setInterval(1000)
-        self.title_editor_monitor.timeout.connect(self.title_editor_check_finished)
+        # Single-game title editor is an in-process Qt window.
+        self.title_editor_window = None
         self.setWindowTitle("PlayDock")
         icon_root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
         ico = icon_root / 'assets' / 'playdock.ico'

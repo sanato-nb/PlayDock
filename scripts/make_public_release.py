@@ -23,7 +23,6 @@ from zipfile import ZipFile, ZIP_DEFLATED
 VERSION = "0.8.3"
 EXECUTABLES = (
     "PlayDock.exe",
-    "PlayDock_TitleEditor.exe",
     "PlayDock_Uninstall.exe",
     "PlayDock_Setup.exe",
 )
@@ -119,7 +118,8 @@ def build_public_release(dist: Path, out: Path, manual: Path, *, source: Path | 
             "[권장: 일반 설치]\n"
             "1. 압축파일의 내용을 전부 새 폴더에 풀어주세요.\n"
             "2. PlayDock_Setup.exe를 실행하세요.\n"
-            "3. 프로그램/게임 압축파일/게임 설치 위치를 지정하세요.\n\n"
+            "3. 프로그램/게임 압축파일/게임 설치 위치를 지정하세요.\n"
+            "4. 이름 설정은 PlayDock.exe 오른쪽 상단에서 여러 게임을, 목록 우클릭에서 하나를 수정합니다.\n\n"
             "[설치하지 않고 직접 실행]\n"
             "PlayDock.exe를 실행하세요. 현재 폴더의 data/에 설정이 저장됩니다.\n"
             "직접 실행본에는 Windows 제거 등록이 없습니다. 폴더 삭제로 제거할 수 있습니다.\n"

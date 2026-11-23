@@ -1,0 +1,92 @@
+name: PlayDock 통합 이름 설정 · Windows 완전 빌드
+
+on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths:
+      - "app.py"
+      - "title_editor.py"
+      - "src/playdock/controllers/title_editor.py"
+      - "src/playdock/controllers/metadata.py"
+      - "src/playdock/controllers/library.py"
+      - "src/playdock/controllers/window_actions.py"
+      - "src/playdock/ui/launcher_layout.py"
+      - "setup_wizard.py"
+      - "scripts/Build-Windows-Release.ps1"
+      - "scripts/build_setup_windows.bat"
+      - "scripts/make_public_release.py"
+      - "tests/test_title_editor_inprocess.py"
+      - "tests/test_title_editor_from_launcher_v072.py"
+      - "tests/test_title_editor_separation.py"
+      - "tests/test_installer_flow.py"
+      - ".github/workflows/playdock-inprocess-title-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 65
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Python · Qt · Windows 빌드 의존성
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest "pyinstaller>=6.11,<7"
+      - name: 제목 편집과 설치·백업 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock tests
+          python -m pytest -q tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
+          if ($LASTEXITCODE -ne 0) { throw "이름 설정 통합 회귀 테스트 실패" }
+      - name: PlayDock 전체 Windows 테스트
+        shell: pwsh
+        run: |
+          python -m pytest -q
+          if ($LASTEXITCODE -ne 0) { throw "전체 PlayDock 회귀 테스트 실패" }
+      - name: PlayDock · 설치기 · 제거기 Windows EXE 빌드
+        shell: pwsh
+        run: |
+          ./scripts/Build-Windows-Release.ps1 -NoLaunch -SkipTests -NoWinget
+          if (Test-Path "dist/PlayDock_TitleEditor.exe") {
+            throw "분리된 이름 관리자 EXE가 다시 빌드되었습니다"
+          }
+      - name: 사용자 데이터 없는 ZIP · 설치기 생성
+        shell: pwsh
+        run: |
+          python scripts/make_public_release.py --dist dist --manual docs/PlayDock_UserManual_KO_v0.7.7.pdf --out public_release --source .
+          if ($LASTEXITCODE -ne 0) { throw "공개 배포 포장 실패" }
+          @'
+          from pathlib import Path
+          from zipfile import ZipFile
+          p = Path("public_release/PlayDock_Public_v0.8.3.zip")
+          with ZipFile(p) as z:
+              names = z.namelist()
+              assert "PlayDock.exe" in names
+              assert "PlayDock_TitleEditor.exe" not in names
+              assert "PlayDock_Setup.exe" in names
+              assert not any(n.startswith("data/") and n != "data/" for n in names)
+          print("Single PlayDock.exe title editor + empty public user data: PASS")
+          '@ | python -
+          Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256
+      - name: Windows 완성 EXE · 사용자 중립 설치 파일 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Integrated-TitleEditor-Windows
+          path: |
+            dist/PlayDock.exe
+            public_release/PlayDock_Public_v0.8.3.zip
+            public_release/PlayDock_Setup_v0.8.3.exe
+            public_release/PlayDock_Public_v0.8.3_검사결과.txt
+          if-no-files-found: error
+          retention-days: 30

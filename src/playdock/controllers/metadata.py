@@ -10,7 +10,8 @@ from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
 from ui.artwork_dialog import OnlineArtworkDialog
-from title_editor_entry import title_editor_command
+from title_editor import TitleEditor
+from ui.dialogs.title import BulkTitleSettingsDialog
 from services.work_lookup_worker import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
@@ -98,45 +99,42 @@ class MetadataControllerMixin:
 
 
     def open_title_editor(self):
-        """Open standalone editor, optionally focusing the selected game."""
-        existing = self.title_editor_process
-        if existing is not None:
-            if existing.poll() is None:
-                show_message(self, '게임 이름 관리자',
-                             '게임 이름 관리자가 이미 실행 중입니다. 열린 창에서 수정해 주세요.')
-                return
-            self.title_editor_check_finished()
+        """Open the selected game's editor inside PlayDock.exe."""
         game = self.current()
-        selected_id = game.id if game is not None else None
-        try:
-            program, arguments, working = title_editor_command(game_id=selected_id)
-            process = subprocess.Popen([program, *arguments], cwd=working)
-        except (OSError, ValueError) as exc:
-            show_message(self, '게임 이름 관리자 실행 실패', str(exc))
+        if game is None:
+            show_message(self, '게임을 선택하세요', '이름을 수정할 게임을 선택해 주세요.')
             return
-        self.title_editor_process = process
-        self.title_editor_game_id = selected_id
-        self.title_editor_monitor.start()
-        self.set_message('게임 이름 관리자를 열었습니다. 저장 후 창을 닫으면 이름이 반영됩니다.')
+        current = self.title_editor_window
+        if current is not None and current.isVisible():
+            current.raise_()
+            current.activateWindow()
+            return
+        editor = TitleEditor(game.id, library=self.library, single_game_only=True)
+        editor.closed.connect(self.title_editor_closed)
+        self.title_editor_window = editor
+        editor.show()
+        editor.raise_()
+        editor.activateWindow()
 
+    def title_editor_closed(self):
+        """Refresh the visible title and preserve the selected game."""
+        self.title_editor_window = None
+        self.reload(prefer_id=self.selected_id)
 
-    def title_editor_check_finished(self):
-        process = self.title_editor_process
-        if process is None:
-            self.title_editor_monitor.stop()
+    def open_bulk_name_settings(self):
+        """User selects game checkboxes, previews, and confirms each bulk edit."""
+        if self.title_editor_window is not None and self.title_editor_window.isVisible():
+            show_message(self, '이름 설정 진행 중',
+                         '현재 게임 이름 설정 창을 닫은 뒤 일괄 설정을 열어 주세요.')
             return
-        exit_code = process.poll()
-        if exit_code is None:
+        if not self.games:
+            show_message(self, '대상 없음', '이름을 설정할 게임이 없습니다.')
             return
-        self.title_editor_monitor.stop()
-        self.title_editor_process = None
-        selected_id = self.title_editor_game_id
-        self.title_editor_game_id = None
-        self.reload(prefer_id=selected_id)
-        if exit_code != 0:
-            show_message(self, '게임 이름 관리자 종료 오류',
-                         f'이름 관리자가 정상적으로 종료되지 않았습니다 (종료 코드 {exit_code}).\n'
-                         '편집한 이름이 저장되었는지 확인해 주세요.')
+        # All checkboxes start unchecked: selection is always explicit.
+        dialog = BulkTitleSettingsDialog(self.library, self.games, None, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.reload(prefer_id=self.selected_id)
+            self.set_message('선택한 게임들의 이름을 변경했습니다. 원본 압축파일은 그대로입니다.')
 
 
     def open_online_artwork(self):

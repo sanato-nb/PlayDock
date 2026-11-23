@@ -35,7 +35,7 @@ from local_storage import (legacy_data_dir, program_store, migrate_legacy_data,
 
 APP = "PlayDock"
 EXE = "PlayDock.exe"
-TITLE_EXE = "PlayDock_TitleEditor.exe"
+TITLE_EXE = "PlayDock_TitleEditor.exe"  # legacy binary, safely retired on upgrade
 
 
 def installed_executable(program: Path | None = None) -> Path:
@@ -50,20 +50,6 @@ def payload_executable() -> Path:
             return path
     raise FileNotFoundError(
         "앱 실행 파일을 찾을 수 없습니다. 먼저 build_setup_windows.bat을 이용해 Setup.exe를 빌드하세요."
-    )
-
-
-def installed_title_editor(program: Path | None = None) -> Path:
-    return installed_executable(program).with_name(TITLE_EXE)
-
-
-def payload_title_editor() -> Path:
-    root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
-    for path in (root / "payload" / TITLE_EXE, root / TITLE_EXE, root / "dist" / TITLE_EXE):
-        if path.is_file():
-            return path
-    raise FileNotFoundError(
-        "이름 관리자 실행 파일을 찾을 수 없습니다. 두 EXE를 포함해 Setup.exe를 다시 빌드하세요."
     )
 
 
@@ -272,7 +258,6 @@ class SetupWizard(tk.Tk):
                 archive_path, game_path = normalize_paths(self.archive_var.get(), self.game_var.get())
                 normalize_program_path(self.program_var.get(), archive_path, game_path)
                 payload_executable()
-                payload_title_editor()
                 payload_uninstaller()
             except Exception as exc:
                 messagebox.showerror("설치 준비 실패", str(exc), parent=self)
@@ -301,7 +286,8 @@ class SetupWizard(tk.Tk):
             archive_path, game_path = normalize_paths(self.install_archive, self.install_game_dir)
             program = normalize_program_path(self.install_program_dir, archive_path, game_path)
             previous = app_install_directory()
-            old_install_at_target = (program / LEGACY_INSTALL_MARKER).is_file() and marker_is_valid(program)
+            previous_install_at_target = marker_is_valid(program)
+            old_install_at_target = (program / LEGACY_INSTALL_MARKER).is_file() and previous_install_at_target
             program.mkdir(parents=True, exist_ok=True)
             # Check writability before copying any file. Avoid protected dirs.
             with tempfile.NamedTemporaryFile(prefix='.lgs-write-test-', dir=program, delete=True):
@@ -311,11 +297,6 @@ class SetupWizard(tk.Tk):
             self.messages.put(('progress', '게임 라이브러리 설치 중...'))
             shutil.copy2(payload_executable(), tmp)
             os.replace(tmp, executable)
-            editor = installed_title_editor(program)
-            tmp = editor.with_name('PlayDock_TitleEditor.new.exe')
-            self.messages.put(('progress', '게임 이름 관리자 설치 중...'))
-            shutil.copy2(payload_title_editor(), tmp)
-            os.replace(tmp, editor)
             uninstaller = installed_uninstaller(program)
             tmp = uninstaller.with_name('PlayDock_Uninstall.new.exe')
             self.messages.put(('progress', '제거 프로그램 설치 중...'))
@@ -340,7 +321,6 @@ class SetupWizard(tk.Tk):
                     start_menu = (Path(os.getenv('APPDATA', '')) / 'Microsoft' / 'Windows' /
                                   'Start Menu' / 'Programs' / 'PlayDock.lnk')
                     create_shortcut(executable, start_menu)
-                    create_shortcut(editor, start_menu.with_name('PlayDock 이름 관리자.lnk'))
                     create_shortcut(uninstaller, start_menu.with_name('PlayDock 제거.lnk'))
                 except Exception as exc:
                     self.messages.put(('shortcut_error', f'시작 메뉴 바로가기를 생성하지 못했습니다: {exc}'))
@@ -348,10 +328,27 @@ class SetupWizard(tk.Tk):
                     try:
                         desktop = desktop_directory() / 'PlayDock.lnk'
                         create_shortcut(executable, desktop)
-                        create_shortcut(editor, desktop.with_name('PlayDock 이름 관리자.lnk'))
                     except Exception as exc:
                         self.messages.put(('shortcut_error', f'바탕화면 바로가기를 생성하지 못했습니다: {exc}'))
             register_uninstall_entry(program)
+            # Retire the obsolete companion editor after an authenticated upgrade.
+            # The existing data/ and user archives are never deleted.
+            if previous_install_at_target:
+                retired = program / TITLE_EXE
+                if retired.is_file() and not retired.is_symlink():
+                    try:
+                        retired.unlink()
+                    except OSError:
+                        self.messages.put(('shortcut_error', '이전 이름 관리자 EXE가 사용 중이어서 정리하지 못했습니다.'))
+                if sys.platform == 'win32':
+                    old_links = [
+                        Path(os.getenv('APPDATA', '')) / 'Microsoft' / 'Windows' /
+                        'Start Menu' / 'Programs' / 'PlayDock 이름 관리자.lnk',
+                        desktop_directory() / 'PlayDock 이름 관리자.lnk',
+                    ]
+                    for old_link in old_links:
+                        if shortcut_points_to(old_link, retired):
+                            old_link.unlink(missing_ok=True)
             # Remove obsolete *program binaries and shortcuts only* after a verified
             # in-place upgrade. The data/ directory and game folders are untouched.
             if old_install_at_target:
@@ -434,9 +431,8 @@ if __name__ == "__main__":
         # No dialogs / files modified; check that PyInstaller actually embedded
         # the full application EXE before distributing the installer.
         binary = payload_executable()
-        editor = payload_title_editor()
         uninstaller = payload_uninstaller()
-        if any(p.stat().st_size < 100_000 for p in (binary, editor, uninstaller)):
-            raise RuntimeError('설치 프로그램에 본체, 이름 관리자, 제거 프로그램 EXE가 모두 포함되어야 합니다.')
+        if any(p.stat().st_size < 100_000 for p in (binary, uninstaller)):
+            raise RuntimeError('설치 프로그램에 PlayDock 본체와 제거 프로그램 EXE가 포함되어야 합니다.')
         sys.exit(0)
     SetupWizard().mainloop()

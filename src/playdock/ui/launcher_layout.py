@@ -35,7 +35,7 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collections_nav.setObjectName("Soft")
     top_layout.addWidget(collections_nav)
     top_layout.addStretch(1)
-    for label, action in (("새로고침", self.reload),
+    for label, action in (("이름 설정", self.open_bulk_name_settings), ("새로고침", self.reload),
                           ("폴더 설정", self.folder_wizard), ("데이터 관리", self.data_manager_dialog),
                           ("속성", self.library_info_dialog), ("AI 설정", self.settings_dialog)):
         btn = self.action_button(label, action)

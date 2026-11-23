@@ -41,8 +41,10 @@ class WindowActionControllerMixin:
 
     def show_extra_menu(self):
         menu = QMenu(self.extra_menu_btn)
-        menu.addAction('게임 이름 수정 / 이름 관리자 열기...').triggered.connect(
+        menu.addAction('이 게임 이름 설정...').triggered.connect(
             lambda _checked=False: self.open_title_editor())
+        menu.addAction('여러 게임 이름 설정...').triggered.connect(
+            lambda _checked=False: self.open_bulk_name_settings())
         menu.addAction('DLsite 작품 정보 조회 · DB 저장...').triggered.connect(
             lambda _checked=False: self.lookup_work_database())
         menu.addAction('저장된 공식 작품 페이지 열기').triggered.connect(
