@@ -126,7 +126,8 @@ class MetadataControllerMixin:
         if appid and f"Steam {appid}" not in label:
             label += f" [Steam {appid}]"
         origin = "archive" if game.archive else "manual"
-        worker = IdentityArtworkThread(label, origin=origin, parent=self)
+        worker = IdentityArtworkThread(label, origin=origin,
+                                       db_path=self.work_db.path, parent=self)
         self.identity_lookup_worker = worker
         worker.complete.connect(
             lambda report, work, images, game_id=game.id:

@@ -123,10 +123,11 @@ from services.workers import InstallThread, UninstallThread, SaveBackupThread
 from controllers.library import LibraryControllerMixin
 from controllers.game_actions import GameActionControllerMixin
 from controllers.metadata import MetadataControllerMixin
+from controllers.catalog_collection import CatalogCollectionControllerMixin
 from controllers.window_actions import WindowActionControllerMixin
 from controllers.data_manager import DataManagementController
 
-class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, WindowActionControllerMixin, QMainWindow):
+class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, CatalogCollectionControllerMixin, WindowActionControllerMixin, QMainWindow):
     def __init__(self):
         super().__init__()
         self.library = Library()
@@ -134,6 +135,8 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.work_db = WorkDatabase(self.library.store, import_legacy=True)
         self.work_lookup_worker = None
         self.identity_lookup_worker = None
+        self.catalog_worker = None
+        self.catalog_dialog = None
         self.games: list[Game] = []
         self.data_actions = DataManagementController(self)
         self.selected_id: str | None = None
@@ -155,6 +158,16 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.setMinimumSize(950, 620)
         self.build_ui()
         self.reload()
+
+    def closeEvent(self, event):
+        if self.catalog_worker is not None and self.catalog_worker.isRunning():
+            self.catalog_worker.requestInterruption()
+            event.ignore()
+            if self.catalog_dialog is not None:
+                self.catalog_dialog.raise_()
+            self.set_message("DB 수집 중단을 요청했습니다. 진행 중인 공식 사이트 조회가 끝나면 종료할 수 있습니다.")
+            return
+        super().closeEvent(event)
 
     def action_button(self, label: str, fn, primary: bool = False) -> QPushButton:
         btn = QPushButton(label)

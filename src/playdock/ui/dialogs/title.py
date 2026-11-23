@@ -28,6 +28,7 @@ from PySide6.QtWidgets import (
 
 from core import Library
 from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
+from services.official_work_service import explicit_work_identity
 from native_caption import windows_dark_caption
 from localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
@@ -389,13 +390,17 @@ class BulkTitleSettingsDialog(QDialog):
             return
         mode = self.mode.currentData()
         if mode == 'lookup':
-            entries = [(g.id, self.library.title(g), self.library.product_code(g)) for g in games
-                       if self.library.product_code(g)]
+            entries = [
+                (g.id, self.library.title(g), identity[1], identity[0])
+                for g in games
+                if (identity := explicit_work_identity(self.library, g))
+            ]
             if not entries:
-                QMessageBox.information(self, '품번 없음', '조회 가능한 RJ/VJ/BJ/EJ 품번이 없어.')
+                QMessageBox.information(self, '품번 없음', '조회 가능한 DLsite 품번 또는 Steam App ID가 없어.')
                 return
             if QMessageBox.question(self, '품번 일괄 조회',
-                    f'{len(entries)}개 작품을 공개 정보에서 조회할까요? 인터넷 요청이 발생해.\n'
+                    f'{len(entries)}개 작품을 PlayDock DB에서 먼저 조회할까요?\n'
+                    'DB에 저장되지 않은 작품만 인터넷에서 추가 확인합니다.\n'
                     '결과를 보여주고 선택하기 전까지 어떤 게임명도 변경하지 않아.') != QMessageBox.StandardButton.Yes:
                 return
             self.worker = BulkTitleWorker(entries, self.language.currentData() or 'ko',

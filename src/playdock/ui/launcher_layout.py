@@ -177,14 +177,14 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collection_button = self.action_button("＋  모음집에 추가 / 제거", self.edit_game_collections)
     tools.addWidget(collection_button)
     tools.addStretch(1)
+    collect_btn = self.action_button("게임 정보 수집", self.collect_library_information)
+    collect_btn.setObjectName("Soft")
+    tools.addWidget(collect_btn)
+    self.catalog_collection_btn = collect_btn
     scan_button = self.action_button("게임 정체 판독", self.identify_selected_game)
     scan_button.setObjectName("Blue")
     tools.addWidget(scan_button)
     self.identity_scan_btn = scan_button
-    image_search_button = self.action_button("인터넷 이미지 검색·편집", self.open_online_artwork)
-    image_search_button.setObjectName("Blue")
-    tools.addWidget(image_search_button)
-    self.image_search_btn = image_search_button
     image_button = ChevronMenuButton("이미지 직접 지정")
     image_button.clicked.connect(self.show_image_menu)
     tools.addWidget(image_button)
@@ -208,8 +208,8 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     ov.addWidget(self.game_info)
     content.addWidget(overview)
 
-    explain = QLabel("내 컴퓨터의 게임을 관리합니다. 게임 인증 우회 기능은 제공하지 않습니다. "
-                     "인터넷 이미지 검색·편집은 이미지 생성 API를 사용하지 않습니다.")
+    explain = QLabel("게임 정보 수집으로 공식 작품 DB를 채운 뒤 정체 판독과 이름 설정에 활용합니다. "
+                     "이미지 적용은 체크한 항목에만 수행하며 생성형 이미지 API는 사용하지 않습니다.")
     explain.setWordWrap(True)
     explain.setObjectName("Subtle")
     content.addWidget(explain)

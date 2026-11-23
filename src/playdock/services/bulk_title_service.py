@@ -68,11 +68,13 @@ class BulkTitleActions:
             title = item.get("title") or ""
             if title:
                 actual = item.get("language") or language
+                is_steam = item.get("store") == "steam"
                 records.append(BulkChange(
                     game.id, self.library.title(game), title,
-                    method="localized" if save_as_localized else "manual",
+                    method="manual" if is_steam else (
+                        "localized" if save_as_localized else "manual"),
                     language=actual, source=item.get("source", ""),
-                    product_code=item.get("code", ""),
+                    product_code="" if is_steam else item.get("code", ""),
                 ))
             else:
                 records.append(BulkChange(

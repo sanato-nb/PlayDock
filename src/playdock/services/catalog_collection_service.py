@@ -1,0 +1,211 @@
+"""Populate the unified works DB BEFORE single-game identity/image/title actions.
+
+Read only local ZIP/7z/RAR basenames and explicit product IDs. Reuse the
+standalone DLsite->Steam code-only checker (no name guessing / AI / unzip).
+Fetch only missing verified IDs, then optionally enrich title, category,
+maker, languages, tags and official image URLs; no local art writes.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+import re
+
+from database.official_catalog import _valid_identity
+from database.work_repository import WorkDatabase
+from experiments.dlsite_detector.code_only import (
+    InputItem, Work, Result, check, codes_in, steam_ids_in,
+)
+from integrations.dlsite_client import fetch_dlsite_work
+from services.official_artwork_service import (
+    trusted_image_url, _steam_api_art,
+)
+
+
+@dataclass(frozen=True)
+class CatalogEntry:
+    game_id: str
+    label: str                   # basename ONLY; never an absolute path
+    origin: str = "archive"
+    explicit_code: str = ""
+    steam_app_id: str = ""
+    suppress_code: bool = False  # user explicitly cleared the product ID
+
+
+@dataclass(frozen=True)
+class CatalogEvent:
+    game_id: str
+    label: str
+    outcome: str                 # cached / fetched / excluded / error / skipped
+    message: str
+    saved: int = 0
+    enriched: int = 0
+
+
+def game_catalog_entries(library, games):
+    """Prepare immutable sanitized input on UI thread; no file content access."""
+    output = []
+    for game in games:
+        meta = library.meta(game)
+        label = game.archive.name if game.archive else game.name
+        # Never leak folder or absolute file paths to the website.
+        label = re.split(r"[/\\]", str(label))[-1].strip()
+        manual = meta.get("product_code")
+        code = ""
+        if not (isinstance(manual, str) and not manual.strip()):
+            code = library.product_code(game) or ""
+        appid = str(meta.get("steam_app_id") or "").strip()
+        output.append(CatalogEntry(
+            game.id, label, "archive" if game.archive else "manual",
+            code, appid, "product_code" in meta and not meta.get("product_code"),
+        ))
+    return output
+
+
+def entry_input(entry: CatalogEntry) -> InputItem:
+    label = entry.label
+    if entry.explicit_code and entry.explicit_code.upper() not in label.upper():
+        label += f" [{entry.explicit_code}]"
+    if entry.steam_app_id and not re.search(
+            rf"(?i)(?:steam|appid).*?{re.escape(entry.steam_app_id)}", label):
+        label += f" [Steam {entry.steam_app_id}]"
+    # DB collection is for scanned games; do not mistake bare numbers for IDs.
+    return InputItem(label, "archive")
+
+
+def cached_work(db, store, code):
+    """Return only validated official DB records as scanner cache entries."""
+    record = db.get_official_work(store, code)
+    if not record:
+        return None, None
+    return (Work(record["code"], record["title"], record.get("category") or "",
+                 record["page_url"], "verified", store), record)
+
+
+def _official_image_urls_from_dlsite(code, data):
+    """Reuse a single fetched detailed DLsite response; no second HTML request."""
+    images = data.get("images") or []
+    result = {}
+    for kind, types in (("hero", ("sample", "cover", "thumbnail")),
+                        ("icon", ("cover", "thumbnail", "sample"))):
+        for imgtype in types:
+            url = next((item.get("url") for item in images
+                        if isinstance(item, dict) and item.get("kind") == imgtype
+                        and trusted_image_url("dlsite", code, item.get("url", ""))), None)
+            if url:
+                result[kind] = url
+                break
+    return result
+
+
+class CatalogCollector:
+    def __init__(self, db: WorkDatabase, *, checker=check,
+                 dlsite_detail=fetch_dlsite_work, steam_art=_steam_api_art):
+        self.db = db
+        self.checker = checker
+        self.dlsite_detail = dlsite_detail
+        self.steam_art = steam_art
+        self.cache = {}
+        self.detail_attempted = set()
+
+    def collect_one(self, entry: CatalogEntry) -> CatalogEvent:
+        if entry.suppress_code:
+            return CatalogEvent(entry.game_id, entry.label, "skipped",
+                                "사용자가 작품 코드를 지웠으므로 제외")
+        input_item = entry_input(entry)
+        dl_ids = codes_in(input_item.label)
+        steam_ids = steam_ids_in(input_item.label)
+        if not dl_ids and not steam_ids:
+            return CatalogEvent(entry.game_id, entry.label, "skipped",
+                                "품번/App ID 없음")
+        previously = set()
+        details = {}
+        # DB-first verified code cache is shared across all games in this batch.
+        for store, ids in (("dlsite", dl_ids), ("steam", steam_ids)):
+            for code in ids:
+                key = code if store == "dlsite" else "STEAM:" + code
+                if key not in self.cache:
+                    verified, existing = cached_work(self.db, store, code)
+                    if verified:
+                        self.cache[key] = verified
+                        details[(store, code)] = existing
+                        previously.add((store, code))
+                elif self.cache[key].status == "verified":
+                    previously.add((store, code))
+        result = self.checker(input_item, cache=self.cache)
+        verified = [w for w in result.works if w.status == "verified"]
+        if not verified:
+            return CatalogEvent(entry.game_id, entry.label, "excluded",
+                                "공식 사이트에서 품번을 확인하지 못함")
+        # Do not mistake multiple matching codes for the identity of one game.
+        newly_found = [w for w in verified if (w.store, w.code) not in previously]
+        saved = 0
+        if newly_found:
+            # Save only newly verified results; don't update timestamp of cache hits.
+            only_new = Result(result.query, result.input_origin, result.status,
+                              tuple(newly_found), result.warnings,
+                              result.selected_store, result.attempted_stores)
+            saved = self.db.save_verified_results([only_new])
+            if saved < 1:
+                return CatalogEvent(entry.game_id, entry.label, "error",
+                                    "DB가 공식 작품정보 저장을 거부함")
+        enriched = 0
+        # Enrich details once per unique product ID in this run, not per game.
+        for w in verified:
+            key = (w.store, w.code)
+            if key in self.detail_attempted:
+                continue
+            self.detail_attempted.add(key)
+            record = details.get(key) or self.db.get_official_work(w.store, w.code)
+            if record is None:
+                continue
+            has_images = any(x.get("kind") in ("hero", "icon")
+                             for x in record.get("images", [])
+                             if isinstance(x, dict))
+            has_titles = bool(record.get("titles"))
+            if has_images and (w.store == "steam" or has_titles):
+                continue
+            try:
+                if w.store == "dlsite":
+                    data = self.dlsite_detail(w.code)
+                    if str(data.get("code") or "").upper() != w.code.upper():
+                        continue
+                    self.db.save_work(data)
+                    urls = _official_image_urls_from_dlsite(w.code, data)
+                else:
+                    urls = self.steam_art(w.code)
+                if urls:
+                    self.db.save_official_image_urls(w.store, w.code, urls)
+                enriched += 1
+            except (OSError, ValueError, LookupError, TimeoutError, TypeError):
+                # Official work itself is still verified; images are optional.
+                continue
+        if len([w for w in verified if w.store == result.selected_store]) != 1:
+            return CatalogEvent(entry.game_id, entry.label, "excluded",
+                                "공식 품번이 복수 확인됨 · 작품별 DB 저장, 게임 자동 연결 안 함",
+                                saved, enriched)
+        return CatalogEvent(entry.game_id, entry.label,
+                            "fetched" if saved else "cached",
+                            f"{result.selected_store.upper()} 공식 작품정보 확보",
+                            saved, enriched)
+
+
+def collect_batch(entries, db_path, *, is_cancelled=lambda: False,
+                  callback=lambda i, total, event: None,
+                  collector_factory=None):
+    """Synchronous, deterministic service; the QThread is only an adapter."""
+    records = tuple(entries)
+    db = WorkDatabase(Path(db_path).parent, db_path=Path(db_path))
+    collector = (collector_factory(db) if collector_factory else CatalogCollector(db))
+    events = []
+    for index, entry in enumerate(records, 1):
+        if is_cancelled():
+            break
+        try:
+            event = collector.collect_one(entry)
+        except (OSError, ValueError, RuntimeError) as exc:
+            event = CatalogEvent(entry.game_id, entry.label, "error",
+                                 f"처리 오류: {type(exc).__name__}")
+        events.append(event)
+        callback(index, len(records), event)
+    return events
