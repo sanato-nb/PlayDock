@@ -38,7 +38,6 @@ from data_management import inventory, backup_data, inspect_backup, restore_data
 from ui.collection_board import CollectionBoard
 from library_tree import make_sidebar_groups
 from artwork import get_secret, set_secret, save_image, discover_local
-from ui.artwork_dialog import OnlineArtworkDialog
 from ui.selectors import DarkMenuSelect
 from ai_providers import (PROVIDERS, current_provider, current_models, save_provider_settings)
 from setup_paths import save_folder_settings, proposed_paths
