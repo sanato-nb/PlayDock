@@ -4,9 +4,36 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QMenu
 
+from ui.dialogs.database_status import DatabaseStatusDialog
+
 
 class WindowActionControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
+
+    def show_settings_menu(self):
+        """One top-right settings popup; refresh remains the only other button."""
+        menu = QMenu(self.settings_menu_btn)
+        menu.addAction("이름 설정 (여러 게임)...").triggered.connect(
+            lambda _checked=False: self.open_bulk_name_settings())
+        menu.addSeparator()
+        menu.addAction("폴더 설정...").triggered.connect(
+            lambda _checked=False: self.folder_wizard())
+        menu.addAction("데이터 관리...").triggered.connect(
+            lambda _checked=False: self.data_manager_dialog())
+        menu.addAction("라이브러리 속성...").triggered.connect(
+            lambda _checked=False: self.library_info_dialog())
+        menu.addAction("AI 설정...").triggered.connect(
+            lambda _checked=False: self.settings_dialog())
+        menu.addSeparator()
+        menu.addAction("DB 상태 확인...").triggered.connect(
+            lambda _checked=False: self.show_database_status())
+        self.settings_menu_btn.present_popup(menu, right_align=True)
+
+
+    def show_database_status(self):
+        """Show actual record counts, paths and SQLite health without writes."""
+        DatabaseStatusDialog(self.library.store, len(self.games), parent=self).exec()
+
 
     def show_image_menu(self):
         """Only manual/local artwork options; no paid image generation path."""

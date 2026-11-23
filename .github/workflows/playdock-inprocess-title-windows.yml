@@ -1,4 +1,4 @@
-name: PlayDock 통합 이름 설정 · Windows 완전 빌드
+name: PlayDock 설정 메뉴·DB 상태 통합 Windows 빌드
 
 on:
   push:
@@ -11,6 +11,9 @@ on:
       - "src/playdock/controllers/library.py"
       - "src/playdock/controllers/window_actions.py"
       - "src/playdock/ui/launcher_layout.py"
+      - "src/playdock/ui/dialogs/database_status.py"
+      - "src/playdock/services/database_status_service.py"
+      - "tests/test_top_settings_and_db_status.py"
       - "setup_wizard.py"
       - "scripts/Build-Windows-Release.ps1"
       - "scripts/build_setup_windows.bat"
@@ -49,7 +52,7 @@ jobs:
         shell: pwsh
         run: |
           python -m compileall -q app.py title_editor.py src/playdock tests
-          python -m pytest -q tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_playdock_rebrand_v077.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
+          python -m pytest -q tests/test_title_editor_inprocess.py tests/test_title_editor_from_launcher_v072.py tests/test_title_editor_separation.py tests/test_top_settings_and_db_status.py tests/test_playdock_rebrand_v077.py tests/test_installer_flow.py tests/test_public_release.py tests/test_bulk_title_edit_v076.py tests/test_simple_title_editor_v073.py
           if ($LASTEXITCODE -ne 0) { throw "이름 설정 통합 회귀 테스트 실패" }
       - name: PlayDock 전체 Windows 테스트
         shell: pwsh
@@ -84,7 +87,7 @@ jobs:
       - name: Windows 완성 EXE · 사용자 중립 설치 파일 업로드
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock-Integrated-TitleEditor-Windows
+          name: PlayDock-Settings-DB-Status-Windows
           path: |
             dist/PlayDock.exe
             public_release/PlayDock_Public_v0.8.3.zip
