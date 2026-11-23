@@ -31,6 +31,15 @@ class CatalogCollectionControllerMixin:
             "수집 시작", "취소",
         ):
             return
+        # Preserve the first-seen original archive filename for future
+        # display-name restoration. Never rename the actual ZIP/7z/RAR.
+        for game in self.games:
+            if game.archive is not None:
+                meta = self.library.meta(game)
+                if "original_archive_name" not in meta:
+                    self.library.update_meta(
+                        game, original_archive_name=game.archive.name,
+                    )
         dialog = CatalogCollectionDialog(len(entries), parent=self)
         worker = CatalogCollectionThread(entries, self.work_db.path, parent=self)
         self.catalog_dialog = dialog

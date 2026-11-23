@@ -266,7 +266,7 @@ class LibraryControllerMixin:
         elif kind == 'game':
             choice = menu.addAction('모음집에 추가 / 제거')
             launch = menu.addAction('플레이 / 설치')
-            edit_name = menu.addAction('이 게임 이름 설정...')
+            edit_name = menu.addAction('게임 이름 설정...')
             db_lookup = menu.addAction('게임 정체 판독 · 공식 이미지 적용...')
             official_page = menu.addAction('저장된 공식 작품 페이지 열기')
             game = self.current()
@@ -284,7 +284,7 @@ class LibraryControllerMixin:
             elif picked == launch:
                 self.main_action()
             elif picked == edit_name:
-                self.open_title_editor()
+                self.open_selected_name_settings()
             elif picked == db_lookup:
                 self.identify_selected_game()
             elif picked == official_page:
@@ -348,8 +348,7 @@ class LibraryControllerMixin:
     def work_db_info_rows(self, game):
         """Unified official works table: one row per store/code, no duplicate headings."""
         try:
-            record = official_metadata_for_game(self.library, game, self.work_db)
-            return official_info_rows(record)
+            return official_info_rows(self.collected_game_record(game))
         except (OSError, ValueError):
             return []
 
@@ -398,8 +397,11 @@ class LibraryControllerMixin:
         belonging = self.collections.for_game(game.id)
         collection_names = ", ".join(col["name"] for col in belonging) if belonging else "없음"
         from html import escape
+        confirmed = self.collected_game_record(game)
         info_rows = [
             ('모음집', collection_names),
+            ('공식 작품 확인', (confirmed['store'].upper() + ' · ' + confirmed['code'])
+             if confirmed else '정보 수집 필요'),
             *([('작품 코드', self.library.product_code(game))] if self.library.product_code(game) else []),
             *self.work_db_info_rows(game),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),

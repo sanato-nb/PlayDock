@@ -158,7 +158,7 @@ def test_official_image_service_replaces_web_image_search_ui():
     app = (root / 'app.py').read_text(encoding='utf-8') + _ui_main
     official = (root / 'src/playdock/services/official_artwork_service.py').read_text(encoding='utf-8')
     assert '게임 정보 수집' in app
-    assert '게임 정체 판독' in app
+    assert '배너·아이콘 설정' in app
     assert '인터넷 이미지 검색·편집' not in app
     assert 'OnlineArtworkDialog' not in app
     assert 'prepare_official_images(' in official

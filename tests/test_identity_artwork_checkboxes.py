@@ -268,8 +268,8 @@ def test_ui_has_direct_identity_button_and_menu_action():
     repo = Path(__file__).resolve().parents[1]
     layout = (repo / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
     actions = (repo / "src/playdock/controllers/window_actions.py").read_text("utf-8")
-    assert 'self.action_button("게임 정체 판독", self.identify_selected_game)' in layout
-    assert "게임 정체 판독 · 공식 이미지 적용..." in actions
+    assert 'self.action_button("배너·아이콘 설정", self.identify_selected_game)' in layout
+    assert "배너·아이콘 설정..." in actions
 
 
 def test_confirmed_steam_fallback_wins_over_failed_dlsite_from_filename(tmp_path):

@@ -20,14 +20,14 @@ class IdentityArtworkDialog(QDialog):
         super().__init__(parent)
         self.work = work
         self.images = images
-        self.setWindowTitle("게임 정체 판독 · 공식 이미지 적용")
+        self.setWindowTitle("배너·아이콘 설정 · 공식 이미지")
         self.resize(790, 560)
         self.setMinimumWidth(680)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(13)
 
-        heading = QLabel("공식 작품 확인 완료")
+        heading = QLabel("공식 작품 이미지 설정")
         heading.setObjectName("Heading")
         heading.setStyleSheet("font-size:19px; font-weight:700;")
         layout.addWidget(heading)
@@ -67,7 +67,7 @@ class IdentityArtworkDialog(QDialog):
 
         actions = QHBoxLayout()
         actions.addStretch()
-        save = QPushButton("작품정보 저장 · 선택한 이미지 적용")
+        save = QPushButton("체크한 이미지 적용 · 미선택 유지")
         save.setObjectName("Blue")
         save.clicked.connect(self.accept)
         actions.addWidget(save)

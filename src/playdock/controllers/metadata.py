@@ -15,6 +15,7 @@ from services.work_lookup_worker import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
 from services.identity_artwork_worker import IdentityArtworkThread
+from experiments.dlsite_detector.code_only import Work
 from services.official_artwork_service import apply_checked_images
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 
@@ -101,41 +102,55 @@ class MetadataControllerMixin:
 
 
 
-    def identify_selected_game(self):
-        """Run the same DLsite->Steam identity engine as the standalone scanner.
+    def collected_game_record(self, game=None):
+        """Official facts must have a verified DB link to this actual game."""
+        game = game or self.current()
+        if game is None:
+            return None
+        meta = self.library.meta(game)
+        if "product_code" in meta and not meta.get("product_code"):
+            return None
+        try:
+            linked = self.work_db.get_link(game.id)
+            return self.work_db.get_official_work(*linked) if linked else None
+        except (OSError, ValueError):
+            return None
 
-        Only the original archive basename and explicitly saved codes are read.
-        Never inspect or rename ZIP/7z/RAR contents and never block the GUI.
-        """
+    def has_collected_game_info(self, game=None) -> bool:
+        return self.collected_game_record(game) is not None
+
+    def identify_selected_game(self):
+        """Image settings only; collected DB identity must exist first."""
         game = self.current()
         if game is None:
             return
+        record = self.collected_game_record(game)
+        if not record:
+            show_message(self, "게임 정보 수집 필요",
+                         "먼저 게임 정보 수집으로 해당 게임의 공식 작품을 확인해 주세요.")
+            return
         if (self.identity_lookup_worker is not None
                 and self.identity_lookup_worker.isRunning()):
-            show_message(self, "정체 판독 중", "다른 게임의 정체 판독이 진행 중입니다.")
+            show_message(self, "배너·아이콘 설정", "다른 이미지 조회가 진행 중입니다.")
             return
-        metadata = self.library.meta(game)
-        label = game.archive.name if game.archive else game.name
-        # The UI's manual code is additional evidence, not a new web search
-        # against a private absolute archive path.
-        code = self.library.product_code(game)
-        if code and code.upper() not in label.upper():
-            label += f" [{code}]"
-        appid = str(metadata.get("steam_app_id") or "").strip()
-        if appid and f"Steam {appid}" not in label:
-            label += f" [Steam {appid}]"
-        origin = "archive" if game.archive else "manual"
-        worker = IdentityArtworkThread(label, origin=origin,
-                                       db_path=self.work_db.path, parent=self)
+        work = Work(
+            record["code"], record["title"], record.get("category") or "",
+            record["page_url"], "verified", record["store"],
+        )
+        worker = IdentityArtworkThread(
+            game.archive.name if game.archive else game.name,
+            origin="archive" if game.archive else "manual",
+            db_path=self.work_db.path, verified_work=work, parent=self,
+        )
         self.identity_lookup_worker = worker
         worker.complete.connect(
-            lambda report, work, images, game_id=game.id:
-            self._show_identity_artwork_result(game_id, report, work, images)
+            lambda report, selected_work, images, game_id=game.id:
+            self._show_identity_artwork_result(game_id, report, selected_work, images)
         )
         worker.failed.connect(
-            lambda error: show_message(self, "정체 판독 실패", error))
+            lambda error: show_message(self, "이미지 조회 실패", error))
         worker.finished.connect(self.identity_lookup_finished)
-        self.set_message("DLsite → Steam 공식 품번 확인 및 이미지 조회 중…")
+        self.set_message("공식 작품 페이지에서 배너·아이콘 이미지를 준비하는 중…")
         worker.start()
 
     def identity_lookup_finished(self):
@@ -196,7 +211,7 @@ class MetadataControllerMixin:
             self.reload(prefer_id=game_id)
             summary = ", ".join("배너" if kind == "hero" else "아이콘"
                                 for kind in applied) if applied else "이미지 변경 없음"
-            self.set_message(f"정체 판독 완료 · {work.store.upper()} {work.code} · {summary}")
+            self.set_message(f"배너·아이콘 설정 완료 · {work.store.upper()} {work.code} · {summary}")
         except (OSError, ValueError, RuntimeError) as exc:
             show_message(self, "작품정보·이미지 적용 실패", str(exc))
 
@@ -222,6 +237,29 @@ class MetadataControllerMixin:
         """Refresh the visible title and preserve the selected game."""
         self.title_editor_window = None
         self.reload(prefer_id=self.selected_id)
+
+    def open_selected_name_settings(self):
+        """Selected-game name dialog. DB-only official name, manual and restore."""
+        game = self.current()
+        if game is None:
+            show_message(self, "게임을 선택하세요", "이름을 수정할 게임을 선택해 주세요.")
+            return
+        if self.title_editor_window is not None and self.title_editor_window.isVisible():
+            show_message(self, "이름 설정 진행 중",
+                         "현재 게임 이름 설정 창을 닫고 다시 실행해 주세요.")
+            return
+        dialog = BulkTitleSettingsDialog(
+            self.library, self.games, game.id, self,
+        )
+        if self.has_collected_game_info(game):
+            option = dialog.mode.findData("lookup")
+            if option >= 0:
+                dialog.mode.setCurrentIndex(option)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.reload(prefer_id=game.id)
+            self.set_message(
+                "게임 표시 이름을 변경했습니다. 실제 압축파일명은 변경하지 않았습니다."
+            )
 
     def open_bulk_name_settings(self):
         """User selects game checkboxes, previews, and confirms each bulk edit."""

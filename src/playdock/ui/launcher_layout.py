@@ -181,10 +181,17 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collect_btn.setObjectName("Soft")
     tools.addWidget(collect_btn)
     self.catalog_collection_btn = collect_btn
-    scan_button = self.action_button("게임 정체 판독", self.identify_selected_game)
+    scan_button = self.action_button("배너·아이콘 설정", self.identify_selected_game)
     scan_button.setObjectName("Blue")
+    scan_button.setEnabled(False)
+    scan_button.setToolTip("먼저 게임 정보 수집으로 해당 게임의 공식 작품을 확인하세요.")
     tools.addWidget(scan_button)
     self.identity_scan_btn = scan_button
+    name_button = self.action_button("게임 이름 설정", self.open_selected_name_settings)
+    name_button.setObjectName("Soft")
+    name_button.setToolTip("공식 게임명 적용은 정보 수집 후, 직접 수정·복원은 언제든 가능합니다.")
+    tools.addWidget(name_button)
+    self.game_name_btn = name_button
     image_button = ChevronMenuButton("이미지 직접 지정")
     image_button.clicked.connect(self.show_image_menu)
     tools.addWidget(image_button)
@@ -208,8 +215,8 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     ov.addWidget(self.game_info)
     content.addWidget(overview)
 
-    explain = QLabel("게임 정보 수집으로 공식 작품 DB를 채운 뒤 정체 판독과 이름 설정에 활용합니다. "
-                     "이미지 적용은 체크한 항목에만 수행하며 생성형 이미지 API는 사용하지 않습니다.")
+    explain = QLabel("① 게임 정보 수집: 공식 작품 확인·DB 연결  →  ② 배너·아이콘 설정 / 게임 이름 설정. "
+                     "미선택 이미지는 그대로 유지합니다.")
     explain.setWordWrap(True)
     explain.setObjectName("Subtle")
     content.addWidget(explain)

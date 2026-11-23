@@ -29,8 +29,8 @@ class CatalogCollectionDialog(QDialog):
         layout.addWidget(title)
         hint = QLabel(
             "전체 라이브러리의 압축파일명·품번을 확인하고 DLsite → Steam 공식 작품정보를 "
-            "PlayDock DB에 저장합니다.\n"
-            "이미 저장된 작품은 재사용합니다. 게임 이름과 기존 배너·아이콘은 변경하지 않습니다."
+            "PlayDock DB에 저장하고 게임별 공식 작품 연결도 확인합니다.\n"
+            "기존 정보는 재사용합니다. 게임 이름과 배너·아이콘은 변경하지 않습니다."
         )
         hint.setWordWrap(True)
         layout.addWidget(hint)
@@ -70,6 +70,7 @@ class CatalogCollectionDialog(QDialog):
         self.summary.setText(
             f"{index}/{total}개 · 신규 정보 {self.counts['fetched']}개 · "
             f"DB 재사용 {self.counts['cached']}개 · "
+            f"게임 연결 {self.counts['cached'] + self.counts['fetched']}개 · "
             f"미확인 {self.counts['excluded'] + self.counts['skipped']}개 · "
             f"오류 {self.counts['error']}개"
         )
@@ -85,6 +86,7 @@ class CatalogCollectionDialog(QDialog):
             f"{len(events)}/{self.total}개 확인 · "
             f"신규 {sum(e.saved for e in events)}개 작품 저장 · "
             f"기존 DB {self.counts['cached']}개 재사용 · "
+            f"게임 연결 {sum(bool(e.connected) for e in events)}개 · "
             f"상세정보 보강 {sum(e.enriched for e in events)}개 · "
             f"미확인 {self.counts['excluded'] + self.counts['skipped']}개 · "
             f"오류 {self.counts['error']}개"

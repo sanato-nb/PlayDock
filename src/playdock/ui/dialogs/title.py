@@ -213,13 +213,23 @@ class BulkTitleSettingsDialog(QDialog):
         hint.setObjectName('Muted')
         hint.setWordWrap(True)
         outer.addWidget(hint)
+        if initial_game_id is not None:
+            chosen = next((g for g in self.games if g.id == initial_game_id), None)
+            if chosen is not None and chosen.archive is not None:
+                first_name = self.library.meta(chosen).get(
+                    "original_archive_name"
+                ) or chosen.archive.name
+                original_note = QLabel(f"최초 압축파일명 (복원용): {first_name}")
+                original_note.setObjectName("Muted")
+                original_note.setWordWrap(True)
+                outer.addWidget(original_note)
         options = QHBoxLayout()
         options.addWidget(QLabel('변경 방법'))
         self.mode = DarkMenuSelect()
         self.mode.addItem('표에서 게임별 이름 직접 수정', 'manual')
         self.mode.addItem('품번으로 작품명 조회', 'lookup')
         self.mode.addItem('이름에서 문구 찾아 바꾸기', 'replace')
-        self.mode.addItem('원본 파일명으로 일괄 복원', 'original')
+        self.mode.addItem('최초 압축파일 이름으로 표시 이름 복원', 'original')
         self.mode.addItem('이전 이름으로 일괄 되돌리기', 'undo')
         self.mode.currentIndexChanged.connect(self.update_mode)
         options.addWidget(self.mode, 2)

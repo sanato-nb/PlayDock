@@ -13,9 +13,6 @@ class WindowActionControllerMixin:
     def show_settings_menu(self):
         """One top-right settings popup; refresh remains the only other button."""
         menu = QMenu(self.settings_menu_btn)
-        menu.addAction("이름 설정 (여러 게임)...").triggered.connect(
-            lambda _checked=False: self.open_bulk_name_settings())
-        menu.addSeparator()
         menu.addAction("폴더 설정...").triggered.connect(
             lambda _checked=False: self.folder_wizard())
         menu.addAction("데이터 관리...").triggered.connect(
@@ -71,11 +68,13 @@ class WindowActionControllerMixin:
         menu.addAction('게임 정보 수집 (전체 라이브러리)...').triggered.connect(
             lambda _checked=False: self.collect_library_information())
         menu.addSeparator()
-        menu.addAction('이 게임 이름 설정...').triggered.connect(
-            lambda _checked=False: self.open_title_editor())
-        menu.addAction('여러 게임 이름 설정...').triggered.connect(
+        menu.addAction('게임 이름 설정 (선택 게임)...').triggered.connect(
+            lambda _checked=False: self.open_selected_name_settings())
+        menu.addAction('게임 이름 설정 (여러 게임)...').triggered.connect(
             lambda _checked=False: self.open_bulk_name_settings())
-        menu.addAction('게임 정체 판독 · 공식 이미지 적용...').triggered.connect(
+        art_action = menu.addAction('배너·아이콘 설정...')
+        art_action.setEnabled(self.has_collected_game_info())
+        art_action.triggered.connect(
             lambda _checked=False: self.identify_selected_game())
         menu.addAction('저장된 공식 작품 페이지 열기').triggered.connect(
             lambda _checked=False: self.open_saved_official_page())

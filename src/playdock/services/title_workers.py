@@ -118,11 +118,12 @@ class BulkTitleWorker(QThread):
     progress = Signal(int, int, str)
     complete = Signal(object)
 
-    def __init__(self, entries, language: str, cache_path: Path):
+    def __init__(self, entries, language: str, cache_path: Path, *, db_only=False):
         super().__init__()
-        self.entries = list(entries)  # game_id, original_title, work_code
+        self.entries = list(entries)  # game_id, original_title, code, store
         self.language = language
         self.cache_path = cache_path
+        self.db_only = bool(db_only)
         self.cancelled = False
 
     def stop(self):
@@ -142,8 +143,8 @@ class BulkTitleWorker(QThread):
                 if cached:
                     found_title, source, actual = cached
                     from_db = True
-                elif store == "steam":
-                    raise LookupError("Steam 공식 작품정보가 DB에 없습니다. 먼저 게임 정보 수집을 실행해 주세요.")
+                elif self.db_only or store == "steam":
+                    raise LookupError("해당 작품의 공식정보가 DB에 없습니다. 먼저 게임 정보 수집을 실행해 주세요.")
                 else:
                     result = lookup_localized_title(code, self.language, self.cache_path)
                     found_title, source, actual = result.title, result.source, result.language

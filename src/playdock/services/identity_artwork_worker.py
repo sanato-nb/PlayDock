@@ -11,7 +11,7 @@ from pathlib import Path
 
 from database.work_repository import WorkDatabase
 from experiments.dlsite_detector.code_only import (
-    InputItem, Work, check, codes_in, steam_ids_in,
+    InputItem, Work, Result, check, codes_in, steam_ids_in,
 )
 from services.official_artwork_service import trusted_image_url
 from services.official_artwork_service import prepare_official_images
@@ -21,11 +21,13 @@ class IdentityArtworkThread(QThread):
     complete = Signal(object, object, object)  # scanner Result, verified Work|None, images
     failed = Signal(str)
 
-    def __init__(self, label: str, *, origin: str = "archive", db_path=None, parent=None):
+    def __init__(self, label: str, *, origin: str = "archive", db_path=None,
+                 verified_work=None, parent=None):
         super().__init__(parent)
         self.label = label
         self.origin = origin
         self.db_path = Path(db_path) if db_path is not None else None
+        self.verified_work = verified_work
 
     def run(self):
         try:
@@ -44,14 +46,23 @@ class IdentityArtworkThread(QThread):
                                                record["page_url"], "verified", store)
                             store_records[(store, code)] = record
             item = InputItem(self.label, self.origin)
-            result = check(item, cache=cache) if cache else check(item)
-            verified = [row for row in result.works
-                        if row.status == "verified" and row.store == result.selected_store]
-            if len(verified) != 1:
-                # Ambiguous/missing verification must not auto-apply images.
-                self.complete.emit(result, None, {})
-                return
-            work = verified[0]
+            if self.verified_work is not None:
+                work = self.verified_work
+                # Image mode never calls the network identity checker.
+                if (work.store, work.code) not in store_records:
+                    raise ValueError("공식 작품정보가 PlayDock DB에 없습니다.")
+                result = Result(self.label, self.origin, "confirmed",
+                                (work,), selected_store=work.store)
+            else:
+                # Standalone identity scanner remains available for development.
+                result = check(item, cache=cache) if cache else check(item)
+                verified = [row for row in result.works
+                            if row.status == "verified" and
+                            row.store == result.selected_store]
+                if len(verified) != 1:
+                    self.complete.emit(result, None, {})
+                    return
+                work = verified[0]
             try:
                 saved = store_records.get((work.store, work.code))
                 candidates = {}

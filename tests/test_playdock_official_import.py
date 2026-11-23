@@ -233,9 +233,11 @@ def test_launcher_info_rows_show_one_unified_official_record(tmp_path):
     db.import_scanner_catalog(legacy_scanner(tmp_path / "scan.sqlite3"))
     lib = Library(tmp_path / "settings")
     game = Game("steam", "Steam 1091500", tmp_path)
+    assert db.save_verified_game_link(game.id, "steam", "1091500")
     ctrl = type("Fake", (LibraryControllerMixin,), {})()
     ctrl.library = lib
     ctrl.work_db = db
+    ctrl.collected_game_record = lambda g: db.get_official_work(*db.get_link(g.id))
     rows = dict(ctrl.work_db_info_rows(game))
     assert rows["공식 작품명"] == "Steam Official Game"
     assert rows["공식 판매처"] == "Steam"

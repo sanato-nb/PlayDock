@@ -458,11 +458,33 @@ class WorkDatabase:
         with self.connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM works WHERE page_url!=''").fetchone()[0]
 
-    def sync_library(self, library, games):
-        """Keep only user-selected code links; automatic IDs remain derived.
+    def save_verified_game_link(self, game_id: str, store: str, code: str) -> bool:
+        """Link one local game only when its official store identity is verified.
 
-        Existing v1/v2 records are retained until the game is scanned, then
-        only explicit manual choices are stored.
+        Catalog collection calls this after resolving exactly one matching
+        official work. It does not modify user titles or image files.
+        """
+        game_id = str(game_id or "").strip()
+        store = str(store or "").strip().lower()
+        code = str(code or "").strip()
+        if store == "dlsite":
+            code = code.upper()
+        if not game_id or not self.get_official_work(store, code):
+            return False
+        with self.connect() as con:
+            con.execute(
+                """INSERT INTO library_links (game_id,store,code) VALUES (?,?,?)
+                ON CONFLICT(game_id) DO UPDATE SET
+                    store=excluded.store,code=excluded.code""",
+                (game_id, store, code),
+            )
+        return True
+
+    def sync_library(self, library, games):
+        """Retain collected official links during refresh.
+
+        Explicit user choices override the collector, including deliberate
+        clearing. Filename-derived IDs are not silently saved as confirmed.
         """
         from services.official_work_service import explicit_work_identity
         with self.connect() as con:
@@ -471,7 +493,10 @@ class WorkDatabase:
                 manual = any(k in meta for k in
                              ("product_code", "product_store", "steam_app_id",
                               "artwork_identity_store"))
-                identity = explicit_work_identity(library, game) if manual else None
+                # No explicit override: leave verified collector link intact.
+                if not manual:
+                    continue
+                identity = explicit_work_identity(library, game)
                 if not identity:
                     con.execute("DELETE FROM library_links WHERE game_id=?", (game.id,))
                     continue

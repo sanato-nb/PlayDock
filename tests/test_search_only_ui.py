@@ -12,7 +12,7 @@ DIALOG = (ROOT / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8'
 
 def test_official_image_and_catalog_actions_are_direct_and_not_generated():
     assert 'self.action_button("게임 정보 수집", self.collect_library_information)' in APP
-    assert 'self.action_button("게임 정체 판독", self.identify_selected_game)' in APP
+    assert 'self.action_button("배너·아이콘 설정", self.identify_selected_game)' in APP
     assert '인터넷 이미지 검색·편집' not in APP
     assert 'def open_online_artwork(self):' not in APP
     assert 'def fetch_art(self):' not in APP

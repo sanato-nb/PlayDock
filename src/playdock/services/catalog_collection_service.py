@@ -40,6 +40,9 @@ class CatalogEvent:
     message: str
     saved: int = 0
     enriched: int = 0
+    store: str = ""
+    code: str = ""
+    connected: bool = False
 
 
 def game_catalog_entries(library, games):
@@ -182,14 +185,25 @@ class CatalogCollector:
             except (OSError, ValueError, LookupError, TimeoutError, TypeError):
                 # Official work itself is still verified; images are optional.
                 continue
-        if len([w for w in verified if w.store == result.selected_store]) != 1:
+        selected = [w for w in verified if w.store == result.selected_store]
+        if len(selected) != 1:
             return CatalogEvent(entry.game_id, entry.label, "excluded",
                                 "공식 품번이 복수 확인됨 · 작품별 DB 저장, 게임 자동 연결 안 함",
                                 saved, enriched)
+        work = selected[0]
+        # Persist the actual game<->work association, not merely the global
+        # official work. This is the prerequisite for image/name actions.
+        connected = self.db.save_verified_game_link(
+            entry.game_id, work.store, work.code
+        )
+        if not connected:
+            return CatalogEvent(entry.game_id, entry.label, "error",
+                                "공식 작품을 DB에 저장했으나 게임 연결에 실패함",
+                                saved, enriched)
         return CatalogEvent(entry.game_id, entry.label,
                             "fetched" if saved else "cached",
-                            f"{result.selected_store.upper()} 공식 작품정보 확보",
-                            saved, enriched)
+                            f"{work.store.upper()} {work.code} 공식 작품 연결 완료",
+                            saved, enriched, work.store, work.code, connected)
 
 
 def collect_batch(entries, db_path, *, is_cancelled=lambda: False,

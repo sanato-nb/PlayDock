@@ -54,5 +54,15 @@ def undo_display_title(library: Library, game: Game) -> bool:
 
 
 def restore_filename_title(library: Library, game: Game) -> bool:
-    """Show the raw archive/folder stem again; remains reversible with Undo."""
-    return save_display_title(library, game, game.name, source="원본 파일명으로 복원")
+    """Restore the first recorded archive basename as a display title.
+
+    Actual archive bytes/name and installed folders are never touched.
+    The first filename is preserved even after later display-title changes.
+    """
+    from pathlib import Path
+    remembered = library.meta(game).get("original_archive_name")
+    original = Path(remembered).stem if isinstance(remembered, str) and (
+        remembered.endswith((".zip", ".7z", ".rar", ".ZIP", ".7Z", ".RAR"))
+        and "/" not in remembered and "\\" not in remembered
+    ) else game.name
+    return save_display_title(library, game, original, source="최초 압축파일명으로 복원")
