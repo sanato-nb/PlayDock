@@ -417,6 +417,39 @@ class WorkDatabase:
             return None
         return _record(row)
 
+    def save_official_image_urls(self, store: str, code: str,
+                                 url_by_kind: dict[str, str]) -> int:
+        """Keep verified official URL candidates in works.images_json.
+
+        This never downloads or applies an image. Only the user's checkboxes
+        may alter local hero.png/icon.png files.
+        """
+        from services.official_artwork_service import trusted_image_url
+        store = str(store).lower()
+        code = str(code).upper() if store == "dlsite" else str(code)
+        valid = {kind: url for kind, url in url_by_kind.items()
+                 if kind in ("hero", "icon") and
+                 trusted_image_url(store, code, url)}
+        if not valid:
+            return 0
+        with self.connect() as con:
+            record = con.execute(
+                "SELECT images_json FROM works WHERE store=? AND code=?",
+                (store, code)).fetchone()
+            if record is None:
+                return 0
+            saved = _json(record["images_json"], [])
+            remaining = [item for item in saved
+                         if isinstance(item, dict) and item.get("kind") not in valid]
+            for kind in ("hero", "icon"):
+                if kind in valid:
+                    remaining.append({"kind": kind, "position": 0, "url": valid[kind]})
+            con.execute(
+                "UPDATE works SET images_json=? WHERE store=? AND code=?",
+                (json.dumps(remaining, ensure_ascii=False), store, code),
+            )
+        return len(valid)
+
     def count_works(self):
         with self.connect() as conn:
             return conn.execute("SELECT COUNT(*) FROM works").fetchone()[0]
@@ -436,7 +469,8 @@ class WorkDatabase:
             for game in games:
                 meta = library.meta(game)
                 manual = any(k in meta for k in
-                             ("product_code", "product_store", "steam_app_id"))
+                             ("product_code", "product_store", "steam_app_id",
+                              "artwork_identity_store"))
                 identity = explicit_work_identity(library, game) if manual else None
                 if not identity:
                     con.execute("DELETE FROM library_links WHERE game_id=?", (game.id,))

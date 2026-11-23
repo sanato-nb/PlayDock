@@ -15,6 +15,9 @@ from ui.dialogs.title import BulkTitleSettingsDialog
 from services.work_lookup_worker import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
+from services.identity_artwork_worker import IdentityArtworkThread
+from services.official_artwork_service import apply_checked_images
+from ui.dialogs.identity_artwork import IdentityArtworkDialog
 
 
 from ui.dialogs.common import ask_yes_no, show_message
@@ -97,6 +100,105 @@ class MetadataControllerMixin:
         except (OSError, ValueError) as exc:
             show_message(self, '작품 DB 저장 실패', str(exc))
 
+
+
+    def identify_selected_game(self):
+        """Run the same DLsite->Steam identity engine as the standalone scanner.
+
+        Only the original archive basename and explicitly saved codes are read.
+        Never inspect or rename ZIP/7z/RAR contents and never block the GUI.
+        """
+        game = self.current()
+        if game is None:
+            return
+        if (self.identity_lookup_worker is not None
+                and self.identity_lookup_worker.isRunning()):
+            show_message(self, "정체 판독 중", "다른 게임의 정체 판독이 진행 중입니다.")
+            return
+        metadata = self.library.meta(game)
+        label = game.archive.name if game.archive else game.name
+        # The UI's manual code is additional evidence, not a new web search
+        # against a private absolute archive path.
+        code = self.library.product_code(game)
+        if code and code.upper() not in label.upper():
+            label += f" [{code}]"
+        appid = str(metadata.get("steam_app_id") or "").strip()
+        if appid and f"Steam {appid}" not in label:
+            label += f" [Steam {appid}]"
+        origin = "archive" if game.archive else "manual"
+        worker = IdentityArtworkThread(label, origin=origin, parent=self)
+        self.identity_lookup_worker = worker
+        worker.complete.connect(
+            lambda report, work, images, game_id=game.id:
+            self._show_identity_artwork_result(game_id, report, work, images)
+        )
+        worker.failed.connect(
+            lambda error: show_message(self, "정체 판독 실패", error))
+        worker.finished.connect(self.identity_lookup_finished)
+        self.set_message("DLsite → Steam 공식 품번 확인 및 이미지 조회 중…")
+        worker.start()
+
+    def identity_lookup_finished(self):
+        worker = self.identity_lookup_worker
+        self.identity_lookup_worker = None
+        if worker is not None:
+            worker.deleteLater()
+
+    def _show_identity_artwork_result(self, game_id, report, work, images):
+        game = next((g for g in self.games if g.id == game_id), None)
+        if game is None:
+            return
+        if work is None:
+            reasons = "\n".join(report.warnings[:3])
+            if any(row.status == "verified" for row in report.works):
+                reasons = "서로 다른 품번이 여럿 확인되어 자동 연결하지 않았습니다.\n" + reasons
+            show_message(self, "정체 판독 결과", reasons or
+                         "확인된 공식 작품이 없습니다. 품번을 확인해 주세요.")
+            return
+        folder = self.library.art_dir(game)
+        existing = {kind for kind in ("hero", "icon")
+                    if (folder / f"{kind}.png").is_file()}
+        dialog = IdentityArtworkDialog(
+            work, images, existing_kinds=existing, warnings=report.warnings,
+            parent=self,
+        )
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        selected = dialog.selected_kinds()
+        overwrites = selected & existing
+        if overwrites:
+            names = ", ".join("배너" if item == "hero" else "아이콘"
+                              for item in sorted(overwrites))
+            if not ask_yes_no(
+                self, "기존 이미지 교체 확인",
+                f"기존 {names} 이미지를 공식 이미지로 교체할까요?\n"
+                "원본 이미지는 data/backups/artwork에 보관됩니다.\n"
+                "취소하면 기존 이미지는 그대로 유지하고 공식 작품정보만 DB에 저장합니다.",
+                "이미지 교체", "기존 이미지 유지",
+            ):
+                selected = set()
+        try:
+            saved = self.work_db.save_verified_results([report])
+            if saved < 1:
+                raise ValueError("공식 작품정보를 검증해 저장하지 못했습니다.")
+            self.work_db.save_official_image_urls(
+                work.store, work.code,
+                {kind: offer.url for kind, offer in images.items()}
+            )
+            # A manual empty code means deliberately unlinked; do not undo it.
+            metadata = self.library.meta(game)
+            if "product_code" not in metadata or metadata.get("product_code"):
+                self.library.update_meta(
+                    game, artwork_identity_store=work.store,
+                    artwork_identity_code=work.code,
+                )
+            applied = apply_checked_images(self.library, game, work, images, selected)
+            self.reload(prefer_id=game_id)
+            summary = ", ".join("배너" if kind == "hero" else "아이콘"
+                                for kind in applied) if applied else "이미지 변경 없음"
+            self.set_message(f"정체 판독 완료 · {work.store.upper()} {work.code} · {summary}")
+        except (OSError, ValueError, RuntimeError) as exc:
+            show_message(self, "작품정보·이미지 적용 실패", str(exc))
 
     def open_title_editor(self):
         """Open the selected game's editor inside PlayDock.exe."""

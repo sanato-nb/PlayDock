@@ -72,8 +72,8 @@ class WindowActionControllerMixin:
             lambda _checked=False: self.open_title_editor())
         menu.addAction('여러 게임 이름 설정...').triggered.connect(
             lambda _checked=False: self.open_bulk_name_settings())
-        menu.addAction('DLsite 작품 정보 조회 · DB 저장...').triggered.connect(
-            lambda _checked=False: self.lookup_work_database())
+        menu.addAction('게임 정체 판독 · 공식 이미지 적용...').triggered.connect(
+            lambda _checked=False: self.identify_selected_game())
         menu.addAction('저장된 공식 작품 페이지 열기').triggered.connect(
             lambda _checked=False: self.open_saved_official_page())
         menu.addSeparator()

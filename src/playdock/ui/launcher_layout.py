@@ -177,6 +177,10 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collection_button = self.action_button("＋  모음집에 추가 / 제거", self.edit_game_collections)
     tools.addWidget(collection_button)
     tools.addStretch(1)
+    scan_button = self.action_button("게임 정체 판독", self.identify_selected_game)
+    scan_button.setObjectName("Blue")
+    tools.addWidget(scan_button)
+    self.identity_scan_btn = scan_button
     image_search_button = self.action_button("인터넷 이미지 검색·편집", self.open_online_artwork)
     image_search_button.setObjectName("Blue")
     tools.addWidget(image_search_button)

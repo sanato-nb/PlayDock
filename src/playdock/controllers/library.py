@@ -267,7 +267,7 @@ class LibraryControllerMixin:
             choice = menu.addAction('모음집에 추가 / 제거')
             launch = menu.addAction('플레이 / 설치')
             edit_name = menu.addAction('이 게임 이름 설정...')
-            db_lookup = menu.addAction('DLsite 작품 정보 조회·DB 저장...')
+            db_lookup = menu.addAction('게임 정체 판독 · 공식 이미지 적용...')
             official_page = menu.addAction('저장된 공식 작품 페이지 열기')
             game = self.current()
             remove = None
@@ -286,7 +286,7 @@ class LibraryControllerMixin:
             elif picked == edit_name:
                 self.open_title_editor()
             elif picked == db_lookup:
-                self.lookup_work_database()
+                self.identify_selected_game()
             elif picked == official_page:
                 self.open_saved_official_page()
             elif remove is not None and picked == remove:

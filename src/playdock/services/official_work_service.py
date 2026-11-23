@@ -26,6 +26,20 @@ def explicit_work_identity(library, game):
     if store == "dlsite":
         code = library.product_code(game)
         return ("dlsite", code) if code else None
+    # Explicit user-set DLsite code remains higher priority than a later scan.
+    if meta.get("product_code"):
+        code = library.product_code(game)
+        if code:
+            return ("dlsite", code)
+    # Accepted scanner verification outranks filename guesses. In particular,
+    # DLsite may fail while a marked Steam ID on the same archive succeeds.
+    verified_store = str(meta.get("artwork_identity_store") or "").strip().lower()
+    verified_code = str(meta.get("artwork_identity_code") or "").strip()
+    if verified_store == "steam" and re.fullmatch(r"[1-9]\d{2,9}", verified_code):
+        return ("steam", verified_code)
+    if verified_store == "dlsite" and re.fullmatch(
+            r"(?:RJ|VJ|BJ|EJ)\d{6,8}", verified_code.upper()):
+        return ("dlsite", verified_code.upper())
     code = library.product_code(game)
     if code:
         return ("dlsite", code)

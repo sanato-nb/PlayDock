@@ -133,6 +133,7 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.collections = CollectionStore(self.library.store)
         self.work_db = WorkDatabase(self.library.store, import_legacy=True)
         self.work_lookup_worker = None
+        self.identity_lookup_worker = None
         self.games: list[Game] = []
         self.data_actions = DataManagementController(self)
         self.selected_id: str | None = None
