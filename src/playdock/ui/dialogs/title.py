@@ -27,6 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from core import Library
+from database.work_repository import WorkDatabase
 from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from services.official_work_service import explicit_work_identity
 from native_caption import windows_dark_caption
@@ -208,8 +209,8 @@ class BulkTitleSettingsDialog(QDialog):
         heading = QLabel('일괄 게임 이름 변경')
         heading.setObjectName('Heading')
         outer.addWidget(heading)
-        hint = QLabel('대상 선택 → 변경 방법 및 옵션 지정 → 변경 전후 미리보기 → 체크한 항목만 저장.\n'
-                      '실제 ZIP·7z, 게임 설치 폴더, 모음집은 변경하지 않아. 저장 전 메타데이터를 백업해.')
+        hint = QLabel('공식 게임명은 먼저 게임 정보 수집으로 확인한 작품만 적용합니다.\n'
+                      '직접 수정·원본 이름 복원은 수집 전에도 가능하며, 실제 ZIP·7z·RAR 파일은 변경하지 않습니다.')
         hint.setObjectName('Muted')
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -227,7 +228,7 @@ class BulkTitleSettingsDialog(QDialog):
         options.addWidget(QLabel('변경 방법'))
         self.mode = DarkMenuSelect()
         self.mode.addItem('표에서 게임별 이름 직접 수정', 'manual')
-        self.mode.addItem('품번으로 작품명 조회', 'lookup')
+        self.mode.addItem('공식 게임명 적용 (수집한 DB)', 'lookup')
         self.mode.addItem('이름에서 문구 찾아 바꾸기', 'replace')
         self.mode.addItem('최초 압축파일 이름으로 표시 이름 복원', 'original')
         self.mode.addItem('이전 이름으로 일괄 되돌리기', 'undo')
@@ -400,21 +401,32 @@ class BulkTitleSettingsDialog(QDialog):
             return
         mode = self.mode.currentData()
         if mode == 'lookup':
-            entries = [
-                (g.id, self.library.title(g), identity[1], identity[0])
-                for g in games
-                if (identity := explicit_work_identity(self.library, g))
-            ]
+            db = WorkDatabase(self.library.store)
+            entries = []
+            for game in games:
+                # Filename extraction alone is not a confirmed association.
+                link = db.get_link(game.id)
+                if not link or not db.get_official_work(*link):
+                    continue
+                entries.append((game.id, self.library.title(game), link[1], link[0]))
             if not entries:
-                QMessageBox.information(self, '품번 없음', '조회 가능한 DLsite 품번 또는 Steam App ID가 없어.')
+                QMessageBox.information(
+                    self, '공식 게임정보 없음',
+                    "선택한 게임에 저장된 공식 작품 연결이 없습니다.\n"
+                    "먼저 PlayDock에서 '게임 정보 수집'을 실행하세요.\n"
+                    "직접 수정과 원본 이름 복원은 그대로 이용할 수 있습니다.",
+                )
                 return
-            if QMessageBox.question(self, '품번 일괄 조회',
-                    f'{len(entries)}개 작품을 PlayDock DB에서 먼저 조회할까요?\n'
-                    'DB에 저장되지 않은 작품만 인터넷에서 추가 확인합니다.\n'
-                    '결과를 보여주고 선택하기 전까지 어떤 게임명도 변경하지 않아.') != QMessageBox.StandardButton.Yes:
+            if QMessageBox.question(self, '공식 게임명 적용',
+                    f'{len(entries)}개 게임의 공식 작품명을 PlayDock DB에서 가져올까요?\n'
+                    '인터넷에서 다시 검색하지 않고, 미리보기 후 체크한 항목만 저장합니다.'
+                    ) != QMessageBox.StandardButton.Yes:
                 return
-            self.worker = BulkTitleWorker(entries, self.language.currentData() or 'ko',
-                                          self.library.store / 'localized_product_titles.json')
+            self.worker = BulkTitleWorker(
+                entries, self.language.currentData() or 'ko',
+                self.library.store / 'localized_product_titles.json',
+                db_only=True,
+            )
             self.worker.progress.connect(self.on_progress)
             self.worker.complete.connect(self.show_lookup_preview)
             self.worker.finished.connect(self.worker_finished)

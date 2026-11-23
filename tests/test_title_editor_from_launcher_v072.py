@@ -39,10 +39,10 @@ def test_settings_menu_opens_bulk_selection_dialog():
     menus = read("src/playdock/controllers/window_actions.py")
     context = read("src/playdock/controllers/library.py")
     assert 'self.settings_menu_btn = ChevronMenuButton("설정")' in layout
-    assert "이름 설정 (여러 게임)..." in menus
+    assert "게임 이름 설정 (선택 게임)..." in menus
     assert "BulkTitleSettingsDialog(self.library, self.games, None, self)" in metadata
-    assert "여러 게임 이름 설정..." in menus
-    assert "이 게임 이름 설정..." in context
+    assert "게임 이름 설정 (여러 게임)..." in menus
+    assert "게임 이름 설정..." in context
 
 
 def test_setup_has_no_second_name_editor_binary_requirement():
