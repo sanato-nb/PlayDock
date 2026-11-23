@@ -33,6 +33,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONUNBUFFERED: "1"
+      PYTHONIOENCODING: utf-8
       PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4

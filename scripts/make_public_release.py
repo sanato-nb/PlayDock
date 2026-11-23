@@ -181,6 +181,15 @@ def build_public_release(dist: Path, out: Path, manual: Path, *, source: Path | 
 
 
 def main() -> int:
+    # A Windows EXE/PowerShell host may redirect stdout to cp1252. Korean
+    # report filenames are valid; never treat console encoding as packaging
+    # failure after the ZIP and SHA256 checks have already succeeded.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, 'reconfigure'):
+            try:
+                stream.reconfigure(encoding='utf-8', errors='replace')
+            except (OSError, ValueError):
+                pass
     parser = argparse.ArgumentParser(description='Build privacy-clean PlayDock public distribution from Windows EXEs')
     parser.add_argument('--dist', type=Path, default=Path('dist'))
     parser.add_argument('--out', type=Path, default=Path('public_release'))
