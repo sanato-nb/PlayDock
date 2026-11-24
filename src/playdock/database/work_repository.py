@@ -612,7 +612,7 @@ class WorkDatabase:
                 # No explicit override: leave verified collector link intact.
                 if not manual:
                     continue
-                identity = explicit_work_identity(library, game)
+                identity = explicit_work_identity(library, game, meta=meta)
                 if not identity:
                     con.execute("DELETE FROM library_links WHERE game_id=?", (game.id,))
                     continue
@@ -620,7 +620,9 @@ class WorkDatabase:
                 con.execute("""INSERT INTO library_links(game_id,store,code)
                     VALUES(?,?,?)
                     ON CONFLICT(game_id) DO UPDATE SET
-                        store=excluded.store, code=excluded.code""",
+                        store=excluded.store, code=excluded.code
+                    WHERE library_links.store IS NOT excluded.store
+                       OR library_links.code IS NOT excluded.code""",
                     (game.id, store, code))
 
     def get_link(self, game_id: str) -> tuple[str, str] | None:

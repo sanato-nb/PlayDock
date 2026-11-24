@@ -205,8 +205,10 @@ class Library:
             return translated
         return str(meta.get("title") or game.name)
 
-    def product_code(self, game: Game) -> str:
-        return self._product_code_from_meta(game, self.meta(game))
+    def product_code(self, game: Game, *, meta: dict | None = None) -> str:
+        if meta is None:
+            meta = self.meta(game)
+        return self._product_code_from_meta(game, meta)
 
     @staticmethod
     def _product_code_from_meta(game: Game, meta: dict) -> str:

@@ -178,7 +178,7 @@ def _png(width, height):
     return data.getvalue()
 
 
-def test_image_discovery_from_unencrypted_zip_and_no_override(tmp_path):
+def test_image_discovery_from_unencrypted_zip_and_no_override(tmp_path, monkeypatch):
     lib = library(tmp_path)
     filename = lib.archive_root / 'Game Alpha.zip'
     zip_game(filename, {'Game Alpha/Banner.PNG': _png(1200, 450), 'Game Alpha/icon.png': _png(180, 180)})
@@ -187,9 +187,21 @@ def test_image_discovery_from_unencrypted_zip_and_no_override(tmp_path):
     assert set(found) == {'hero', 'icon'}
     hero = lib.art_dir(game) / 'hero.png'
     assert hero.is_file()
-    assert discover_local(lib, game) == []
+
+    def unexpected_scan(*args):
+        pytest.fail("Cached artwork should prevent another candidate scan")
+
+    with monkeypatch.context() as cached:
+        cached.setattr("artwork._archive_artwork_candidates", unexpected_scan)
+        cached.setattr("artwork._find_artwork_library", unexpected_scan)
+        assert discover_local(lib, game) == []
     with Image.open(hero) as img:
         assert img.size == (1600, 520)
+
+    icon = hero.with_name("icon.png")
+    icon.unlink()
+    assert discover_local(lib, game) == ["icon"]
+    assert icon.is_file()
 
 
 def test_explicit_local_images_prioritized(tmp_path):

@@ -9,8 +9,9 @@ from database.official_catalog import _valid_identity
 from models.game_codes import STEAM_MARKED
 
 
-def explicit_work_identity(library, game):
-    meta = library.meta(game)
+def explicit_work_identity(library, game, *, meta: dict | None = None):
+    if meta is None:
+        meta = library.meta(game)
     # A manually cleared ID must override all automatic file-name guesses.
     if "product_code" in meta and not meta.get("product_code"):
         return None
@@ -21,11 +22,11 @@ def explicit_work_identity(library, game):
         if code.isdigit() and code[0] != "0" and 3 <= len(code) <= 10:
             return ("steam", code)
     if store == "dlsite":
-        code = library.product_code(game)
+        code = library.product_code(game, meta=meta)
         return ("dlsite", code) if code else None
     # Explicit user-set DLsite code remains higher priority than a later scan.
     if meta.get("product_code"):
-        code = library.product_code(game)
+        code = library.product_code(game, meta=meta)
         if code:
             return ("dlsite", code)
     # Accepted scanner verification outranks filename guesses. In particular,
@@ -37,7 +38,7 @@ def explicit_work_identity(library, game):
     if verified_store == "dlsite" and re.fullmatch(
             r"(?:RJ|VJ|BJ|EJ)\d{6,8}", verified_code.upper()):
         return ("dlsite", verified_code.upper())
-    code = library.product_code(game)
+    code = library.product_code(game, meta=meta)
     if code:
         return ("dlsite", code)
     candidates = []

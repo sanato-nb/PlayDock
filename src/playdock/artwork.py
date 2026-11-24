@@ -159,6 +159,8 @@ def discover_local(library: Library, game: Game) -> list[str]:
     Cached user art always wins. No Steam, scraping, GPT or paid API calls.
     """
     dest = library.art_dir(game)
+    if (dest / 'hero.png').exists() and (dest / 'icon.png').exists():
+        return []
     candidates = _find_artwork_library(library, game)
     if game.folder and game.folder.is_dir():
         candidates.extend(_local_images(game.folder))

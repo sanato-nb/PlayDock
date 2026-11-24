@@ -181,3 +181,45 @@ def test_new_main_screen_names_and_db_only_title_option():
     assert "공식 게임명 적용 (수집한 DB)" in title
     assert "db_only=True" in title
     assert "인터넷 이미지 검색·편집" not in ui
+
+
+def test_explicit_links_refresh_from_one_metadata_read(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    library = Library(tmp_path / "data")
+    game = Game("game", "Game [RJ123456]", tmp_path)
+    db = WorkDatabase(library.store)
+    library.update_meta(game, product_code="RJ123456")
+
+    read_meta = library.meta
+    connect = db.connect
+    reads = []
+    changes = []
+
+    def counted_meta(item):
+        reads.append(item.id)
+        return read_meta(item)
+
+    @contextmanager
+    def counted_connection():
+        with connect() as con:
+            yield con
+            changes.append(con.total_changes)
+
+    monkeypatch.setattr(library, "meta", counted_meta)
+    monkeypatch.setattr(db, "connect", counted_connection)
+
+    db.sync_library(library, [game])
+    db.sync_library(library, [game])
+    assert reads == [game.id, game.id]
+    assert changes == [1, 0]
+    assert db.get_link(game.id) == ("dlsite", "RJ123456")
+
+    # Read fresh metadata on a later refresh, including changes by the editor.
+    other = Library(library.store)
+    other.update_meta(game, product_store="steam", product_code="1091500")
+    db.sync_library(library, [game])
+    assert db.get_link(game.id) == ("steam", "1091500")
+    other.set_product_code(game, "")
+    db.sync_library(library, [game])
+    assert db.get_link(game.id) is None
