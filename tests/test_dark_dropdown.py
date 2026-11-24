@@ -14,8 +14,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'app.py').read_text(encoding='utf-8') + _ui_main
-SEARCH = (ROOT / 'ui/artwork_dialog.py').read_text(encoding='utf-8')
-SELECTOR = (ROOT / 'ui/selectors.py').read_text(encoding='utf-8')
+SEARCH = (ROOT / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
+SELECTOR = (ROOT / 'src/playdock/ui/selectors.py').read_text(encoding='utf-8')
 
 
 def test_ai_provider_and_game_exe_selector_do_not_use_native_combo():

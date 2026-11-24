@@ -72,6 +72,6 @@ def test_search_also_tries_publisher_chap_spelling(monkeypatch):
 
 
 def test_original_title_unchanged_by_search_ui():
-    src = (Path(__file__).resolve().parents[1] / 'ui/artwork_dialog.py').read_text(encoding='utf-8')
+    src = (Path(__file__).resolve().parents[1] / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
     assert 'self.original_title_note' in src
     assert 'self.query = QLineEdit(self.identity.title)' in src

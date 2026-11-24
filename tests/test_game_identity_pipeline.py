@@ -70,7 +70,7 @@ def test_search_takes_only_related_candidates(monkeypatch):
 
 
 def test_dialog_gives_name_review_and_manual_web_search():
-    src = (Path(__file__).resolve().parents[1] / 'ui/artwork_dialog.py').read_text(encoding='utf-8')
+    src = (Path(__file__).resolve().parents[1] / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
     assert 'IdentityJob' in src
     assert 'AI로 게임명 추천 (선택)' in src
     assert 'RJ 품번으로 작품명 확인' in src

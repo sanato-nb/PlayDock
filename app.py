@@ -21,6 +21,14 @@ from PySide6.QtWidgets import (
     QTreeWidget, QTreeWidgetItem, QHeaderView, QStackedWidget, QComboBox, QTabWidget,
 )
 
+
+# Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.
+import sys as _playdock_sys
+from pathlib import Path as _playdock_Path
+_playdock_source = _playdock_Path(__file__).resolve().parent / "src" / "playdock"
+if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path:
+    _playdock_sys.path.insert(0, str(_playdock_source))
+
 from core import Game, Library, load_json, install, uninstall_target, uninstall_to_recycle_bin, executable_candidates, chosen_executable, archive_requires_password, ArchivePasswordRequired, ArchivePasswordInvalid
 from launch_approval import needs_launch_confirmation, launch_approval_changes, executable_selection_changes
 from game_collections import CollectionStore

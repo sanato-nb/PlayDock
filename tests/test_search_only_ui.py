@@ -7,7 +7,7 @@ _ui_main = launcher_source()
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'app.py').read_text(encoding='utf-8') + _ui_main
-DIALOG = (ROOT / 'ui/artwork_dialog.py').read_text(encoding='utf-8')
+DIALOG = (ROOT / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
 
 
 def test_search_is_direct_action_and_not_generated():

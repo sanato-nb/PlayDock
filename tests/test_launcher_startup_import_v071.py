@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_launcher_imports_load_json_from_core():
-    tree = ast.parse((ROOT / "controllers/library.py").read_text(encoding="utf-8"))
+    tree = ast.parse((ROOT / "src/playdock/controllers/library.py").read_text(encoding="utf-8"))
     assert any(
         isinstance(node, ast.ImportFrom)
         and node.module == "core"
@@ -17,7 +17,7 @@ def test_launcher_imports_load_json_from_core():
 
 
 def test_launcher_reload_uses_imported_load_json():
-    tree = ast.parse((ROOT / "controllers/library.py").read_text(encoding="utf-8"))
+    tree = ast.parse((ROOT / "src/playdock/controllers/library.py").read_text(encoding="utf-8"))
     classes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == "LibraryControllerMixin"]
     assert len(classes) == 1
     reloads = [n for n in classes[0].body if isinstance(n, ast.FunctionDef) and n.name == "reload"]

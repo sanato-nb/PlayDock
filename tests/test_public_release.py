@@ -36,7 +36,7 @@ def test_release_never_copies_installed_user_data_or_install_json(tmp_path):
         assert zf.read('data/') == b''
         assert b'PRIVATE_CANARY' not in b''.join(zf.read(name) for name in zf.namelist())
         assert json.loads(zf.read(INSTALL_MARKER)) == {
-            'id': 'playdock-installed-v1', 'data_directory': 'data', 'version': '0.8.2'}
+            'id': 'playdock-installed-v1', 'data_directory': 'data', 'version': '0.8.3'}
     assert result['setup'].read_bytes() == (dist / 'PlayDock_Setup.exe').read_bytes()
 
 

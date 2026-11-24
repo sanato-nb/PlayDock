@@ -8,7 +8,7 @@ from pathlib import Path
 _ui_main = launcher_source()
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = (ROOT / 'app.py').read_text(encoding='utf-8') + (ROOT / 'ui/styles.py').read_text(encoding='utf-8') + _ui_main
+SOURCE = (ROOT / 'app.py').read_text(encoding='utf-8') + (ROOT / 'src/playdock/ui/styles.py').read_text(encoding='utf-8') + _ui_main
 
 
 def test_collection_header_has_no_contrasting_label_rectangle():

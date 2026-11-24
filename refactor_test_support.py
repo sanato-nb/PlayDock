@@ -7,7 +7,7 @@ statements so tests can safely parse the combined declarations.
 from pathlib import Path
 import ast
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent / "src" / "playdock"
 
 MAIN_MODULES = (
     "ui/launcher_layout.py", "ui/widgets/launcher.py",

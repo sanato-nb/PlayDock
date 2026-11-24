@@ -81,6 +81,6 @@ def test_editor_uses_requested_game_id_before_initial_list_population():
 
 
 def test_installer_still_includes_editor_executable():
-    script = (ROOT / 'Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
+    script = (ROOT / 'scripts/Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
     assert "Run-PyInstaller 'PlayDock_TitleEditor'" in script
     assert "'dist\\PlayDock_TitleEditor.exe;payload'" in script

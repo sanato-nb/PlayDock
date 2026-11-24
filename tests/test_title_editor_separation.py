@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'app.py').read_text(encoding='utf-8') + _ui_main
 EDITOR = (ROOT / 'title_editor.py').read_text(encoding='utf-8') + _ui_editor
 SETUP = (ROOT / 'setup_wizard.py').read_text(encoding='utf-8')
-BUILD = (ROOT / 'build_setup_windows.bat').read_text(encoding='utf-8')
+BUILD = (ROOT / 'scripts/build_setup_windows.bat').read_text(encoding='utf-8')
 
 
 def test_title_editing_lives_in_separate_entrypoint():

@@ -1,7 +1,5 @@
 name: Build clean PlayDock public release
 
-# EXE 배포가 필요할 때 Actions 탭에서 수동으로 실행합니다.
-# 일반 소스코드 커밋에서는 Windows 빌드를 자동 실행하지 않습니다.
 on:
   workflow_dispatch:
 
@@ -22,17 +20,17 @@ jobs:
           cache-dependency-path: requirements.txt
       - name: Build and verify EXE on a clean Windows runner
         shell: pwsh
-        run: ./Build-Windows-Release.ps1 -NoLaunch -NoWinget
+        run: ./scripts/Build-Windows-Release.ps1 -NoLaunch -NoWinget
       - name: Create new public release without local data
         shell: pwsh
-        run: python make_public_release.py --dist dist --manual docs/PlayDock_UserManual_KO_v0.7.7.pdf --out public_release --source .
+        run: python scripts/make_public_release.py --dist dist --manual docs/PlayDock_UserManual_KO_v0.7.7.pdf --out public_release --source .
       - name: Upload clean public downloads
         uses: actions/upload-artifact@v4
         with:
-          name: PlayDock_Public_v0.8.2
+          name: PlayDock_Public_v0.8.3
           path: |
-            public_release/PlayDock_Public_v0.8.2.zip
-            public_release/PlayDock_Setup_v0.8.2.exe
-            public_release/PlayDock_Public_v0.8.2_검사결과.txt
+            public_release/PlayDock_Public_v0.8.3.zip
+            public_release/PlayDock_Setup_v0.8.3.exe
+            public_release/PlayDock_Public_v0.8.3_검사결과.txt
           if-no-files-found: error
           retention-days: 30

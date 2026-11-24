@@ -6,7 +6,7 @@ MANUAL = 'PlayDock_UserManual_KO_v0.7.7.pdf'
 def test_batch_files_are_cmd_safe_and_refer_to_existing_manual():
     assert (ROOT / 'docs' / MANUAL).exists()
     for script in ('00_BUILD_WINDOWS_EXE.bat', '01_REPACKAGE_EXISTING_EXES.bat'):
-        payload = (ROOT / script).read_bytes()
+        payload = (ROOT / "scripts" / script).read_bytes()
         assert payload.isascii()
         assert b'\r\n' in payload
         assert payload.count(b'--manual ') == 1

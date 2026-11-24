@@ -1,6 +1,6 @@
 @echo off
 setlocal
-pushd "%~dp0"
+pushd "%~dp0.."
 if exist ".venv\Scripts\python.exe" (
     ".venv\Scripts\python.exe" title_editor.py
 ) else (

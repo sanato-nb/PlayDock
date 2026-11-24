@@ -19,7 +19,7 @@ from save_backups import create_save_backup, restore_save_backup
 def test_release_names_and_build_payload():
     root = Path(__file__).resolve().parents[1]
     for filename in ('Build-Windows-Release.ps1', 'build_setup_windows.bat', '00_BUILD_WINDOWS_EXE.bat'):
-        source = (root/filename).read_text('utf-8-sig')
+        source = (root/"scripts"/filename).read_text('utf-8-sig')
         for name in ('PlayDock.exe', 'PlayDock_TitleEditor.exe', 'PlayDock_Setup.exe', 'PlayDock_Uninstall.exe'):
             assert name in source
     assert mgr.DISPLAY_NAME == 'PlayDock'

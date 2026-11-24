@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _classes(filename):
-    src = (ROOT / filename).read_text(encoding='utf8')
+    src = ((ROOT if filename in {"app.py", "title_editor.py"} else ROOT / "src" / "playdock") / filename).read_text(encoding='utf8')
     return {n.name: n for n in ast.parse(src).body if isinstance(n, ast.ClassDef)}
 
 
@@ -30,17 +30,17 @@ def test_editor_entrypoint_delegates_editor_events():
 
 
 def test_ui_action_service_boundaries():
-    launcher = (ROOT / 'ui/launcher_layout.py').read_text(encoding='utf8')
+    launcher = (ROOT / 'src/playdock/ui/launcher_layout.py').read_text(encoding='utf8')
     controller = _classes('controllers/game_actions.py')['GameActionControllerMixin']
     workers = _classes('services/workers.py')
     assert 'self.action_button("설치", self.main_action)' in launcher or 'self.main_action' in launcher
     assert {'install_game','uninstall_game','launch_game'} <= _methods(controller)
     assert {'InstallThread','UninstallThread','SaveBackupThread'} <= workers.keys()
-    assert 'install(self.game,' in (ROOT / 'services/workers.py').read_text(encoding='utf8')
+    assert 'install(self.game,' in (ROOT / 'src/playdock/services/workers.py').read_text(encoding='utf8')
 
 
 def test_ui_does_not_import_controllers_or_install_service_directly():
-    for path in (ROOT / 'ui').rglob('*.py'):
+    for path in (ROOT / 'src/playdock/ui').rglob('*.py'):
         tree = ast.parse(path.read_text(encoding='utf8'))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
