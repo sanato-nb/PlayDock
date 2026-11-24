@@ -37,7 +37,7 @@ def test_file_dialogs_are_qt_themed_instead_of_native_windows():
 
 def test_windows_titlebar_keeps_native_window_frame():
     assert 'class ThemedDialog(QDialog)' in APP
-    assert 'Qt.WindowType.FramelessWindowHint' in APP  # only custom small dialogs
+    assert 'Qt.WindowType.FramelessWindowHint' in APP  # custom dialogs and file chooser only
     main_class = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8').split('class MainWindow(', 1)[1]
     assert 'FramelessWindowHint' not in main_class
     assert 'DwmSetWindowAttribute' in (ROOT / 'src/playdock/native_caption.py').read_text(encoding='utf-8')
@@ -88,6 +88,8 @@ def test_file_chooser_has_own_dark_caption_and_retains_native_qt_selection(monke
         dialog.selectFile(str(image))
         assert Path(dialog.selectedFiles()[0]) == image
         assert dialog.layout().contentsMargins().top() >= 34
+        dialog.show()
+        app.processEvents()
         dialog.resize(920, 620)
         app.processEvents()
         assert dialog._caption.width() == dialog.width() - 8
