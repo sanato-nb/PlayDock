@@ -2,7 +2,7 @@ name: PlayDock 기능·게임 관리 메뉴 정리 Windows 검증
 
 on:
   push:
-    branches: [main, experiment-bidirectional-lookup-20261121, feature/game-management-menu-20261124]
+    branches: [main, experiment-bidirectional-lookup-20261121, feature/game-management-menu-20261124, fix/file-dialog-caption-20261124]
     paths:
       - "app.py"
       - "src/playdock/database/work_repository.py"
@@ -43,6 +43,9 @@ on:
       - "src/playdock/ui/launcher_layout.py"
       - "src/playdock/ui/styles.py"
       - "src/playdock/ui/dialogs/common.py"
+      - "src/playdock/controllers/game_actions.py"
+      - "src/playdock/ui/dialogs/library.py"
+      - "tests/test_dark_dialog_titles.py"
       - "src/playdock/ui/dialogs/database_status.py"
       - "src/playdock/services/database_status_service.py"
       - "tests/test_top_settings_and_db_status.py"

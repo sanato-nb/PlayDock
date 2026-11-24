@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 
-from PySide6.QtWidgets import QFileDialog
+from ui.dialogs.common import PlayDockFileDialog as QFileDialog
 
 from core import uninstall_target, executable_candidates, chosen_executable, archive_requires_password
 from launch_approval import (

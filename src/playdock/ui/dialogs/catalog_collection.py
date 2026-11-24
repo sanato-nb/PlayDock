@@ -10,9 +10,11 @@ from pathlib import Path
 
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
-    QApplication, QDialog, QFileDialog, QHBoxLayout, QLabel, QMessageBox,
+    QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox,
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
+
+from ui.dialogs.common import PlayDockFileDialog as QFileDialog
 
 
 class CatalogCollectionDialog(QDialog):

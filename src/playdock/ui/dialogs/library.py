@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QFileDialog,
     QFormLayout,
     QCheckBox,
     QDialogButtonBox,
@@ -34,6 +33,7 @@ from services.settings_service import (
 )
 
 
+from ui.dialogs.common import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import ThemedDialog, ask_text, ask_yes_no, show_message
 from ui.widgets.launcher import friendly_bytes
 

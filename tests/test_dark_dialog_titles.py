@@ -66,3 +66,55 @@ def test_setup_wizard_titlebar_includes_shared_style():
     assert 'from native_caption import darken_tk_root' in WIZARD
     assert 'self.after(0, lambda: darken_tk_root(self))' in WIZARD
     assert 'setup_wizard.py' in BUILD
+
+
+def test_file_chooser_has_own_dark_caption_and_retains_native_qt_selection(monkeypatch, tmp_path):
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication, QDialog, QFileDialog
+    from ui.dialogs.common import PlayDockFileDialog
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    app = QApplication.instance() or QApplication([])
+    image = tmp_path / "test.png"
+    image.write_bytes(b"fixture")
+    dialog = PlayDockFileDialog(None, "이미지 선택", str(tmp_path), "이미지 (*.png)")
+    try:
+        assert dialog.windowFlags() & Qt.WindowType.FramelessWindowHint
+        assert dialog.testOption(QFileDialog.Option.DontUseNativeDialog)
+        assert dialog._caption_title.text() == "이미지 선택"
+        assert "#111923" in dialog._caption.styleSheet()
+        assert dialog.fileMode() == QFileDialog.FileMode.ExistingFile
+        assert dialog.nameFilters() == ["이미지 (*.png)"]
+        assert not dialog.isSizeGripEnabled()
+        dialog.selectFile(str(image))
+        assert Path(dialog.selectedFiles()[0]) == image
+        assert dialog.layout().contentsMargins().top() >= 34
+        dialog.resize(920, 620)
+        app.processEvents()
+        assert dialog._caption.width() == dialog.width() - 8
+        dialog._caption_close.click()
+        assert dialog.result() == QDialog.DialogCode.Rejected
+    finally:
+        dialog.close()
+
+
+def test_file_chooser_save_and_directory_wrappers(monkeypatch, tmp_path):
+    from PySide6.QtWidgets import QApplication, QDialog, QFileDialog
+    from ui.dialogs.common import PlayDockFileDialog
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    app = QApplication.instance() or QApplication([])
+    seen = []
+    def accept_fake(dialog):
+        seen.append((dialog.fileMode(), dialog.acceptMode(), dialog.selectedFiles()))
+        return QDialog.DialogCode.Accepted
+    monkeypatch.setattr(PlayDockFileDialog, "exec", accept_fake)
+    destination = tmp_path / "report.txt"
+    saved, selected_filter = PlayDockFileDialog.getSaveFileName(
+        None, "TXT 저장", str(destination), "텍스트 (*.txt)")
+    assert Path(saved) == destination
+    assert selected_filter == "텍스트 (*.txt)"
+    folder = PlayDockFileDialog.getExistingDirectory(None, "폴더 선택", str(tmp_path))
+    assert Path(folder) == tmp_path
+    assert seen[0][:2] == (QFileDialog.FileMode.AnyFile, QFileDialog.AcceptMode.AcceptSave)
+    assert seen[1][0] == QFileDialog.FileMode.Directory
+    monkeypatch.setattr(PlayDockFileDialog, "exec", lambda self: QDialog.DialogCode.Rejected)
+    assert PlayDockFileDialog.getOpenFileName(None, "취소", str(tmp_path)) == ("", "")
