@@ -33,7 +33,7 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
     routes = ["collect_library_information", "folder_wizard", "data_manager_dialog",
               "library_info_dialog", "show_database_status", "rename_selected_game",
               "change_image", "edit_launch_options", "open_saved_official_page",
-              "identify_selected_game", "open_official_name_settings",
+              "identify_selected_game", "open_bulk_official_artwork", "open_official_name_settings",
               "open_title_editor", "open_selected_name_settings",
               "open_bulk_name_settings"]
     for name in routes:
@@ -57,6 +57,7 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
         manual = menu(window.extra_menu_btn)
         assert not manual.actions()[2].isEnabled()
         assert not manual.actions()[3].isEnabled()
+        assert not manual.actions()[4].isEnabled()
         manual.actions()[0].trigger()
         for action in manual.actions()[1].menu().actions():
             action.trigger()
@@ -70,12 +71,13 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
         for action in menu(window.function_menu_btn).actions():
             assert action.isEnabled()
             action.trigger()
-        menu(window.extra_menu_btn).actions()[3].trigger()
+        menu(window.extra_menu_btn).actions()[2].trigger()
+        menu(window.extra_menu_btn).actions()[4].trigger()
         assert [name for name,_ in calls] == [
             "collect_library_information", "folder_wizard", "data_manager_dialog",
             "library_info_dialog", "show_database_status", "rename_selected_game",
-            "change_image", "change_image", "identify_selected_game",
-            "open_official_name_settings", "open_saved_official_page"]
+            "change_image", "change_image", "open_bulk_official_artwork",
+            "open_official_name_settings", "identify_selected_game", "open_saved_official_page"]
         assert calls[6][1] == ("hero",) and calls[7][1] == ("icon",)
         assert source.read_bytes() == b"synthetic"
         print("MAIN_MENU_ROUTES_VERIFIED", [name for name,_ in calls])

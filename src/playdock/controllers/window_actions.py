@@ -27,11 +27,10 @@ class WindowActionControllerMixin:
 
     def function_availability(self):
         """One source of truth for the button and its two menu actions."""
-        game = self.current() if self.main_stack.currentWidget() is self.scroll else None
         try:
-            artwork = game is not None and self.has_official_image_candidates(game)
-            names = any(self.has_collected_game_info(g) for g in self.games)
-            return artwork, names
+            records = self.collected_library_records()
+            artwork = any(self._record_has_official_images(row) for row in records.values())
+            return artwork, bool(records)
         except (OSError, ValueError, SQLiteError):
             return False, False
 
@@ -50,14 +49,14 @@ class WindowActionControllerMixin:
         self.refresh_function_availability()
 
     def show_function_menu(self):
-        """Official-data actions, distinct from one game's four manual tools."""
+        """Whole-library official-data actions, independent of the current selection."""
         menu = QMenu(self.function_menu_btn)
         artwork_enabled, names_enabled = self.function_availability()
 
-        artwork = menu.addAction("공식 배너·아이콘 적용", self.identify_selected_game)
+        artwork = menu.addAction("공식 배너·아이콘 적용 (여러 게임)", self.open_bulk_official_artwork)
         artwork.setEnabled(artwork_enabled)
         artwork.setToolTip(
-            "게임 정보 수집에서 검증된 공식 이미지 URL이 있는 게임만 이용할 수 있습니다."
+            "전체 라이브러리에서 공식 이미지 후보가 있는 게임을 선택하여 적용합니다."
         )
 
         official_names = menu.addAction(
@@ -99,6 +98,9 @@ class WindowActionControllerMixin:
         images.setEnabled(game is not None)
         images.addAction('배너 이미지 선택', lambda: self.change_image("hero"))
         images.addAction('아이콘 이미지 선택', lambda: self.change_image("icon"))
+
+        official_images = menu.addAction('공식 배너·아이콘 적용', self.identify_selected_game)
+        official_images.setEnabled(game is not None and self.has_official_image_candidates(game))
 
         launch = menu.addAction('실행 옵션 설정', self.edit_launch_options)
         launch.setEnabled(game is not None and game.installed)

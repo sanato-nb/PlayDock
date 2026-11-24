@@ -269,6 +269,7 @@ def test_official_artwork_action_is_in_top_function_menu():
     actions = (repo / "src/playdock/controllers/window_actions.py").read_text("utf-8")
     assert "공식 배너·아이콘 적용" in actions
     assert "self.has_official_image_candidates(game)" in actions
+    assert "self.open_bulk_official_artwork" in actions
     assert "self.identify_selected_game" in actions
 
 

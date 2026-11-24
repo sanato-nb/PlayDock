@@ -18,6 +18,8 @@ from workers.identity_artwork import IdentityArtworkThread
 from integrations.official_lookup.code_only import Work
 from services.official_artwork_service import apply_checked_images, trusted_image_url
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
+from ui.dialogs.bulk_official_artwork import BulkOfficialArtworkDialog, BulkArtworkProgressDialog
+from workers.bulk_official_artwork import BulkOfficialArtworkThread
 
 
 from ui.dialogs.common import ask_text, ask_yes_no, show_message
@@ -135,6 +137,75 @@ class MetadataControllerMixin:
             return self.work_db.get_linked_official_work(game.id)
         except (OSError, ValueError):
             return None
+
+    def collected_library_records(self):
+        """One batched DB read, independent of current selection or list filter."""
+        records = self.work_db.get_linked_official_works(g.id for g in self.games)
+        for game in self.games:
+            if game.id in records:
+                meta = self.library.meta(game)
+                if "product_code" in meta and not meta.get("product_code"):
+                    records.pop(game.id, None)
+        return records
+
+    def open_bulk_official_artwork(self):
+        if self.identity_lookup_worker is not None and self.identity_lookup_worker.isRunning():
+            show_message(self, "공식 이미지 적용", "다른 이미지 작업이 진행 중입니다.")
+            return
+        try:
+            records = self.collected_library_records()
+            rows = []
+            for game in self.games:
+                record = records.get(game.id)
+                if not self._record_has_official_images(record):
+                    continue
+                kinds = {row["kind"] for row in record["images"]
+                         if isinstance(row, dict) and row.get("kind") in ("hero", "icon")
+                         and trusted_image_url(record["store"], record["code"], row.get("url", ""))}
+                folder = self.library.art_dir(game)
+                existing = {kind for kind in kinds if (folder / f"{kind}.png").exists()}
+                rows.append((game, record, kinds, existing))
+        except (OSError, ValueError, SQLiteError) as exc:
+            show_message(self, "공식 이미지 목록 실패", str(exc))
+            return
+        if not rows:
+            return
+        dialog = BulkOfficialArtworkDialog(rows, self)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        jobs = dialog.selected_jobs()
+        if not jobs:
+            return
+        if any(job[3] for job in jobs) and not ask_yes_no(
+                self, "기존 이미지 교체 확인",
+                "선택한 기존 이미지를 공식 이미지로 교체할까요?\n"
+                "교체되는 원본은 data/backups/artwork에 보관됩니다.",
+                "교체 및 적용", "취소"):
+            return
+        worker = BulkOfficialArtworkThread(self.library, self.work_db.path, jobs, self)
+        progress = BulkArtworkProgressDialog(worker, len(jobs), self)
+        self.identity_lookup_worker = worker
+        try:
+            # Modal progress prevents simultaneous library edits; stop waits for
+            # the current bounded image request to finish.
+            worker.progress.connect(progress.update_progress)
+            worker.finished.connect(progress.finish)
+            worker.start()
+            progress.exec()
+            worker.wait()
+            result = worker.results
+        finally:
+            self.identity_lookup_worker = None
+            worker.deleteLater()
+        self.reload(prefer_id=self.selected_id)
+        applied = sum(len(r["applied"]) for r in result)
+        skipped = sum(len(r["skipped"]) for r in result)
+        pending = len(jobs) - len(result)
+        details = "\n".join(f'{r["name"]}: {", ".join(r["skipped"])}'
+                            for r in result if r["skipped"])
+        show_message(self, "공식 이미지 일괄 적용 결과",
+                     f"적용 이미지 {applied}개 · 미적용 {skipped}개 · 미처리 게임 {pending}개"
+                     + ("\n" + details[:3000] if details else ""))
 
     def has_collected_game_info(self, game=None) -> bool:
         return self.collected_game_record(game) is not None

@@ -94,7 +94,7 @@ def test_top_function_menu_disabled_until_official_link_and_image_candidate(
         window.close()
 
 
-def test_exact_four_manual_game_management_functions_and_only_four_settings(
+def test_game_management_functions_and_only_four_settings(
         app, tmp_path, monkeypatch):
     window, _, game = make_window(tmp_path, monkeypatch)
     try:
@@ -103,6 +103,7 @@ def test_exact_four_manual_game_management_functions_and_only_four_settings(
         assert [a.text() for a in manual] == [
             "게임 이름 변경 (수동)",
             "배너·아이콘 수동 설정",
+            "공식 배너·아이콘 적용",
             "실행 옵션 설정",
             "공식 작품 페이지 열기",
         ]
@@ -111,8 +112,9 @@ def test_exact_four_manual_game_management_functions_and_only_four_settings(
             "배너 이미지 선택", "아이콘 이미지 선택",
         ]
         assert manual[0].isEnabled() and manual[1].isEnabled()
-        assert not manual[2].isEnabled()  # not installed
-        assert not manual[3].isEnabled()  # no confirmed URL
+        assert not manual[2].isEnabled()  # no official image
+        assert not manual[3].isEnabled()  # not installed
+        assert not manual[4].isEnabled()  # no confirmed URL
 
         settings = [x.text() for x in capture_menu(window.settings_menu_btn).actions()
                     if not x.isSeparator()]
@@ -225,3 +227,25 @@ def test_shared_file_dialog_style_keeps_filters_and_disables_grip(app, tmp_path)
     assert back.toolTip() == "뒤로"
     style_file_dialog(dialog)
     dialog.close()
+
+
+def test_bulk_artwork_enabled_for_other_game_and_collection_view(app,tmp_path,monkeypatch):
+    window, lib, game = make_window(tmp_path, monkeypatch)
+    try:
+        (tmp_path/"archives"/"Unlinked.zip").write_bytes(b"fixture")
+        window.reload()
+        other=next(g for g in window.games if g.archive.name=="Unlinked.zip")
+        window.work_db._upsert_verified([{"store":"dlsite","code":"RJ123456",
+            "title":"Verified","page_url":PAGE}])
+        assert window.work_db.save_verified_game_link(game.id,"dlsite","RJ123456")
+        window.work_db.save_official_image_urls("dlsite","RJ123456",{"hero":ART})
+        window.populate_games(other.id)
+        assert window.current().id==other.id
+        assert capture_menu(window.function_menu_btn).actions()[0].isEnabled()
+        assert not capture_menu(window.extra_menu_btn).actions()[2].isEnabled()
+        window.populate_games(game.id)
+        assert capture_menu(window.extra_menu_btn).actions()[2].isEnabled()
+        window.collections_nav_btn.click()
+        assert capture_menu(window.function_menu_btn).actions()[0].isEnabled()
+    finally:
+        window.close()

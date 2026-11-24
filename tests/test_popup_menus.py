@@ -56,7 +56,8 @@ def test_mode_filter_still_emits_selection_changes():
 def test_popup_actions_still_connected_to_business_functions():
     assert 'self.change_image("hero")' in body_of('show_extra_menu')
     assert 'self.change_image("icon")' in body_of('show_extra_menu')
-    assert 'self.identify_selected_game' in body_of('show_function_menu')
+    assert 'self.open_bulk_official_artwork' in body_of('show_function_menu')
+    assert 'self.identify_selected_game' in body_of('show_extra_menu')
     assert 'self.fetch_art()' not in body_of('show_extra_menu')
     assert 'self.rename_selected_game' in body_of('show_extra_menu')
     assert 'def show_game_menu(' not in APP
