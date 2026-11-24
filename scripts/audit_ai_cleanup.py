@@ -35,8 +35,18 @@ def main():
                 names = [node.attr]
             elif isinstance(node, (ast.Import, ast.ImportFrom)):
                 names = [a.name for a in node.names]
-            if RETIRED.intersection(names):
-                findings.append((path, node.lineno, names))
+            # image_bytes is also the legitimate cache byte-count field.
+            # Detect only definitions/imports and calls to the retired API;
+            # leave inventory counters and stats.image_bytes intact.
+            matched = RETIRED.intersection(names)
+            if "image_bytes" in matched and isinstance(node, (ast.Name, ast.Attribute)):
+                matched.remove("image_bytes")
+            if isinstance(node, ast.Call) and (
+                    (isinstance(node.func, ast.Name) and node.func.id == "image_bytes") or
+                    (isinstance(node.func, ast.Attribute) and node.func.attr == "image_bytes")):
+                matched.add("image_bytes")
+            if matched:
+                findings.append((path, node.lineno, sorted(matched)))
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
                 if any(endpoint in node.value for endpoint in ENDPOINTS):
                     findings.append((path, node.lineno, "image endpoint"))
