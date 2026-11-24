@@ -46,7 +46,8 @@ def normalized_icon_png(path: Path, output_size: int = NORMALIZED_SIZE) -> bytes
 
 
 @lru_cache(maxsize=512)
-def _cached_normalized_icon(path_str: str, mtime_ns: int, file_size: int) -> bytes:
+def _cached_normalized_icon(path_str: str, mtime_ns: int, file_size: int,
+                            ctime_ns: int, inode: int, device: int) -> bytes:
     # Using mtime and size as cache keys makes regenerated/changed art refresh.
     return normalized_icon_png(Path(path_str))
 
@@ -57,14 +58,19 @@ def game_art_icon(path: Path, fallback):
     Qt is imported only when the GUI requests an icon. The source art is kept
     untouched, and the normalized result is cached in memory by timestamp.
     """
-    if not path.is_file():
-        return fallback
     try:
+        from ui.widgets.artwork_cache import file_revision, cached_pixmap
+        revision = file_revision(path)
+        if revision is None:
+            return fallback
         from PySide6.QtGui import QIcon, QPixmap
-        info = path.stat()
-        png_bytes = _cached_normalized_icon(str(path), info.st_mtime_ns, info.st_size)
-        pix = QPixmap()
-        if pix.loadFromData(png_bytes, "PNG") and not pix.isNull():
+        def load():
+            png_bytes = _cached_normalized_icon(*revision)
+            pix = QPixmap()
+            pix.loadFromData(png_bytes, "PNG")
+            return pix
+        pix = cached_pixmap(revision, ("normalized-icon", NORMALIZED_SIZE), load)
+        if not pix.isNull():
             return QIcon(pix)
     except (OSError, ValueError, ImportError, RuntimeError):
         pass

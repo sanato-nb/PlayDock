@@ -6,9 +6,10 @@ moves archives, alters installations, or requires network / API calls.
 from __future__ import annotations
 
 from pathlib import Path
+from ui.widgets.artwork_cache import artwork_pixmap, TILE_MAX_EDGE
 
 from PySide6.QtCore import Qt, QRectF, QRect, QEvent, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap, QLinearGradient, QPen, QBrush
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QLinearGradient, QPen, QBrush
 from PySide6.QtWidgets import (
     QWidget, QFrame, QScrollArea, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QPushButton, QMenu,
@@ -34,8 +35,15 @@ class ArtworkTile(QPushButton):
         self.title = title
         self.count = count
         self.is_create = is_create
-        self.artwork = [QPixmap(str(p)) for p in artwork[:5] if p.is_file()]
-        self.artwork = [img for img in self.artwork if not img.isNull()]
+        self.artwork = []
+        # Only four images can be painted. Retain the fifth as a fallback
+        # when an earlier file is missing or invalid.
+        for path in artwork[:5]:
+            image = artwork_pixmap(path, max_edge=TILE_MAX_EDGE)
+            if not image.isNull():
+                self.artwork.append(image)
+                if len(self.artwork) == 4:
+                    break
         self.palette = PALETTES[index % len(PALETTES)]
         self.setFixedSize(186, 220)
         self.setCursor(Qt.CursorShape.PointingHandCursor)

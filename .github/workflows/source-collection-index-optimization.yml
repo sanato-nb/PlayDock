@@ -1,13 +1,5 @@
 name: PlayDock 대량 게임 모음집 인덱스 최적화 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - .github/workflows/source-collection-index-optimization.yml
-      - tests/audit/test_collection_index_optimization.py
-      - src/playdock/models/library_tree.py
-      - src/playdock/models/collection_board.py
-      - src/playdock/ui/collection_board.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +14,8 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: dff8315eeb57a3abc8415e0236a8401a2e64cec6
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
