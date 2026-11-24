@@ -1,25 +1,12 @@
 """PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
 from __future__ import annotations
 
-import os
-import subprocess
-import weakref
 from pathlib import Path
-from functools import lru_cache
-from time import monotonic
 import sys
-import traceback
-import webbrowser
 
-from PySide6.QtCore import Qt, QThread, Signal, QSize, QFileInfo, QTimer, QPoint, QRect, QRectF, QPointF, QObject, QEvent
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap, QLinearGradient, QPen, QBrush, QPainterPath, QCursor
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel,
-    QPushButton, QLineEdit, QListWidget, QListWidgetItem, QFileDialog,
-    QSplitter, QScrollArea, QProgressBar, QDialog, QFormLayout, QCheckBox,
-    QDialogButtonBox, QFileIconProvider, QAbstractItemView, QSizePolicy, QMenu,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QStackedWidget, QComboBox, QTabWidget,
-)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog
 
 
 # Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.

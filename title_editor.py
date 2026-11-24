@@ -7,19 +7,11 @@ from __future__ import annotations
 
 import sys
 import argparse
-import weakref
-from urllib.parse import urlencode
-from time import sleep
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, QThread, Signal, QTimer, QObject, QEvent
-from PySide6.QtGui import QIcon, QDesktopServices
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-    QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QFrame,
-    QMessageBox, QSplitter, QDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QProgressBar, QStackedWidget, QScrollArea, QCheckBox,
-)
+from PySide6.QtCore import Signal, QTimer
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 
 # Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.
