@@ -17,9 +17,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core import (Library, install, archive_requires_password, uninstall_target,
                   ArchivePasswordRequired, Game, _unpack_rar)
 from data_management import backup_data, inspect_backup
-from library_tree import make_sidebar_groups
-from save_backups import create_save_backup, restore_save_backup
-from launch_options import parse_game_arguments
+from models.library_tree import make_sidebar_groups
+from services.save_backups import create_save_backup, restore_save_backup
+from services.launch_options import parse_game_arguments
 from artwork import discover_local
 
 

@@ -58,7 +58,7 @@ def installed_database_path(folder: str | Path) -> Path | None:
     if not root.is_dir() or root.is_symlink() or root.is_junction():
         return None
     # Imported lazily so the scanner can use this module without Qt.
-    from local_storage import marker_is_valid
+    from storage.local import marker_is_valid
     if not marker_is_valid(root):
         return None
     data_dir = root / "data"

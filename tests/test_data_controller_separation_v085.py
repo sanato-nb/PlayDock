@@ -9,7 +9,7 @@ from data_management import backup_data as old_backup, _data_paths
 from services.cache_service import CacheService, image_stats, recycle_images
 from services.data_service import backup_data, inspect_backup
 from controllers.data_manager import DataManagementController
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 
 
 ROOT = Path(__file__).resolve().parents[1]

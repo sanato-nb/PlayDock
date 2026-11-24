@@ -6,7 +6,7 @@ from pathlib import Path
 from PySide6.QtCore import QThread, Signal
 
 from core import Game, install, uninstall_to_recycle_bin
-from save_backups import create_save_backup, restore_save_backup
+from services.save_backups import create_save_backup, restore_save_backup
 
 
 class InstallThread(QThread):

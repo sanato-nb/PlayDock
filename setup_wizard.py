@@ -26,11 +26,11 @@ _playdock_source = _playdock_Path(__file__).resolve().parent / "src" / "playdock
 if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path:
     _playdock_sys.path.insert(0, str(_playdock_source))
 
-from setup_paths import proposed_paths, normalize_paths, save_folder_settings, config_path
+from storage.setup_paths import proposed_paths, normalize_paths, save_folder_settings, config_path
 from native_caption import darken_tk_root
 from install_management import (UNINSTALL_EXE, app_install_directory, register_uninstall_entry,
                                 normalize_program_path, same_path, shortcut_points_to, LEGACY_BINARIES)
-from local_storage import (legacy_data_dir, program_store, migrate_legacy_data,
+from storage.local import (legacy_data_dir, program_store, migrate_legacy_data,
                            write_install_marker, marker_is_valid, LEGACY_INSTALL_MARKER, LEGACY_MARKER_ID)
 
 APP = "PlayDock"

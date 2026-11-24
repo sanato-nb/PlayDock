@@ -9,7 +9,7 @@ from datetime import datetime
 import shutil
 
 from game_identity import GameIdentity, initial_identity
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from product_titles import extract_code
 from online_artwork import save_selected_art
 

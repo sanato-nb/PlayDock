@@ -9,7 +9,7 @@ import webbrowser
 from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
-from simple_title_edit import save_display_title
+from services.simple_title_edit import save_display_title
 from title_editor import TitleEditor
 from ui.dialogs.title import BulkTitleSettingsDialog
 from workers.work_lookup import WorkLookupThread

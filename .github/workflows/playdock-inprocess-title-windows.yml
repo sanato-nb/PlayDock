@@ -25,7 +25,7 @@ on:
       - "tests/test_popup_menus.py"
       - "tests/test_ui_polish.py"
       - "tests/test_collected_game_workflow_v3.py"
-      - "src/playdock/simple_title_edit.py"
+      - "src/playdock/services/simple_title_edit.py"
       - "src/playdock/ui/dialogs/identity_artwork.py"
       - "tests/test_identity_artwork_checkboxes.py"
       - "src/playdock/services/data_service.py"

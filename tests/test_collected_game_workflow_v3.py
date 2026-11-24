@@ -16,7 +16,7 @@ from services.catalog_collection_service import CatalogEntry, CatalogCollector
 from workers.identity_artwork import IdentityArtworkThread
 from services.bulk_title_service import BulkTitleActions
 from workers.title import BulkTitleWorker
-from simple_title_edit import save_display_title, restore_filename_title
+from services.simple_title_edit import save_display_title, restore_filename_title
 from controllers.metadata import MetadataControllerMixin
 
 

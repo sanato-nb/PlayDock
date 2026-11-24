@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from collection_board_model import list_collection_cards, member_games
+from models.collection_board import list_collection_cards, member_games
 
 
 def fake_games(*ids):

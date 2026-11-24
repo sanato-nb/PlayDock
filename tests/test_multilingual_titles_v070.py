@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from core import Library, Game, load_json
-from localized_titles import (
+from services.localized_titles import (
     is_code_only_title, lookup_localized_title, language_is_plausible,
     localized_title_for, display_language_for,
 )

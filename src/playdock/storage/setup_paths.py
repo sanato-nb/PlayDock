@@ -8,7 +8,7 @@ import tempfile
 
 
 def config_path() -> Path:
-    from local_storage import data_dir
+    from storage.local import data_dir
     return data_dir() / 'settings.json'
 
 

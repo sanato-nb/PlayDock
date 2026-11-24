@@ -8,13 +8,13 @@ import sys
 from ui.dialogs.common import PlayDockFileDialog as QFileDialog
 
 from core import uninstall_target, executable_candidates, chosen_executable, archive_requires_password
-from launch_approval import (
+from services.launch_approval import (
     needs_launch_confirmation,
     launch_approval_changes,
     executable_selection_changes,
 )
 from artwork import save_image
-from launch_options import parse_game_arguments
+from services.launch_options import parse_game_arguments
 
 
 from ui.dialogs.common import ask_text, ask_choice, ask_yes_no, show_message, ask_archive_password

@@ -18,3 +18,6 @@
 
 ## 검증
 6개 본체 소스만 변경. 정적 감사에서 제거 심볼/생성 요청 경로의 잔존 여부 확인, 필수 텍스트 AI와 이미지 저장·탐색 함수 AST 동일 확인, 나머지 본체 및 실험 SHA 보존. 전체 Windows 회귀 테스트 실행. 검증 전 main 병합 금지. 역사적 1-B/2-B 전용 검증은 원래 커밋에 고정하였다.
+
+## 최종 검증
+초기 감사의 image_bytes 용량 집계 오탐 보완 후 [Windows 재검증](https://github.com/sanato-nb/PlayDock/actions/runs/45341397614) 1100 passed, 1 skipped. 171줄 순감소, 필수 AST 보존, 완료.

@@ -8,7 +8,7 @@ from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
     QListWidget, QFrame, QSplitter, QStackedWidget, QScrollArea,
 )
-from localized_titles import LANGUAGES
+from services.localized_titles import LANGUAGES
 from ui.selectors import DarkMenuSelect
 
 

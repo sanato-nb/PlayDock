@@ -22,14 +22,14 @@ if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path
     _playdock_sys.path.insert(0, str(_playdock_source))
 
 from core import Library
-from simple_title_edit import save_display_title, undo_display_title, restore_filename_title, title_history
-from bulk_title_edit import BulkChange, replace_name, name_was_manually_changed, apply_bulk_changes, preview_undo_name
+from services.simple_title_edit import save_display_title, undo_display_title, restore_filename_title, title_history
+from services.bulk_title_edit import BulkChange, replace_name, name_was_manually_changed, apply_bulk_changes, preview_undo_name
 from product_titles import extract_code, display_title, lookup_title
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from artwork import ai_game_title, get_secret
 from ai_providers import PROVIDERS, current_provider, current_models
 from native_caption import windows_dark_caption
-from localized_titles import (
+from services.localized_titles import (
     LANGUAGES, is_code_only_title, lookup_localized_title,
     display_language_for, language_is_plausible,
 )

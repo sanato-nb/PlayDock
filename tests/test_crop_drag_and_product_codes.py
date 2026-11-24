@@ -10,7 +10,7 @@ from PIL import Image
 import pytest
 
 from core import Library
-from game_codes import normalize_code, find_code, effective_product_code, title_with_code
+from models.game_codes import normalize_code, find_code, effective_product_code, title_with_code
 from online_artwork import crop_pan_center, crop_png
 
 

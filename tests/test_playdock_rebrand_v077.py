@@ -7,13 +7,13 @@ import zipfile
 
 import pytest
 
-from local_storage import (LEGACY_INSTALL_MARKER, LEGACY_MARKER_ID, INSTALL_MARKER,
+from storage.local import (LEGACY_INSTALL_MARKER, LEGACY_MARKER_ID, INSTALL_MARKER,
                            marker_is_valid, data_dir_for_executable, write_install_marker)
 import install_management as mgr
 import ai_providers as ai
 from data_management import backup_data, inspect_backup, restore_data
 from core import Library
-from save_backups import create_save_backup, restore_save_backup
+from services.save_backups import create_save_backup, restore_save_backup
 
 
 def test_release_names_and_build_payload():

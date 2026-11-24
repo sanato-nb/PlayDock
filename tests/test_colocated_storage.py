@@ -5,12 +5,12 @@ import sys
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from local_storage import (data_dir_for_executable, legacy_data_dir, marker_is_valid,
+from storage.local import (data_dir_for_executable, legacy_data_dir, marker_is_valid,
                            migrate_legacy_data, program_store, write_install_marker)
 from install_management import normalize_program_path
-from setup_paths import save_folder_settings
+from storage.setup_paths import save_folder_settings
 from core import Library
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 
 
 def test_only_marked_frozen_app_uses_colocated_data(tmp_path, monkeypatch):

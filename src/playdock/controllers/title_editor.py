@@ -11,16 +11,16 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QDialog
 
-from simple_title_edit import (
+from services.simple_title_edit import (
     save_display_title,
     undo_display_title,
     restore_filename_title,
     title_history,
 )
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from artwork import get_secret
 from ai_providers import PROVIDERS, current_provider, current_models
-from localized_titles import LANGUAGES, is_code_only_title
+from services.localized_titles import LANGUAGES, is_code_only_title
 
 
 from workers.title import TitleWorker, BulkTitleWorker
@@ -64,7 +64,7 @@ class TitleEditorActionsMixin:
         if not game:
             self.simple_preview.clear()
             return
-        from game_codes import title_with_code
+        from models.game_codes import title_with_code
         preview = title_with_code(text.strip() or game.name, self.library.product_code(game))
         self.simple_preview.setText('저장 후 표시: ' + preview)
         changed = text.strip() != self.library.base_title(game)
@@ -86,7 +86,7 @@ class TitleEditorActionsMixin:
             label = previous.get('title') or game.name
         else:
             meta = self.library.meta(game)
-            from localized_titles import localized_title_for
+            from services.localized_titles import localized_title_for
             previous_meta = dict(meta, **previous)
             label = localized_title_for(previous_meta, self.library.settings,
                 original_name=game.name, product_code=self.library.product_code(game)) or previous.get('title') or game.name

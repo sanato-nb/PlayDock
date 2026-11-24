@@ -14,11 +14,11 @@ import re
 import zipfile
 
 from core import Library, Game
-from simple_title_edit import (
+from services.simple_title_edit import (
     MAX_TITLE_HISTORY, SNAPSHOT_FIELDS, title_history, save_display_title,
     restore_filename_title, undo_display_title,
 )
-from localized_titles import LANGUAGES, language_is_plausible
+from services.localized_titles import LANGUAGES, language_is_plausible
 
 
 @dataclass
@@ -93,8 +93,8 @@ def preview_undo_name(library: Library, game: Game) -> str | None:
         return None
     previous = history[-1]
     old_meta = dict(library.meta(game), **previous)
-    from localized_titles import localized_title_for
-    from game_codes import title_with_code
+    from services.localized_titles import localized_title_for
+    from models.game_codes import title_with_code
     if old_meta.get('prefer_manual_title') and old_meta.get('title'):
         name = str(old_meta['title'])
     else:

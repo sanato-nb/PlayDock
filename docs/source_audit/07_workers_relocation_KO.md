@@ -16,3 +16,6 @@
 검증: 이동 파일 SHA 동일, 다른 본체와 실험 파일 보존, 본체 호출부가 지정 import 변경만 포함하는지 비교, 저장소 Python/빌드의 이전 경로 검사, 전체 Windows 테스트 및 EXE 빌드. 최종 결과 확인 전 main 병합하지 않는다.
 
 2-C의 초기 감사 실패는 실제 캐시 용량 필드 image_bytes에 대한 오탐이었다. 호출/정의/import만 검사하도록 수정했으며, 프로그램 데이터 및 캐시 필드는 보존했다. 재검증 실행: https://github.com/sanato-nb/PlayDock/actions/runs/45341397614
+
+## 최종 검증
+[Windows 실행 45341626047](https://github.com/sanato-nb/PlayDock/actions/runs/45341626047): SHA 일치, 이전 참조 0, services QThread 상속 0, 1100 passed, 1 skipped, EXE 빌드 성공. 3-A 완료.

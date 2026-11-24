@@ -8,12 +8,12 @@ from PIL import Image
 
 from core import Game, Library
 from game_identity import GameIdentity
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 from online_artwork import Candidate
 from services.artwork_service import ArtworkActions
 from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from services.collection_service import CollectionMembershipActions
-from collection_board_model import unassigned_games
+from models.collection_board import unassigned_games
 
 
 ROOT = Path(__file__).resolve().parents[1] / "src" / "playdock"

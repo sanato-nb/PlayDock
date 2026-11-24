@@ -9,7 +9,7 @@ from services.launch_service import executable_candidates
 
 
 def data_dir() -> Path:
-    from local_storage import data_dir as app_data_dir
+    from storage.local import data_dir as app_data_dir
     return app_data_dir()
 
 def default_library() -> Path:
@@ -188,7 +188,7 @@ class Library:
 
     def base_title(self, game: Game) -> str:
         """Raw user-visible name, without the optional product-code overlay."""
-        from localized_titles import localized_title_for
+        from services.localized_titles import localized_title_for
         meta = self.meta(game)
         translated = localized_title_for(meta, self.settings, original_name=game.name,
                                           product_code=self.product_code(game))
@@ -201,17 +201,17 @@ class Library:
         return str(meta.get("title") or game.name)
 
     def product_code(self, game: Game) -> str:
-        from game_codes import effective_product_code
+        from models.game_codes import effective_product_code
         meta = self.meta(game)
         return effective_product_code(meta, game.name,
                                       game.archive.name if game.archive else '')
 
     def set_product_code(self, game: Game, code: str | None) -> None:
-        from game_codes import normalize_code
+        from models.game_codes import normalize_code
         # An explicit blank overrides any guessed/file-name code, but does not
         # delete the game or affect archive names, installs, or collections.
         self.update_meta(game, product_code=normalize_code(code))
 
     def title(self, game: Game) -> str:
-        from game_codes import title_with_code
+        from models.game_codes import title_with_code
         return title_with_code(self.base_title(game), self.product_code(game))

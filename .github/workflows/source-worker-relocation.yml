@@ -1,11 +1,5 @@
 name: PlayDock 작업 스레드 계층 분리 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - scripts/audit_worker_relocation.py
-      - .github/workflows/source-worker-relocation.yml
-      - src/playdock/workers/**
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: 1c3fe1567eefadabb83039cf3491e075a3ed8e2a
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

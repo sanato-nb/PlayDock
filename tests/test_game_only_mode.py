@@ -5,7 +5,7 @@ _ui_main = launcher_source()
 
 
 from core import Library
-from library_tree import make_sidebar_groups
+from models.library_tree import make_sidebar_groups
 
 
 def test_game_only_no_classifier_and_all_records_visible(tmp_path):

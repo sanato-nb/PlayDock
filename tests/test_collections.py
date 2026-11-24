@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 from core import Library, save_json
 from test_core import new_library, write_zip
 

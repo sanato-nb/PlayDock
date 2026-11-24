@@ -17,19 +17,19 @@ if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path
     _playdock_sys.path.insert(0, str(_playdock_source))
 
 from core import Game, Library, load_json, install, uninstall_target, uninstall_to_recycle_bin, executable_candidates, chosen_executable, archive_requires_password, ArchivePasswordRequired, ArchivePasswordInvalid
-from launch_approval import needs_launch_confirmation, launch_approval_changes, executable_selection_changes
-from game_collections import CollectionStore
-from game_icons import game_art_icon
+from services.launch_approval import needs_launch_confirmation, launch_approval_changes, executable_selection_changes
+from storage.collections import CollectionStore
+from ui.widgets.game_icons import game_art_icon
 from cache_management import image_stats, recycle_images
 from data_management import inventory, backup_data, inspect_backup, restore_data
 from ui.collection_board import CollectionBoard
-from library_tree import make_sidebar_groups
+from models.library_tree import make_sidebar_groups
 from artwork import get_secret, set_secret, save_image, discover_local
 from ui.selectors import DarkMenuSelect
-from setup_paths import save_folder_settings, proposed_paths
+from storage.setup_paths import save_folder_settings, proposed_paths
 from native_caption import windows_dark_caption
-from launch_options import parse_game_arguments
-from save_backups import create_save_backup, restore_save_backup
+from services.launch_options import parse_game_arguments
+from services.save_backups import create_save_backup, restore_save_backup
 from work_db import WorkDatabase
 from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
 

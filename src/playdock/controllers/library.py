@@ -14,9 +14,9 @@ from PySide6.QtWidgets import (
 )
 
 from core import Game, Library, load_json, chosen_executable
-from game_collections import CollectionStore
-from game_icons import game_art_icon
-from library_tree import make_sidebar_groups
+from storage.collections import CollectionStore
+from ui.widgets.game_icons import game_art_icon
+from models.library_tree import make_sidebar_groups
 from artwork import discover_local
 
 

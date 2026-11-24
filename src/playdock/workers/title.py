@@ -15,7 +15,7 @@ from PySide6.QtCore import QThread, Signal
 from product_titles import display_title, lookup_title
 from artwork import ai_game_title, get_secret
 from ai_providers import PROVIDERS
-from localized_titles import lookup_localized_title
+from services.localized_titles import lookup_localized_title
 from title_translation import translate_work_title
 from korean_title_search import find_korean_titles
 

@@ -8,7 +8,7 @@ from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
 import json
 import re
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from product_titles import clean_title
 
 CATEGORIES = ('maniax', 'home', 'soft', 'girls', 'pro')

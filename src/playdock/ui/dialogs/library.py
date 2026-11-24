@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
 )
 
 from core import Game, Library
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 from services.collection_service import CollectionMembershipActions
 from services.cache_service import CacheService
 from services.settings_service import save_folder_settings, proposed_paths

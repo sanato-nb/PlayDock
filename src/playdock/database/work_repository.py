@@ -14,7 +14,7 @@ import sqlite3
 import uuid
 
 from database.official_catalog import _valid_identity, legacy_catalog_path
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from product_titles import clean_title
 from integrations.dlsite_client import (
     LOCALES, MAX_TAGS, MAX_IMAGES, _timestamp, _safe_text, _safe_dlsite_url,

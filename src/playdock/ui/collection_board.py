@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QMenu,
 )
 
-from collection_board_model import list_collection_cards, member_games, unassigned_games
+from models.collection_board import list_collection_cards, member_games, unassigned_games
 
 PALETTES = [
     ("#294a67", "#47677e"), ("#35445c", "#665069"),

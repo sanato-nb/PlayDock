@@ -4,7 +4,7 @@ import sys
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from launch_approval import (
+from services.launch_approval import (
     APPROVED_EXE_KEY, executable_identity, needs_launch_confirmation,
     launch_approval_changes, executable_selection_changes,
 )

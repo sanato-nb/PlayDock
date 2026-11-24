@@ -33,7 +33,7 @@ echo [3/7] Running unit tests (must pass before packaging)...
 if errorlevel 1 goto FAILED
 
 echo [4/7] Building application EXE...
-"%PY%" -m PyInstaller --noconfirm --clean --paths "src\playdock" --onefile --windowed --name "PlayDock" --icon "assets\playdock.ico" --collect-all keyring --collect-all pyzipper --collect-all send2trash --hidden-import game_codes --add-data "assets\playdock.ico;assets" app.py
+"%PY%" -m PyInstaller --noconfirm --clean --paths "src\playdock" --onefile --windowed --name "PlayDock" --icon "assets\playdock.ico" --collect-all keyring --collect-all pyzipper --collect-all send2trash --hidden-import models.game_codes --add-data "assets\playdock.ico;assets" app.py
 if errorlevel 1 goto FAILED
 
 if errorlevel 1 goto FAILED

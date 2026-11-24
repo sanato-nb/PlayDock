@@ -30,7 +30,7 @@ from core import Library
 from database.work_repository import WorkDatabase
 from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from native_caption import windows_dark_caption
-from localized_titles import LANGUAGES, is_code_only_title
+from services.localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
 
 
@@ -362,7 +362,7 @@ class BulkTitleSettingsDialog(QDialog):
     def refilter(self, *_args):
         query = self.filter_edit.text().casefold().strip()
         scope = self.scope.currentData()
-        from localized_titles import is_code_only_title
+        from services.localized_titles import is_code_only_title
         for i, game in enumerate(self.games):
             matched = (not query or query in (self.library.title(game) + ' ' + game.name + ' ' +
                             self.library.product_code(game)).casefold())
