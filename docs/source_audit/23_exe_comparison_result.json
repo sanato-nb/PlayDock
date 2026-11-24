@@ -1,0 +1,25 @@
+{
+  "run": 45362166842,
+  "artifact": 14904489200,
+  "baseline": "af10566aeb5a066ac5ee9beb9565823b73895002",
+  "optimized": "ef899eb9f2d80449f1cbf903383a3d47835bb672",
+  "bytes": {
+    "baseline": [
+      76611571,
+      99001370,
+      11518502
+    ],
+    "optimized": [
+      67711181,
+      90137346,
+      11517563
+    ]
+  },
+  "files": [
+    "PlayDock.exe",
+    "PlayDock_Setup.exe",
+    "PlayDock_Uninstall.exe"
+  ],
+  "startup_status": "failed",
+  "startup_error": "No responsive visible PlayDock window within 90s; interactive Windows desktop required"
+}

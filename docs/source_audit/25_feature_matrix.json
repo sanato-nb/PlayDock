@@ -1,0 +1,121 @@
+{
+  "baseline": "024eccfcc0047790b2d6b8b7754ae6b49bd3de7f",
+  "groups": [
+    {
+      "id": "library",
+      "name": "게임 목록·검색·정렬·모음집",
+      "files": [
+        "tests/test_core.py",
+        "tests/test_game_only_mode.py",
+        "tests/test_collections.py",
+        "tests/test_library_tree.py",
+        "tests/test_collection_board.py",
+        "tests/audit/test_collection_index_optimization.py",
+        "tests/audit/test_title_read_optimization.py",
+        "tests/audit/test_startup_scan_optimization.py"
+      ]
+    },
+    {
+      "id": "archive",
+      "name": "ZIP·7z·RAR·암호화 압축",
+      "files": [
+        "tests/test_core.py",
+        "tests/test_password_archives.py",
+        "tests/test_7z_optional.py"
+      ]
+    },
+    {
+      "id": "launch",
+      "name": "설치·실행·실행 옵션·제거",
+      "files": [
+        "tests/test_core.py",
+        "tests/test_launch_approval.py",
+        "tests/test_upgrade_v060.py",
+        "tests/test_game_only_mode.py"
+      ]
+    },
+    {
+      "id": "collect",
+      "name": "게임 정보 수집·제외 프롬프트",
+      "files": [
+        "tests/test_catalog_collection_v3.py",
+        "tests/test_catalog_preflight_ai_handoff.py",
+        "tests/test_collected_game_workflow_v3.py",
+        "tests/test_playdock_official_import.py",
+        "tests/test_official_catalog.py",
+        "tests/audit/test_code_only_production.py",
+        "tests/audit/test_dlsite_steam_priority_production.py"
+      ]
+    },
+    {
+      "id": "db",
+      "name": "공식 작품 DB 및 연결",
+      "files": [
+        "tests/test_work_database_v080.py",
+        "tests/test_shared_db_location_v3.py",
+        "tests/test_playdock_official_import.py",
+        "tests/audit/test_linked_read_optimization.py",
+        "tests/audit/test_bulk_db_optimization.py"
+      ]
+    },
+    {
+      "id": "title",
+      "name": "수동 이름·공식 이름·복원",
+      "files": [
+        "tests/test_simple_title_editor_v073.py",
+        "tests/test_bulk_title_edit_v076.py",
+        "tests/test_multilingual_titles_v070.py",
+        "tests/test_title_editor_inprocess.py",
+        "tests/test_collected_game_workflow_v3.py"
+      ]
+    },
+    {
+      "id": "art",
+      "name": "배너·아이콘·공식 이미지",
+      "files": [
+        "tests/test_identity_artwork_checkboxes.py",
+        "tests/test_game_icons.py",
+        "tests/test_crop_drag_and_product_codes.py",
+        "tests/test_online_artwork.py",
+        "tests/audit/test_artwork_cache_optimization.py"
+      ]
+    },
+    {
+      "id": "data",
+      "name": "설정·데이터 관리·백업 복원",
+      "files": [
+        "tests/test_data_management.py",
+        "tests/test_data_controller_separation_v085.py",
+        "tests/test_colocated_storage.py",
+        "tests/test_top_settings_and_db_status.py",
+        "tests/test_setup.py",
+        "tests/audit/test_retired_save_cleanup.py"
+      ]
+    },
+    {
+      "id": "ui",
+      "name": "메뉴·활성화·파일 선택창",
+      "files": [
+        "tests/test_feature_menu_cleanup_v4.py",
+        "tests/test_popup_menus.py",
+        "tests/test_dark_dialog_titles.py",
+        "tests/test_ui_layout.py",
+        "tests/test_ui_polish.py",
+        "tests/audit/test_usage_routes.py"
+      ]
+    },
+    {
+      "id": "release",
+      "name": "설치기·제거기·공개 배포",
+      "files": [
+        "tests/test_installer_flow.py",
+        "tests/test_uninstaller_release.py",
+        "tests/test_uninstall.py",
+        "tests/test_public_release.py",
+        "tests/test_release_script_paths.py",
+        "tests/test_playdock_rebrand_v077.py",
+        "tests/audit/test_minimal_runtime_dependencies.py"
+      ]
+    }
+  ]
+}

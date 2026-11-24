@@ -1,0 +1,44 @@
+name: PlayDock 전체 기능별 최종 회귀 검증
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/report_feature_matrix.py
+      - docs/source_audit/25_feature_matrix.json
+      - .github/workflows/source-final-feature-review.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 최종 의존성 및 구문 검사
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m compileall -q app.py title_editor.py src/playdock
+          exit $LASTEXITCODE
+      - name: 전체 기능 회귀 테스트 및 JUnit 기록
+        run: python -m pytest -q --junitxml=final-evidence/tests.xml
+      - name: 기능별 검증 결과 분류
+        if: always()
+        run: python scripts/report_feature_matrix.py final-evidence/tests.xml final-evidence/feature_matrix.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-final-feature-evidence
+          path: final-evidence/*

@@ -116,8 +116,8 @@ def verify(source,root,dist,out):
     check()
     # Invoke the actual installer business path; isolate host registry/shortcuts.
     class Wizard:
-        install_archive=str(root/"archives")
-        install_game_dir=str(root/"games")
+        install_archive=lib.settings["archives"]
+        install_game_dir=lib.settings["library"]
         install_program_dir=program
         install_desktop=False
         messages=queue.Queue()
@@ -147,7 +147,13 @@ def verify(source,root,dist,out):
     # Settings are rewritten atomically; compare JSON meaning and other files by SHA.
     old_settings=lib.settings.copy()
     lib=Library(data)
-    assert lib.settings==old_settings
+    # Windows short/long path spellings may differ; compare actual resolved paths.
+    # All other setting values must remain exactly identical.
+    actual_settings=lib.settings.copy()
+    for key in ("archives","library"):
+        assert Path(actual_settings[key]).resolve()==Path(old_settings[key]).resolve(), key
+        actual_settings[key]=old_settings[key]
+    assert actual_settings==old_settings, (old_settings,actual_settings)
     after=snapshot(data)
     assert {k:v for k,v in after.items() if k!="settings.json"}=={k:v for k,v in before.items() if k!="settings.json"}
     before=after
