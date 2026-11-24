@@ -1,4 +1,5 @@
 """Start a real frozen launcher in temporary isolated data, without installing."""
+from contextlib import closing
 import json
 import os
 from pathlib import Path
@@ -29,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix="playdock-frozen-smoke-") as folder:
                 raise RuntimeError(f"Launcher exited: {process.returncode}")
             if (data/"playdock.db").is_file():
                 try:
-                    with sqlite3.connect(data/"playdock.db") as conn:
+                    with closing(sqlite3.connect(data/"playdock.db")) as conn:
                         ready=conn.execute("PRAGMA user_version").fetchone()[0]==3
                     if ready:
                         break
