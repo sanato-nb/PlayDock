@@ -5,7 +5,6 @@ from io import BytesIO
 import json
 import os
 from pathlib import Path
-import re
 import urllib.error
 import urllib.request
 import zipfile
@@ -13,7 +12,8 @@ import zipfile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from core import Game, Library
-from ai_providers import (get_secret, set_secret, provider_details, recommend_title)
+from ai_providers import (get_secret, set_secret, provider_details, recommend_title,
+                          _extract_json as _decode_json)
 
 Image.MAX_IMAGE_PIXELS = 90_000_000
 OPENAI_URL = "https://api.openai.com/v1/responses"
@@ -47,13 +47,6 @@ def request_json(url: str, api_key: str, payload: dict, max_bytes: int = 2 * 102
 def _openai_text(data: dict) -> str:
     return "".join(item.get("text", "") for output in data.get("output", [])
                    for item in output.get("content", []) if item.get("type") == "output_text")
-
-
-def _decode_json(text: str) -> dict:
-    text = text.strip()
-    if text.startswith("```"):
-        text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.I)
-    return json.loads(text)
 
 
 def ai_game_title(raw: str, api_key: str, provider: str = "openai", model: str | None = None) -> str:

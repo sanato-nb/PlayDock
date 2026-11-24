@@ -8,6 +8,12 @@ import re
 
 PRODUCT_ID = re.compile(r'(?<![A-Z0-9])((?:RJ|VJ|BJ|EJ)\d{6,8})(?![A-Z0-9])', re.I)
 
+# Explicit Steam markers; do not interpret a bare version/build as an App ID.
+STEAM_MARKED = re.compile(
+    r"(?i)(?<![a-z0-9])(?:steam(?:[\s_-]*(?:app[\s_-]*id|id))?"
+    r"|app[\s_-]*id)[\s:=#_-]*([1-9]\d{2,9})(?![a-z0-9])"
+)
+
 
 def normalize_code(value: str | None) -> str:
     """Return a clean RJ/VJ/BJ/EJ code or raise for invalid nonblank input."""

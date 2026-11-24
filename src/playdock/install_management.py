@@ -106,6 +106,7 @@ def normalize_program_path(program: Path | str, archive: Path, games: Path) -> P
 
 
 def desktop_directory() -> Path:
+    """Use the user's Windows Desktop known-folder (including redirects)."""
     if sys.platform == "win32":
         try:
             import ctypes

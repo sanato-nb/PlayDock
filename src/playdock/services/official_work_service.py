@@ -6,10 +6,7 @@ from __future__ import annotations
 import re
 from database.official_catalog import _valid_identity
 
-STEAM_MARKED = re.compile(
-    r"(?i)(?<![a-z0-9])(?:steam(?:[\s_-]*(?:app[\s_-]*id|id))?"
-    r"|app[\s_-]*id)[\s:=#_-]*([1-9]\d{2,9})(?![a-z0-9])"
-)
+from models.game_codes import STEAM_MARKED
 
 
 def explicit_work_identity(library, game):

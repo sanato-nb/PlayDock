@@ -25,10 +25,7 @@ MAX_CODES_PER_ITEM = 12
 
 # Steam ID는 명시된 경우에만 추출. 일반 버전·빌드번호는 ID로 오인하지 않는다.
 # Steam 1091500 / SteamAppID=1091500 / Steam ID 1091500 / AppID: 1091500
-STEAM_MARKED = re.compile(
-    r"(?i)(?<![a-z0-9])(?:steam(?:[\s_-]*(?:app[\s_-]*id|id))?"
-    r"|app[\s_-]*id)[\s:=#_-]*([1-9]\d{2,9})(?![a-z0-9])"
-)
+from models.game_codes import STEAM_MARKED
 
 
 @dataclass(frozen=True)
