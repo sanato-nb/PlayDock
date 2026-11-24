@@ -25,8 +25,7 @@ from PySide6.QtWidgets import (
 
 from core import Game, Library
 from game_collections import CollectionStore
-from cache_management import image_stats, recycle_images
-from data_management import inventory, backup_data, inspect_backup, restore_data
+from services.cache_service import CacheService
 from ui.selectors import DarkMenuSelect
 from services.settings_service import (
     PROVIDERS, current_provider, load_provider_preferences,
@@ -231,9 +230,10 @@ class GameCollectionsDialog(ThemedDialog):
 class CacheManagerDialog(ThemedDialog):
     """Manage artwork cache only, without deleting game metadata or settings."""
 
-    def __init__(self, library: Library, games: list[Game], parent=None):
+    def __init__(self, library: Library, games: list[Game], parent=None, *, actions=None):
         super().__init__("이미지 캐시 관리", parent, 610)
         self.library = library
+        self.actions = actions if actions is not None else CacheService(library.cache)
         self.games = list(games)
         heading = QLabel("이미지 캐시 관리")
         heading.setObjectName("Heading")
@@ -305,12 +305,12 @@ class CacheManagerDialog(ThemedDialog):
         return item.data(Qt.ItemDataRole.UserRole) if item and not item.isHidden() else None
 
     def refresh(self, *_args):
-        overall = image_stats(self.library.cache)
+        overall = self.actions.image_stats()
         self.summary.setText(
             f"이미지 캐시: {overall.files}개 · {friendly_bytes(overall.bytes)}"
         )
         cid = self.selected_game_id()
-        selected = image_stats(self.library.cache, [cid]) if cid else None
+        selected = self.actions.image_stats([cid]) if cid else None
         self.selected_size.setText(
             f"선택 게임: {selected.files}개 · {friendly_bytes(selected.bytes)}"
             if selected else "정리할 게임을 선택해 주세요."
@@ -327,7 +327,7 @@ class CacheManagerDialog(ThemedDialog):
         self.clear_images(None)
 
     def clear_images(self, ids):
-        stats = image_stats(self.library.cache, ids)
+        stats = self.actions.image_stats(ids)
         if not stats.files:
             show_message(self, "이미지 캐시", "정리할 이미지 파일이 없습니다.")
             return
@@ -337,7 +337,7 @@ class CacheManagerDialog(ThemedDialog):
               "정리", "취소"):
             return
         try:
-            result = recycle_images(self.library.cache, ids)
+            result = self.actions.recycle_images(ids)
         except Exception as exc:
             show_message(self, "정리 실패", f"이미지 이동에 실패했습니다.\n{exc}")
             self.refresh()
@@ -361,6 +361,7 @@ class DataManagerDialog(ThemedDialog):
     def __init__(self, parent):
         super().__init__("라이브러리 데이터 관리", parent, 690)
         self.owner = parent
+        self.actions = parent.data_actions
         self.setMinimumWidth(690)
         heading = QLabel("라이브러리 데이터 관리")
         heading.setObjectName("Heading")
@@ -475,10 +476,7 @@ class DataManagerDialog(ThemedDialog):
         layout.addStretch(1)
 
     def refresh_all(self):
-        lib = self.owner.library
-        games = self.owner.games
-        cols = self.owner.collections
-        stats = inventory(lib, games, cols)
+        stats = self.actions.inventory()
         self.inventory_label.setText(
             f"현재 게임 목록: {stats.games}개\n"
             f"설치된 게임: {stats.installed}개 · 압축파일 있는 게임: {stats.archives}개\n"
@@ -486,7 +484,7 @@ class DataManagerDialog(ThemedDialog):
             f"(현재 목록에 없는 연결 {stats.missing_memberships}개)"
         )
         self.collection_list.clear()
-        for col in cols.list():
+        for col in self.actions.list_collections():
             item = QListWidgetItem(f"{col['name']}  ({len(col['game_ids'])}개 게임)")
             item.setData(Qt.ItemDataRole.UserRole, col['id'])
             self.collection_list.addItem(item)
@@ -502,7 +500,7 @@ class DataManagerDialog(ThemedDialog):
         )
 
     def rescan(self):
-        self.owner.reload()
+        self.actions.rescan()
         self.refresh_all()
 
     def _selected_collection(self):
@@ -517,8 +515,7 @@ class DataManagerDialog(ThemedDialog):
         if not ok:
             return
         try:
-            self.owner.collections.create(name)
-            self.owner.reload()
+            self.actions.create_collection(name)
             self.refresh_all()
         except ValueError as exc:
             show_message(self, "모음집 생성 실패", str(exc))
@@ -527,15 +524,14 @@ class DataManagerDialog(ThemedDialog):
         cid = self._selected_collection()
         if not cid:
             return
-        col = next((x for x in self.owner.collections.list() if x['id'] == cid), None)
+        col = next((x for x in self.actions.list_collections() if x['id'] == cid), None)
         if col is None:
             return
         name, ok = ask_text(self, "모음집 이름 변경", "새 이름:", text=col['name'])
         if not ok:
             return
         try:
-            self.owner.collections.rename(cid, name)
-            self.owner.reload()
+            self.actions.rename_collection(cid, name)
             self.refresh_all()
         except ValueError as exc:
             show_message(self, "변경 실패", str(exc))
@@ -544,24 +540,22 @@ class DataManagerDialog(ThemedDialog):
         cid = self._selected_collection()
         if not cid:
             return
-        col = next((x for x in self.owner.collections.list() if x['id'] == cid), None)
+        col = next((x for x in self.actions.list_collections() if x['id'] == cid), None)
         if col and ask_yes_no(self, "모음집 삭제",
                               f"'{col['name']}' 모음집만 삭제할까요?\n"
                               "게임 압축파일과 설치된 게임은 삭제되지 않습니다.\n"
                               "삭제하기 전에 '백업 · 복원'에서 백업하는 것을 권장합니다.", "삭제", "취소"):
-            self.owner.collections.delete(cid)
-            self.owner.reload()
+            self.actions.delete_collection(cid)
             self.refresh_all()
 
     def manage_images(self):
-        CacheManagerDialog(self.owner.library, self.owner.games, self).exec()
-        self.owner.reload()
+        CacheManagerDialog(self.owner.library, self.owner.games, self, actions=self.actions).exec()
+        self.actions.rescan()
         self.refresh_all()
 
     def export_backup(self):
         name = 'PlayDock_Data_Backup.zip'
-        default_folder = self.owner.library.store / 'backups'
-        default_folder.mkdir(parents=True, exist_ok=True)
+        default_folder = self.actions.default_backup_folder()
         chosen, _ = QFileDialog.getSaveFileName(
             self, "게임 라이브러리 데이터 백업", str(default_folder / name),
             "ZIP 백업 (*.zip)", options=QFileDialog.Option.DontUseNativeDialog)
@@ -572,7 +566,7 @@ class DataManagerDialog(ThemedDialog):
                                                 "이미 있는 백업 파일을 덮어쓸까요?", "덮어쓰기", "취소"):
             return
         try:
-            count = backup_data(self.owner.library.store, self.owner.games, target)
+            count = self.actions.export_backup(target)
             show_message(self, "백업 완료", f"설정·모음집·목록 스냅샷·캐시 백업 완료\n"
                                              f"데이터 파일 {count}개\n{target}")
         except Exception as exc:
@@ -585,7 +579,7 @@ class DataManagerDialog(ThemedDialog):
         if not selected:
             return
         try:
-            files = inspect_backup(Path(selected))
+            files = self.actions.inspect_backup(Path(selected))
         except Exception as exc:
             show_message(self, "백업 검사 실패", str(exc))
             return
@@ -595,8 +589,7 @@ class DataManagerDialog(ThemedDialog):
                           "현재 데이터는 복원 직전에 자동 백업됩니다.", "복원", "취소"):
             return
         try:
-            count, safety = restore_data(self.owner.library.store, Path(selected))
-            self.owner.refresh_all_data()
+            count, safety = self.actions.restore_backup(Path(selected))
             self.refresh_all()
             show_message(self, "복원 완료", f"{count}개 데이터 파일 복원\n복원 전 백업: {safety}")
         except Exception as exc:
