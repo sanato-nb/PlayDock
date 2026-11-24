@@ -1,0 +1,43 @@
+name: PlayDock 소스코드 사용 관계 감사
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/audit_usage.py
+      - tests/audit/test_usage_routes.py
+      - .github/workflows/source-usage-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  usage:
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONPATH: ${{ github.workspace }}/src/playdock:${{ github.workspace }}:${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 원본 SHA 및 본체 변경 여부 확인
+        run: |
+          git diff --exit-code af10566aeb5a066ac5ee9beb9565823b73895002 HEAD -- app.py title_editor.py title_editor_entry.py setup_wizard.py uninstall_wizard.py src experiments requirements.txt
+          python scripts/audit_source.py --ref af10566aeb5a066ac5ee9beb9565823b73895002 --out audit_output
+          python scripts/audit_usage.py --inventory audit_output/inventory.json --out audit_output
+      - name: Qt 및 테스트 의존성 설치
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libopengl0 libxkbcommon0
+          python -m pip install -r requirements.txt pytest
+      - name: 실제 Qt 메뉴 연결 및 기존 기능 검증
+        run: |
+          set -o pipefail
+          python -m pytest -q -s tests/audit/test_usage_routes.py tests/test_feature_menu_cleanup_v4.py tests/test_search_only_ui.py tests/test_title_editor_inprocess.py tests/test_top_settings_and_db_status.py tests/test_catalog_preflight_ai_handoff.py | tee audit_output/runtime_tests.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-Usage-Audit
+          path: audit_output/
