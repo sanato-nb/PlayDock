@@ -1,5 +1,7 @@
 # PlayDock Windows 다운로드 종류 안내
 
+최신 통합 검증은 [Windows 통합 기능·EXE 검증](https://github.com/sanato-nb/PlayDock/actions/workflows/source-final-feature-review.yml)에서 확인합니다. 개발 브랜치 아티팩트는 배포 후보이며 정식 출시를 의미하지 않습니다. 기존 파일명 버전 v0.8.3은 호환용 포장 라벨로 남아 있어 정확한 기준은 실행 커밋과 public_bundle.json을 확인하세요.
+
 기존에는 하나의 GitHub Actions 아티팩트 안에 `PlayDock.exe`, `PlayDock_Setup.exe`,
 `PlayDock_Public_v0.8.3.zip`을 모두 중복으로 포함해 다운로드 파일이 약 345MB였습니다.
 
@@ -7,7 +9,7 @@
 
 | GitHub Actions 아티팩트 | 내용 | 추천 사용자 |
 |---|---|---|
-| `PlayDock-Update-EXE-Windows` | `PlayDock.exe`, `SHA256SUMS.txt` | PlayDock가 이미 설치되어 있고 기존 실행파일만 업데이트하려는 사용자 |
+| `PlayDock-Update-EXE-Windows` | `PlayDock.exe`, `public_bundle.json` (최신 통합 검증) | PlayDock가 이미 설치되어 있고 기존 실행파일만 업데이트하려는 사용자 |
 | `PlayDock-Installer-Only-Windows` | `PlayDock_Setup_v0.8.3.exe` | 새로 설치하거나 설치 마법사가 필요한 사용자 |
 | `PlayDock-Full-Package-Windows` | 전체 배포 ZIP과 검사 결과 | 설치기·실행파일을 한꺼번에 보관해야 하는 사용자 |
 

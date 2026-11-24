@@ -15,11 +15,11 @@ ZIP·7z·RAR로 보관한 게임을 관리·설치·실행하는 Windows용 Pyth
 
 ## 다운로드 및 검증
 
-[Windows Actions 실행 목록](https://github.com/sanato-nb/PlayDock/actions/workflows/playdock-inprocess-title-windows.yml)에서 **현재 커밋에 해당하는 성공한 실행**을 선택합니다.
+[통합 Windows Actions 실행 목록](https://github.com/sanato-nb/PlayDock/actions/workflows/source-final-feature-review.yml)에서 **현재 커밋에 해당하는 성공한 실행**을 선택합니다.
 
 | 아티팩트 | 용도 |
 |---|---|
-| PlayDock-Update-EXE-Windows | 기존 설치의 PlayDock.exe 교체 |
+| PlayDock-Update-EXE-Windows | 기존 설치의 PlayDock.exe 교체 및 검증 JSON |
 | PlayDock-Installer-Only-Windows | 새 설치 |
 | PlayDock-Full-Package-Windows | 전체 배포 패키지 |
 

@@ -18,6 +18,10 @@ on:
       - scripts/audit_windows_bundle.py
       - scripts/smoke_frozen_launcher.py
       - scripts/report_feature_matrix.py
+      - scripts/make_public_release.py
+      - scripts/verify_public_bundle.py
+      - scripts/verify_upgrade_compatibility.py
+      - docs/PlayDock_UserManual_KO_v0.7.7.pdf
       - docs/source_audit/25_feature_matrix.json
       - .github/workflows/source-final-feature-review.yml
   workflow_dispatch:
@@ -26,7 +30,7 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONUTF8: "1"
@@ -34,6 +38,8 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -66,6 +72,51 @@ jobs:
           ./.venv/Scripts/python.exe scripts/smoke_frozen_launcher.py dist/PlayDock.exe
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Get-ChildItem dist/*.exe | Select-Object Name,Length
+      - name: 최적화 기준 잔존 감사 및 기존 데이터 호환 재검증
+        if: github.ref_name == 'refactor/source-audit-20261124'
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe scripts/audit_final_residual.py --out final-evidence/residual
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git worktree add --detach ../final-upgrade-baseline af10566aeb5a066ac5ee9beb9565823b73895002
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.venv/Scripts/python.exe scripts/verify_upgrade_compatibility.py --baseline ../final-upgrade-baseline --source . --dist dist --output final-evidence/upgrade.json
+          exit $LASTEXITCODE
+      - name: 개인정보 없는 배포 후보 생성 및 독립 체크섬 검사
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe scripts/make_public_release.py --dist dist --out public_release --manual docs/PlayDock_UserManual_KO_v0.7.7.pdf --source .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.venv/Scripts/python.exe scripts/verify_public_bundle.py --dist dist --out public_release --manual docs/PlayDock_UserManual_KO_v0.7.7.pdf --report final-evidence/public_bundle.json
+          exit $LASTEXITCODE
+      - name: 업데이트용 본체 (검증된 후보)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Update-EXE-Windows
+          path: |
+            dist/PlayDock.exe
+            final-evidence/public_bundle.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - name: 신규 설치용 (검증된 후보)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Installer-Only-Windows
+          path: public_release/PlayDock_Setup_v0.8.3.exe
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
+      - name: 전체 배포 후보 (빈 data)
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Full-Package-Windows
+          path: |
+            public_release/PlayDock_Public_v0.8.3.zip
+            final-evidence/public_bundle.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@v4
         if: always()
         with:
