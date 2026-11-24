@@ -29,7 +29,6 @@ from ui.selectors import DarkMenuSelect
 from storage.setup_paths import save_folder_settings, proposed_paths
 from native_caption import windows_dark_caption
 from services.launch_options import parse_game_arguments
-from services.save_backups import create_save_backup, restore_save_backup
 from work_db import WorkDatabase
 from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
 
@@ -106,7 +105,7 @@ from ui.dialogs.collection_settings import GameCollectionsDialog
 from ui.dialogs.cache_manager import CacheManagerDialog
 from ui.dialogs.data_manager import DataManagerDialog
 from ui.dialogs.library import LibraryInfoDialog
-from workers.game_tasks import InstallThread, UninstallThread, SaveBackupThread
+from workers.game_tasks import InstallThread, UninstallThread
 
 from controllers.library import LibraryControllerMixin
 from controllers.game_actions import GameActionControllerMixin
@@ -133,7 +132,6 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.install_worker: InstallThread | None = None
         self.uninstall_worker: UninstallThread | None = None
         self.removing_game: Game | None = None
-        self.save_worker: SaveBackupThread | None = None
         self.sort_mode = "name"
         # Single-game title editor is an in-process Qt window.
         self.title_editor_window = None

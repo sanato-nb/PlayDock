@@ -18,7 +18,6 @@ from core import (Library, install, archive_requires_password, uninstall_target,
                   ArchivePasswordRequired, Game, _unpack_rar)
 from data_management import backup_data, inspect_backup
 from models.library_tree import make_sidebar_groups
-from services.save_backups import create_save_backup, restore_save_backup
 from services.launch_options import parse_game_arguments
 from artwork import discover_local
 
@@ -164,45 +163,6 @@ def test_rar_rejects_traversal_before_extraction(tmp_path, monkeypatch):
     assert not (tmp_path / 'escape.exe').exists()
 
 
-def test_save_backup_and_non_overwriting_restore(tmp_path):
-    src = tmp_path / 'saves'
-    src.mkdir()
-    (src / 'nested').mkdir()
-    (src / 'nested' / 'save1.dat').write_bytes(b'level=34')
-    out = tmp_path / 'backups'
-    zip_path = create_save_backup(src, out, 'My Game', 'a' * 22)
-    with zipfile.ZipFile(zip_path) as z:
-        assert json.loads(z.read('manifest.json'))['game_id'] == 'a'*22
-        assert 'files/nested/save1.dat' in z.namelist()
-    dest = tmp_path / 'originals'
-    dest.mkdir()
-    (dest / 'save1.dat').write_bytes(b'old')
-    restored = restore_save_backup(zip_path, dest)
-    assert (restored / 'nested' / 'save1.dat').read_bytes() == b'level=34'
-    assert (dest / 'save1.dat').read_bytes() == b'old'
-    assert restored != dest
-
-
-def test_save_restore_rejects_path_traversal(tmp_path):
-    backup = tmp_path / 'malicious.zip'
-    with zipfile.ZipFile(backup, 'w') as z:
-        z.writestr('manifest.json', json.dumps({'format': 'LocalGameShelfSaveBackup', 'version': 1}))
-        z.writestr('files/../../outside.exe', b'evil')
-    dest = tmp_path / 'target'
-    dest.mkdir()
-    with pytest.raises(ValueError):
-        restore_save_backup(backup, dest)
-    assert not (tmp_path / 'outside.exe').exists()
-
-
-def test_save_backup_rejects_nested_backup_path(tmp_path):
-    folder = tmp_path / 'saves'
-    folder.mkdir()
-    (folder / 's.dat').write_bytes(b'1')
-    with pytest.raises(ValueError, match='백업 대상'):
-        create_save_backup(folder, folder / 'backups', 'Name', 'a' * 22)
-
-
 def test_launch_arguments_parse(tmp_path):
     assert parse_game_arguments('--fullscreen --language ko') == ['--fullscreen', '--language', 'ko']
     assert parse_game_arguments('--path "C:\\Saved Games\\Mine"') == ['--path', 'C:\\Saved Games\\Mine']
@@ -262,22 +222,8 @@ def test_manual_game_id_and_metadata_survive_installed_root_change(tmp_path):
 def test_upgrade_ui_wiring():
     app_source = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8') + _ui_main
     for feature in ('register_manual_game', 'open_sort_menu',
-                    'edit_launch_options', 'backup_saves', 'restore_saves',
+                    'edit_launch_options',
                     'refresh_local_art', 'open_artwork_library'):
         assert f'def {feature}(' in app_source
     assert 'QProcess.startDetached(str(exe), arguments' in app_source
     assert 'if game is not None and game.installed and not game.external:' in app_source
-
-
-def test_save_restore_rejects_symlink(tmp_path):
-    src = tmp_path / 'saves'
-    src.mkdir()
-    outside = tmp_path / 'other.txt'
-    outside.write_text('never backed up')
-    linked = src / 'linked.txt'
-    try:
-        linked.symlink_to(outside)
-    except OSError:
-        pytest.skip('symlinks not supported in this test environment')
-    with pytest.raises(ValueError, match='일반 파일'):
-        create_save_backup(src, tmp_path / 'backups', 'Game', 'aaa')

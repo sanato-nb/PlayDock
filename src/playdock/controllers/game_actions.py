@@ -18,7 +18,7 @@ from services.launch_options import parse_game_arguments
 
 
 from ui.dialogs.common import ask_text, ask_choice, ask_yes_no, show_message, ask_archive_password
-from workers.game_tasks import InstallThread, UninstallThread, SaveBackupThread
+from workers.game_tasks import InstallThread, UninstallThread
 
 
 class GameActionControllerMixin:
@@ -39,60 +39,6 @@ class GameActionControllerMixin:
             self.set_message('게임 실행 옵션이 저장되었습니다.')
         except ValueError as exc:
             show_message(self, '실행 옵션 오류', str(exc))
-
-
-    def backup_saves(self):
-        game = self.current()
-        if game is None:
-            return
-        start = str(self.library.meta(game).get('save_directory') or game.folder or Path.home())
-        folder = QFileDialog.getExistingDirectory(self, '세이브 데이터 폴더 선택 (직접 지정)', start,
-                                                 QFileDialog.Option.DontUseNativeDialog)
-        if not folder:
-            return
-        if not ask_yes_no(self, '세이브 백업', f'선택한 세이브 폴더를 ZIP으로 백업할까요?\n{folder}\n'
-                          '게임 실행 중이라면 종료한 뒤 백업하세요.\n'
-                          '백업 ZIP은 암호화되지 않습니다.', '백업', '취소'):
-            return
-        self.library.update_meta(game, save_directory=folder)
-        self.start_save_worker('backup', Path(folder),
-                               self.library.store / 'backups' / 'saves',
-                               self.library.title(game), game.id)
-
-
-    def restore_saves(self):
-        source, _ = QFileDialog.getOpenFileName(
-            self, '세이브 백업 ZIP 선택', str(self.library.store / 'backups' / 'saves'),
-            'ZIP 백업 (*.zip)', options=QFileDialog.Option.DontUseNativeDialog)
-        if not source:
-            return
-        folder = QFileDialog.getExistingDirectory(self, '복원 파일을 풀 상위 폴더 선택', str(Path.home()),
-                                                  QFileDialog.Option.DontUseNativeDialog)
-        if not folder:
-            return
-        if not ask_yes_no(self, '세이브 복원', f'선택한 폴더 아래 새 복원 폴더를 만들어 압축 해제합니다.\n{folder}\n'
-                          '현재 세이브 파일은 절대 덮어쓰지 않습니다.', '압축 해제', '취소'):
-            return
-        self.start_save_worker('restore', Path(source), Path(folder))
-
-
-    def start_save_worker(self, operation, path, destination, title='', game_id=''):
-        if self.save_worker is not None:
-            show_message(self, '세이브 작업 중', '이미 진행 중인 백업·복원 작업이 있습니다.')
-            return
-        worker = SaveBackupThread(operation, path, destination, title, game_id)
-        self.save_worker = worker
-        worker.complete.connect(lambda result: show_message(
-            self, '세이브 작업 완료', f'완료 위치:\n{result}\n게임 파일은 변경하지 않았습니다.'))
-        worker.failed.connect(lambda error: show_message(self, '세이브 작업 실패', error))
-        worker.finished.connect(self.save_worker_finished)
-        self.set_message('세이브 백업·복원을 진행하고 있습니다...')
-        worker.start()
-
-
-    def save_worker_finished(self):
-        self.save_worker = None
-        self.set_message('')
 
 
     def main_action(self):

@@ -35,7 +35,8 @@ def test_ui_action_service_boundaries():
     workers = _classes('workers/game_tasks.py')
     assert 'self.action_button("설치", self.main_action)' in launcher or 'self.main_action' in launcher
     assert {'install_game','uninstall_game','launch_game'} <= _methods(controller)
-    assert {'InstallThread','UninstallThread','SaveBackupThread'} <= workers.keys()
+    assert {'InstallThread','UninstallThread'} <= workers.keys()
+    assert 'SaveBackupThread' not in workers
     assert 'install(self.game,' in (ROOT / 'src/playdock/workers/game_tasks.py').read_text(encoding='utf8')
 
 

@@ -74,7 +74,7 @@ def test_controller_respects_manual_clear_and_current_db_values(db,tmp_path):
     stub=Stub()
     stub.library,stub.work_db=library,db
     assert stub.collected_game_record() is None
-    assert db.save_verified_game_link("g","dlsite","RJ123456")
+    assert db.save_verified_game_link(game.id,"dlsite","RJ123456")
     record=stub.collected_game_record()
     assert record["code"]=="RJ123456"
     assert stub.has_official_image_candidates()
