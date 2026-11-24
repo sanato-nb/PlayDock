@@ -11,7 +11,7 @@ from PySide6.QtCore import Qt, QRectF, QRect, QEvent, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap, QLinearGradient, QPen, QBrush
 from PySide6.QtWidgets import (
     QWidget, QFrame, QScrollArea, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QMenu, QSizePolicy,
+    QLabel, QPushButton, QMenu,
 )
 
 from collection_board_model import list_collection_cards, member_games, unassigned_games
