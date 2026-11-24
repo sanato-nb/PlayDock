@@ -5,7 +5,7 @@ from pathlib import Path
 import json
 from models.game import Game, game_key, safe_folder_name
 from services.archive_service import ARCHIVE_EXT
-from services.launch_service import executable_candidates
+from services.launch_service import has_executable_candidate
 
 
 def data_dir() -> Path:
@@ -54,11 +54,13 @@ class Library:
     @property
     def root(self) -> Path:
         """Installation directory; used to keep pre-v0.1.2 game cache IDs stable."""
-        return Path(str(self.settings.get("library", default_library()))).expanduser()
+        value = self.settings["library"] if "library" in self.settings else default_library()
+        return Path(str(value)).expanduser()
 
     @property
     def archive_root(self) -> Path:
-        return Path(str(self.settings.get("archives", self.root))).expanduser()
+        value = self.settings["archives"] if "archives" in self.settings else self.root
+        return Path(str(value)).expanduser()
 
     def change_root(self, path: Path) -> None:
         if not path.is_dir():
@@ -97,7 +99,7 @@ class Library:
                     continue
                 # Ignore unrelated folders such as `file`, `saves`, or `screenshots`.
                 # Folders with at least one plausible game EXE are registered.
-                if not executable_candidates(child, child.name):
+                if not has_executable_candidate(child):
                     continue
                 key = game_key(child.name)
                 game = games.setdefault(key, Game(key, child.name, root))
