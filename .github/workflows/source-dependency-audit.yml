@@ -1,0 +1,72 @@
+name: PlayDock 외부 라이브러리 및 최소 Qt 환경 감사
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/audit_dependencies.py
+      - .github/workflows/source-dependency-audit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 전체 의존성 설치 및 정적 감사
+        shell: pwsh
+        run: |
+          python -m venv .audit-full
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.audit-full/Scripts/python.exe -m pip install -r requirements.txt "pyinstaller>=6.11,<7" pytest
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.audit-full/Scripts/python.exe scripts/audit_dependencies.py dependency-audit/full.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.audit-full/Scripts/python.exe -m pip freeze | Set-Content -Encoding utf8 dependency-audit/full-freeze.txt
+      - name: 동일 버전 Qt Essentials 후보 환경 설치
+        shell: pwsh
+        run: |
+          python -m venv .audit-min
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $full = Get-Content dependency-audit/full-freeze.txt
+          $minimal = $full | Where-Object { $_ -notmatch '^PySide6(?:[-_](?:Addons|Pdf|WebEngine))?==' }
+          $minimal | Set-Content -Encoding utf8 dependency-audit/minimal-lock.txt
+          ./.audit-min/Scripts/python.exe -m pip install -r dependency-audit/minimal-lock.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.audit-min/Scripts/python.exe -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.audit-min/Scripts/python.exe scripts/audit_dependencies.py dependency-audit/minimal.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.audit-min/Scripts/python.exe -c "import importlib.metadata as m; from PySide6 import QtCore, QtGui, QtWidgets; names={d.metadata['Name'].lower().replace('_','-') for d in m.distributions()}; assert 'pyside6-essentials' in names; assert not names.intersection({'pyside6','pyside6-addons','pyside6-pdf','pyside6-webengine'}); print('QT_ESSENTIALS_ONLY_VERIFIED', QtCore.qVersion())"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 최소 Qt 환경 전체 회귀
+        shell: pwsh
+        run: |
+          ./.audit-min/Scripts/python.exe -m pytest -q
+          exit $LASTEXITCODE
+      - name: 최소 Qt 환경 EXE 빌드 후보
+        shell: pwsh
+        run: |
+          ./.audit-min/Scripts/python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock --icon assets/playdock.ico --paths src/playdock --collect-all keyring --collect-all pyzipper --collect-all send2trash --collect-all ddgs --hidden-import rarfile --hidden-import models.game_codes --add-data "assets/playdock.ico;assets" app.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $exe=Get-Item dist/PlayDock.exe
+          Write-Host "ESSENTIALS_EXE_BYTES $($exe.Length)"
+          Get-FileHash $exe.FullName -Algorithm SHA256
+          $exe.Length | Set-Content dependency-audit/essentials-exe-bytes.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-dependency-audit
+          path: |
+            dependency-audit/*
+            build/PlayDock/warn-PlayDock.txt
+            build/PlayDock/Analysis-00.toc
