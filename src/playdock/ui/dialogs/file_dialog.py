@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import weakref
+import os
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QPointF, QObject, QEvent, QSize
+from PySide6.QtCore import Qt, QTimer, QPointF, QObject, QEvent, QSize, QStandardPaths, QUrl
 from PySide6.QtGui import QColor, QPainter, QPen, QIcon, QPixmap, QPalette
 from PySide6.QtWidgets import (
     QMainWindow,
@@ -65,12 +66,43 @@ def _file_toolbar_icon(name):
     return icon
 
 
+def standard_sidebar_urls(existing=()):
+    """Use actual per-user OS known locations; never guess a redirected path."""
+    result = []
+    seen = set()
+    def add(url):
+        path = url.toLocalFile()
+        key = os.path.normcase(os.path.normpath(path)) if path else url.toString()
+        if key not in seen and (not path or Path(path).is_dir()):
+            seen.add(key)
+            result.append(url)
+    # Preserve Qt's built-in computer entry and other existing shortcuts.
+    for location in (
+        QStandardPaths.StandardLocation.DesktopLocation,
+        QStandardPaths.StandardLocation.DownloadLocation,
+        QStandardPaths.StandardLocation.DocumentsLocation,
+        QStandardPaths.StandardLocation.PicturesLocation,
+        QStandardPaths.StandardLocation.MusicLocation,
+        QStandardPaths.StandardLocation.MoviesLocation,
+    ):
+        path = QStandardPaths.writableLocation(location)
+        if path and Path(path).is_dir():
+            add(QUrl.fromLocalFile(path))
+    for url in existing:
+        add(url)
+    home = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.HomeLocation)
+    if home and Path(home).is_dir():
+        add(QUrl.fromLocalFile(home))
+    return result
+
+
 def style_file_dialog(dialog):
     """Polish the existing Qt chooser; never change filters or file selection."""
     if dialog.property("playdockFileDialogStyled"):
         return
     dialog.setProperty("playdockFileDialogStyled", True)
     dialog.setStyleSheet(FILE_DIALOG_STYLESHEET)
+    dialog.setSidebarUrls(standard_sidebar_urls(dialog.sidebarUrls()))
     dialog.setSizeGripEnabled(False)
     for grip in dialog.findChildren(QSizeGrip):
         grip.hide()
@@ -111,7 +143,7 @@ def style_file_dialog(dialog):
         if tool is not None:
             tool.setIcon(_file_toolbar_icon(name))
             tool.setIconSize(QSize(20, 20))
-            tool.setToolTip(tip)
+            tool.setToolTip("")
             tool.setAccessibleName(tip)
     for view in dialog.findChildren(QTreeView):
         view.setAlternatingRowColors(True)

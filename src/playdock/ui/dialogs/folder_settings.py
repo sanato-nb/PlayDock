@@ -41,7 +41,7 @@ class FirstRunDialog(ThemedDialog):
         heading = QLabel("게임 라이브러리를 시작하기")
         heading.setObjectName("Heading")
         layout.addWidget(heading)
-        msg = QLabel("처음 한 번만 게임 압축파일 보관 위치와 설치 위치를 선택하세요.\n"
+        msg = QLabel("게임 압축파일 보관 위치와 게임 설치 위치를 지정하세요.\n"
                      "기존 게임 파일을 삭제하거나 이동하지 않습니다.")
         msg.setObjectName("Subtle")
         layout.addWidget(msg)
@@ -49,19 +49,19 @@ class FirstRunDialog(ThemedDialog):
         current_archive = library.archive_root if library.config_path.exists() else default_archive
         current_game = library.root if library.config_path.exists() else default_game
         self.fields = []
-        for title, default in (("① ZIP / 7z 압축파일 폴더", current_archive),
-                               ("② 설치된 게임 폴더", current_game)):
+        for title, default in (("① ZIP / 7z / RAR 압축파일 폴더", current_archive),
+                               ("② 게임 설치 폴더", current_game)):
             label = QLabel(title)
             layout.addWidget(label)
             line = QHBoxLayout()
             entry = QLineEdit(str(default))
-            choose = QPushButton("찾아보기...")
+            choose = QPushButton("찾아보기")
             choose.clicked.connect(lambda _checked=False, edit=entry: self.choose_directory(edit))
             line.addWidget(entry, 1)
             line.addWidget(choose)
             layout.addLayout(line)
             self.fields.append(entry)
-        info = QLabel("선택한 폴더가 없으면 자동으로 생성합니다. 언제든 상단 '폴더 설정'에서 변경할 수 있어요.")
+        info = QLabel("선택한 폴더가 없으면 자동으로 생성합니다. 상단 설정 메뉴의 폴더 설정에서 변경할 수 있습니다.")
         info.setWordWrap(True)
         info.setObjectName("Subtle")
         layout.addWidget(info)

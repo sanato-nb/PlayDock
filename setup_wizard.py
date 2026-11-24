@@ -169,7 +169,7 @@ class SetupWizard(tk.Tk):
         line = tk.Frame(self.body, bg="#eff3f7")
         line.pack(fill="x", pady=(0, 18))
         ttk.Entry(line, textvariable=var).pack(side="left", fill="x", expand=True, ipady=5)
-        ttk.Button(line, text="찾아보기...", command=lambda v=var: self.choose(v)).pack(side="left", padx=(12, 0))
+        ttk.Button(line, text="찾아보기", command=lambda v=var: self.choose(v)).pack(side="left", padx=(12, 0))
 
     def choose(self, var: tk.StringVar):
         directory = Path(var.get()).expanduser()

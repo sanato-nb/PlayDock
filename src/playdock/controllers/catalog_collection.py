@@ -1,6 +1,7 @@
 """PlayDock controller for batch official game-information DB collection."""
 from __future__ import annotations
 
+from dataclasses import replace
 from PySide6.QtWidgets import QDialog
 from services.identity_import_service import prepare_identity_import, approve_verified_import
 from ui.dialogs.identity_import import IdentityImportDialog, IdentityImportPreviewDialog
@@ -135,6 +136,9 @@ class CatalogCollectionControllerMixin:
                     approved = approve_verified_import(preview.selected_proposals(), events, self.library, self.work_db)
                     registered = {e.game_id:e for e in approved}
                     events = [registered.get(e.game_id,e) for e in events]
+            events = [replace(e, message="사용자 미선택 또는 중단 · 품번 미등록")
+                      if e.outcome in ("cached","fetched") and not e.connected else e
+                      for e in events]
             self.reload(prefer_id=self.selected_id)
             _, missing = partition_catalog_entries(game_catalog_entries(self.library,self.games))
             dialog.set_remaining(missing, make_missing_code_prompt(missing), events)

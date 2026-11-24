@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import weakref
 from PySide6.QtCore import QTimer, QObject, QEvent
-from PySide6.QtWidgets import QWidget, QMainWindow, QDialog, QFileDialog
+from PySide6.QtWidgets import QWidget, QMainWindow, QDialog, QFileDialog, QToolTip
 from native_caption import windows_dark_caption
 from ui.dialogs.file_dialog import PlayDockFileDialog, style_file_dialog
 
@@ -26,6 +26,9 @@ class DarkCaptionEventFilter(QObject):
     """
 
     def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.ToolTip:
+            QToolTip.hideText()
+            return True
         # The chooser owns its dark caption; DWM must not restyle it.
         if isinstance(watched, PlayDockFileDialog):
             return False
@@ -53,6 +56,9 @@ class DarkCaptionEventFilter(QObject):
 class DarkDialogCaptionFilter(QObject):
     """Apply the app's native dark caption to title-editor popups as well."""
     def eventFilter(self, watched, event):
+        if event.type() == QEvent.Type.ToolTip:
+            QToolTip.hideText()
+            return True
         if (event.type() in (QEvent.Type.Show, QEvent.Type.WinIdChange)
                 and isinstance(watched, QDialog) and watched.isWindow()):
             ref = weakref.ref(watched)

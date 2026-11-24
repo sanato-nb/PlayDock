@@ -20,7 +20,7 @@ class DatabaseStatusDialog(ThemedDialog):
         heading = QLabel("데이터베이스 상태")
         heading.setObjectName("Heading")
         self.body.addWidget(heading)
-        note = QLabel("PlayDock 본체와 정체 판독기가 공용으로 사용하는 DB를 확인합니다.\n"
+        note = QLabel("PlayDock에 저장된 공식 작품정보와 게임 연결 상태를 확인합니다.\n"
                       "상태 확인은 읽기 전용이며 게임 파일이나 DB를 변경하지 않습니다.")
         note.setWordWrap(True)
         note.setObjectName("Subtle")
