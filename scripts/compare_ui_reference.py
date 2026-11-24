@@ -1,8 +1,11 @@
-"""Compare recorded UI contracts and identify changed source blobs."""
+"""Compare UI contracts, protected sources, and actual offscreen pixel captures."""
+import hashlib
 import json
 from pathlib import Path
 import subprocess
 import sys
+from PIL import Image, ImageChops
+
 root=Path(__file__).resolve().parents[1]
 old,new=(Path(x) for x in sys.argv[1:3])
 manifest=json.loads((root/"docs/ui_reference/source_manifest.json").read_text(encoding="utf-8"))
@@ -12,10 +15,48 @@ for row in manifest["files"]:
     r=subprocess.run(["git","rev-parse","HEAD:"+row["path"]],cwd=root,capture_output=True,text=True)
     if r.returncode or r.stdout.strip()!=row["sha"]:
         changed.append(row["path"])
-print("UI_SOURCE_CHANGED_REVIEW",json.dumps(changed,ensure_ascii=False))
-differences=[k for k in a if a[k]!=b.get(k)]
-report={"baseline":manifest["baseline"],"changed_reference_files":changed,"contract_differences":differences,
-        "note":"Screenshots retained for manual review. Offscreen captures do not establish native frame or pixel-perfect equivalence."}
+differences=[k for k in sorted(set(a)|set(b)) if a.get(k)!=b.get(k)]
+old_png={p.name:p for p in old.glob("*.png")}
+new_png={p.name:p for p in new.glob("*.png")}
+assert len(old_png)==14 and old_png.keys()==new_png.keys(), "Missing or unexpected screenshots"
+pixels=[]
+# These dialogs include live filesystem metadata and path/status text.
+# Their structural contract must match; differences remain explicit review items.
+dynamic={"11_folder_settings.png","13_database_status.png","14_file_picker.png"}
+for name,path in sorted(old_png.items()):
+    with Image.open(path) as image, Image.open(new_png[name]) as current:
+        x,y=image.convert("RGB"),current.convert("RGB")
+        row={"name":name,"baseline_size":list(x.size),"current_size":list(y.size),
+             "baseline_pixel_sha256":hashlib.sha256(x.tobytes()).hexdigest(),
+             "current_pixel_sha256":hashlib.sha256(y.tobytes()).hexdigest(),
+             "dynamic_content":name in dynamic}
+        if x.size==y.size:
+            diff=ImageChops.difference(x,y)
+            bbox=diff.getbbox()
+            row["changed_bbox"]=list(bbox) if bbox else None
+            row["changed_pixels"]=sum(pixel!=(0,0,0) for pixel in diff.getdata()) if bbox else 0
+        else:
+            row["changed_pixels"]=None
+            row["changed_bbox"]=None
+        row["identical"]=x.size==y.size and row["changed_pixels"]==0
+        pixels.append(row)
+font_info={label:json.loads((path/"font_environment.json").read_text(encoding="utf-8"))
+           for label,path in (("baseline",old),("current",new))}
+static_changes=[r["name"] for r in pixels if not r["dynamic_content"] and not r["identical"]]
+size_changes=[r["name"] for r in pixels if r["baseline_size"]!=r["current_size"]]
+dynamic_review=[r["name"] for r in pixels if r["dynamic_content"] and not r["identical"]]
+report={"baseline":manifest["baseline"],"protected_files":len(manifest["files"]),
+        "changed_reference_files":changed,"contract_differences":differences,
+        "pixel_comparisons":pixels,"identical_images":sum(r["identical"] for r in pixels),
+        "static_changes":static_changes,"size_changes":size_changes,"dynamic_review":dynamic_review,
+        "font_environment":font_info,
+        "note":"Offscreen pixels and geometry only. Dynamic differences require review. Native frame/Tk/high-DPI and actual Korean glyph rendering remain manual checks."}
 (new/"comparison.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
+print("UI_SOURCE_CHANGED_REVIEW",json.dumps(changed,ensure_ascii=False))
+print("UI_PIXEL_COMPARISON",json.dumps(report,ensure_ascii=False))
+assert not changed, "Protected UI source changed; explicit review required"
 assert not differences, "UI contract changed: "+", ".join(differences)
+assert not size_changes, "Screenshot size changed: "+", ".join(size_changes)
+assert not static_changes, "Static screenshot changed: "+", ".join(static_changes)
+assert font_info["baseline"]==font_info["current"], "Font environment differs"
 print("UI_CONTRACT_MATCH")

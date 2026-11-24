@@ -41,10 +41,14 @@ jobs:
         run: |
           git worktree add --detach ../ui-baseline 84bbde02630e6c0b10a05662a24cb44354722dfb
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/capture_ui_reference.py --source ../ui-baseline --out ui-evidence/baseline
+          $fixture = Join-Path $env:RUNNER_TEMP "playdock-ui-fixture-${{ github.run_id }}-${{ github.run_attempt }}"
+          if (Test-Path -LiteralPath $fixture) { throw "Fixture already exists" }
+          python scripts/capture_ui_reference.py --source ../ui-baseline --out ui-evidence/baseline --fixture-root "$fixture"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          python scripts/capture_ui_reference.py --source . --out ui-evidence/current
+          Remove-Item -LiteralPath $fixture -Recurse -Force
+          python scripts/capture_ui_reference.py --source . --out ui-evidence/current --fixture-root "$fixture"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item -LiteralPath $fixture -Recurse -Force
           python scripts/compare_ui_reference.py ui-evidence/baseline ui-evidence/current
           exit $LASTEXITCODE
       - name: 기존 UI 기능 회귀

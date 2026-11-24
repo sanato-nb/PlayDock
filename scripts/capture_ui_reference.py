@@ -1,6 +1,7 @@
 """Capture synthetic, offline PlayDock UI evidence in a fixed Qt environment."""
 from pathlib import Path
 import argparse
+from contextlib import nullcontext
 import hashlib
 import json
 import sys
@@ -10,13 +11,15 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--source",type=Path,required=True)
     ap.add_argument("--out",type=Path,required=True)
+    ap.add_argument("--fixture-root",type=Path,help="Fresh disposable fixture directory; caller cleans up after process exit")
     args=ap.parse_args()
     source=args.source.resolve()
     out=args.out.resolve()
     out.mkdir(parents=True,exist_ok=True)
     sys.path[:0]=[str(source/"src/playdock"),str(source)]
-    from PySide6.QtCore import Qt, QTranslator, QLibraryInfo
-    from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QPushButton
+    from PySide6.QtCore import Qt, QTranslator, QLibraryInfo, QPoint, qVersion
+    from PySide6.QtGui import QFont, QFontDatabase, QRawFont
+    from PySide6.QtWidgets import QApplication, QFileDialog, QFrame, QPushButton, QLabel, QLineEdit
     from PIL import Image
     import app as launcher
     from core import Library
@@ -34,6 +37,16 @@ def main():
     qt.setStyle("Fusion")
     qt.setStyleSheet(launcher.STYLESHEET)
     contract={"style_sha256":hashlib.sha256(qt.styleSheet().encode()).hexdigest(),"screens":{},"menus":{}}
+    raw_font=QRawFont.fromFont(QFont("Malgun Gothic",10))
+    fonts={"qt_version":qVersion(),"platform":qt.platformName(),
+           "malgun_gothic_available":"Malgun Gothic" in QFontDatabase.families(),
+           "primary_font":raw_font.familyName(),
+           "primary_supports_korean":raw_font.supportsCharacter("가"),
+           "primary_supports_latin":raw_font.supportsCharacter("A")}
+    (out/"font_environment.json").write_text(json.dumps(fonts,ensure_ascii=False,indent=2),encoding="utf-8")
+    def geometry(child,parent):
+        pos=child.mapTo(parent,QPoint(0,0))
+        return [pos.x(),pos.y(),child.width(),child.height()]
     def capture(name,widget):
         widget.show()
         qt.processEvents()
@@ -43,7 +56,12 @@ def main():
             "minimum":[widget.minimumWidth(),widget.minimumHeight()],
             "size":[widget.width(),widget.height()],
             "buttons":[{"text":b.text(),"object":b.objectName(),"enabled":b.isEnabled(),
-                        "visible":b.isVisible()} for b in widget.findChildren(QPushButton)]}
+                        "visible":b.isVisible(),"geometry":geometry(b,widget) if b.isVisible() else None}
+                       for b in widget.findChildren(QPushButton)],
+            "visible_fields":[{"type":type(child).__name__,"object":child.objectName(),
+                               "geometry":geometry(child,widget)}
+                              for cls in (QLabel,QLineEdit,QFrame) for child in widget.findChildren(cls)
+                              if child.isVisible()]}
     def menu_rows(menu):
         return [{"text":a.text(),"enabled":a.isEnabled(),"separator":a.isSeparator(),
                  "checked":a.isChecked(),"children":menu_rows(a.menu()) if a.menu() else []}
@@ -62,7 +80,13 @@ def main():
             assert m.grab().save(str(out/(name+".png")))
         finally:
             button.present_popup=original
-    with tempfile.TemporaryDirectory(prefix="playdock-ui-reference-") as tmp:
+    if args.fixture_root:
+        fixture=args.fixture_root.resolve()
+        fixture.mkdir(parents=True,exist_ok=False)
+        context=nullcontext(str(fixture))
+    else:
+        context=tempfile.TemporaryDirectory(prefix="playdock-ui-reference-")
+    with context as tmp:
         root=Path(tmp)
         archives=root/"archives";archives.mkdir()
         installed=root/"installed";installed.mkdir()
