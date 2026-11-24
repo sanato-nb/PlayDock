@@ -27,13 +27,7 @@ from PySide6.QtWidgets import (
 )
 
 from core import Library
-from bulk_title_edit import (
-    BulkChange,
-    replace_name,
-    name_was_manually_changed,
-    apply_bulk_changes,
-    preview_undo_name,
-)
+from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from native_caption import windows_dark_caption
 from localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
@@ -184,9 +178,8 @@ class KoreanWebCandidatesDialog(QDialog):
             QDesktopServices.openUrl(QUrl(candidate.url))
 
     def accept_candidate(self):
-        from product_titles import clean_title
         title = self.choice.text().strip()
-        if not clean_title(title) or not any('가' <= ch <= '힣' for ch in title):
+        if not valid_korean_candidate(title):
             QMessageBox.warning(self, '제목 확인', '확인할 한국어 제목을 입력해 주세요.')
             return
         if self.selected_candidate() is None:
@@ -203,6 +196,7 @@ class BulkTitleSettingsDialog(QDialog):
     def __init__(self, library: Library, games, initial_game_id=None, parent=None):
         super().__init__(parent)
         self.library = library
+        self.bulk_actions = BulkTitleActions(library)
         self.games = list(games)
         self.worker = None
         self.preview_items = {}
@@ -388,8 +382,8 @@ class BulkTitleSettingsDialog(QDialog):
         if not games:
             QMessageBox.information(self, '대상 없음', '변경할 게임을 먼저 체크해 주세요.')
             return
-        if self.keep_custom.isChecked():
-            games = [g for g in games if not name_was_manually_changed(self.library, g)]
+        games = self.bulk_actions.eligible_games(
+            games, skip_custom=self.keep_custom.isChecked())
         if not games:
             QMessageBox.information(self, '대상 없음', '수동 수정된 이름을 제외하면 남는 게임이 없어.')
             return
@@ -413,33 +407,14 @@ class BulkTitleSettingsDialog(QDialog):
             self.progress.setText(f'{len(entries)}개 작품명 조회 중…')
             self.worker.start()
             return
-        records = []
-        for game in games:
-            old = self.library.title(game)
-            if mode == 'manual':
-                proposed = self.library.base_title(game)
-                method = 'manual'
-            elif mode == 'replace':
-                try:
-                    proposed = replace_name(self.library.base_title(game), self.find_field.text(),
-                                            self.replace_field.text(), case_sensitive=self.case_sensitive.isChecked())
-                except ValueError as exc:
-                    QMessageBox.warning(self, '변경 규칙 오류', str(exc))
-                    return
-                if not proposed or proposed == self.library.base_title(game):
-                    continue
-                method = 'manual'
-            elif mode == 'undo':
-                proposed = preview_undo_name(self.library, game)
-                if proposed is None:
-                    continue
-                method = 'undo'
-            else:
-                proposed = game.name
-                if self.library.base_title(game) == game.name:
-                    continue
-                method = 'original'
-            records.append(BulkChange(game.id, old, proposed, method, source='사용자 일괄 변경'))
+        try:
+            records = self.bulk_actions.preview_changes(
+                games, mode, find=self.find_field.text(),
+                replacement=self.replace_field.text(),
+                case_sensitive=self.case_sensitive.isChecked())
+        except ValueError as exc:
+            QMessageBox.warning(self, '변경 규칙 오류', str(exc))
+            return
         self.set_preview_records(records, check_default=mode != 'manual')
 
     def on_progress(self, done, total, code):
@@ -447,22 +422,9 @@ class BulkTitleSettingsDialog(QDialog):
 
     def show_lookup_preview(self, rows):
         language = self.language.currentData() or 'ko'
-        save_as_localized = self.localized_save.isChecked()
-        records = []
-        for item in rows:
-            game = next((g for g in self.games if g.id == item['game_id']), None)
-            if game is None:
-                continue
-            title = item.get('title') or ''
-            if title:
-                actual = item.get('language') or language
-                records.append(BulkChange(game.id, self.library.title(game), title,
-                    method='localized' if save_as_localized else 'manual', language=actual,
-                    source=item.get('source', ''), product_code=item.get('code', '')))
-            else:
-                records.append(BulkChange(game.id, self.library.title(game), '', method='manual',
-                                          source=item.get('error') or '조회 실패',
-                                          product_code=item.get('code', '')))
+        records = self.bulk_actions.lookup_preview(
+            self.games, rows, language,
+            save_as_localized=self.localized_save.isChecked())
         self.set_preview_records(records, requested_language=language)
 
     def set_preview_records(self, records, requested_language='ko', check_default=True):
@@ -504,7 +466,7 @@ class BulkTitleSettingsDialog(QDialog):
     def apply_preview(self):
         if self.worker is not None:
             return
-        changes = []
+        approved_edits = []
         for i in range(self.preview_table.rowCount()):
             if self.preview_table.item(i, 0).checkState() != Qt.CheckState.Checked:
                 continue
@@ -512,18 +474,10 @@ class BulkTitleSettingsDialog(QDialog):
             original = self.preview_items.get(key)
             if original is None:
                 continue
-            title = self.preview_table.item(i, 2).text().strip()
-            # For edits to a lookup fallback, use the language it was actually
-            # published in; never mislabel Japanese text as verified Korean.
-            language = original.language
-            source = original.source
-            if original.method == 'localized' and title != original.proposed_name:
-                source = '사용자가 직접 수정한 제목 · 검증 필요'
-                if original.language != (self.language.currentData() or 'ko'):
-                    language = self.language.currentData() or 'ko'
-            changes.append(BulkChange(original.game_id, original.expected_name, title,
-                          method=original.method, language=language,
-                          product_code=original.product_code, source=source))
+            title = self.preview_table.item(i, 2).text()
+            approved_edits.append((original, title))
+        changes = self.bulk_actions.prepare_changes(
+            approved_edits, self.language.currentData() or 'ko')
         if not changes:
             QMessageBox.information(self, '선택 없음', '저장할 변경 사항을 체크해 주세요.')
             return
@@ -533,7 +487,7 @@ class BulkTitleSettingsDialog(QDialog):
                 '실제 압축파일/설치 폴더는 변경하지 않아.') != QMessageBox.StandardButton.Yes:
             return
         try:
-            total, backup = apply_bulk_changes(self.library, self.games, changes)
+            total, backup = self.bulk_actions.apply_changes(self.games, changes)
         except (ValueError, OSError, RuntimeError) as exc:
             QMessageBox.warning(self, '일괄 저장 실패', str(exc))
             return

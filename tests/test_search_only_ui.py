@@ -30,4 +30,6 @@ def test_dialog_is_candidate_crop_workflow_and_auto_searches():
     assert '이미지 검색' in DIALOG
     assert '선택 · 편집' in DIALOG
     assert 'CropEditor(' in DIALOG
-    assert 'save_selected_art(' in DIALOG
+    assert 'self.artwork_actions.apply_selection(' in DIALOG
+    service = (ROOT / 'src/playdock/services/artwork_service.py').read_text(encoding='utf-8')
+    assert 'save_selected_art(' in service
