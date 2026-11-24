@@ -7,3 +7,7 @@
 - 기존 함수 본문·클래스·메뉴·설정·데이터·압축 처리·DB 구조 변경 없음. 기존 파일 삭제 없음.
 - import 전용 AST 비교, 전체 추적 Python 파일의 외부 import 및 속성/문자열 참조 후보 재점검, Windows 전체 회귀 테스트를 실행한다. 검증 완료 전 main 병합하지 않는다.
 - 미사용 import 제거 자체의 실행속도 향상은 아직 측정하지 않았다.
+
+## 최종 검증 완료
+
+[Windows 실행 45339386205](https://github.com/sanato-nb/PlayDock/actions/runs/45339386205): 1103 passed, 1 skipped. import 99개 제거(본체 19, 진입점 80), 외부 참조 후보 0, 비-import AST 동일. 2-A 완료. [감사 자료](https://github.com/sanato-nb/PlayDock/actions/runs/45339386205/artifacts/14895108325). 다음 단계부터 2-A 전용 검증은 당시 커밋을 고정하여 수동으로 재현한다.
