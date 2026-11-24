@@ -107,7 +107,8 @@ def test_build_script_includes_uninstaller_exe():
     cmd = (root / 'scripts/build_setup_windows.bat').read_text(encoding='utf-8')
     assert "Run-PyInstaller 'PlayDock_Uninstall'" in ps
     assert "'--add-binary','dist\\PlayDock_Uninstall.exe;payload'" in ps
-    assert '--add-binary "dist\\PlayDock_Uninstall.exe;payload"' in cmd
+    assert 'Build-Windows-Release.ps1' in cmd
+    assert '-m PyInstaller' not in cmd
 
 
 def test_registry_registration_targets_app_uninstaller_in_hkcu(tmp_path, monkeypatch):

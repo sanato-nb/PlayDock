@@ -65,7 +65,8 @@ def test_dwm_fallback_and_colors(monkeypatch):
 def test_setup_wizard_titlebar_includes_shared_style():
     assert 'from native_caption import darken_tk_root' in WIZARD
     assert 'self.after(0, lambda: darken_tk_root(self))' in WIZARD
-    assert 'setup_wizard.py' in BUILD
+    assert 'Build-Windows-Release.ps1' in BUILD
+    assert 'setup_wizard.py' in (ROOT / 'scripts/Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
 
 
 def test_file_chooser_has_own_dark_caption_and_retains_native_qt_selection(monkeypatch, tmp_path):
