@@ -35,8 +35,11 @@ def test_dialog_defaults_unchecked_and_selects_only_missing(tmp_path,monkeypatch
         assert all(not j[3] for j in d.selected_jobs())
         d.table.item(0,2).setCheckState(Qt.CheckState.Checked)
         assert d.selected_jobs()[0][3]=={"hero"}
+        d.select_all()
+        assert [j[2] for j in d.selected_jobs()]==[{"hero","icon"},{"hero"}]
+        assert d.selected_jobs()[0][3]=={"hero"}
         d.clear_selection()
-        assert not d.selected_jobs()
+        assert not d.selected_jobs() and not d.apply_button.isEnabled()
     finally:
         d.close()
 

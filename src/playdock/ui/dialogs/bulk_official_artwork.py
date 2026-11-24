@@ -44,6 +44,9 @@ class BulkOfficialArtworkDialog(QDialog):
         missing = QPushButton("빈 이미지 전체 선택")
         missing.clicked.connect(self.select_missing)
         buttons.addWidget(missing)
+        all_images = QPushButton("전체 선택")
+        all_images.clicked.connect(self.select_all)
+        buttons.addWidget(all_images)
         clear = QPushButton("선택 해제")
         clear.clicked.connect(self.clear_selection)
         buttons.addWidget(clear)
@@ -59,18 +62,27 @@ class BulkOfficialArtworkDialog(QDialog):
         layout.addLayout(buttons)
         self.table.itemChanged.connect(lambda *_: self.apply_button.setEnabled(bool(self.selected_jobs())))
 
+    def _select(self, mode):
+        previous = self.table.blockSignals(True)
+        try:
+            for i, (_, _, kinds, existing) in enumerate(self.rows):
+                for col, kind in ((2,"hero"),(3,"icon")):
+                    if kind in kinds:
+                        checked = mode == "all" or (mode == "missing" and kind not in existing)
+                        self.table.item(i,col).setCheckState(
+                            Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        finally:
+            self.table.blockSignals(previous)
+        self.apply_button.setEnabled(bool(self.selected_jobs()))
+
     def select_missing(self):
-        for i, (_, _, kinds, existing) in enumerate(self.rows):
-            for col, kind in ((2,"hero"),(3,"icon")):
-                if kind in kinds:
-                    self.table.item(i,col).setCheckState(
-                        Qt.CheckState.Checked if kind not in existing else Qt.CheckState.Unchecked)
+        self._select("missing")
+
+    def select_all(self):
+        self._select("all")
 
     def clear_selection(self):
-        for i, (_, _, kinds, _) in enumerate(self.rows):
-            for col, kind in ((2,"hero"),(3,"icon")):
-                if kind in kinds:
-                    self.table.item(i,col).setCheckState(Qt.CheckState.Unchecked)
+        self._select("none")
 
     def selected_jobs(self):
         jobs = []
