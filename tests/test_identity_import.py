@@ -122,3 +122,11 @@ def test_import_rechecks_even_if_work_exists(fixture):
     events=collect_import_batch(p,lib,db.path,collector_factory=fake_factory(calls,False))
     assert len(calls)==1 and not events[0].connected
     assert db.get_link(g.id) is None and "product_code" not in lib.meta(g)
+
+
+def test_optional_reason_field_remains_compatible(fixture):
+    lib, db, game = fixture
+    suggestions, rejected = prepare_identity_import(
+        payload(row(game, reason="Official title and ID confirmed")), lib, [game], db)
+    assert len(suggestions) == 1 and not rejected
+    assert "product_code" not in lib.meta(game)

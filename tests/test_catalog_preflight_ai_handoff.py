@@ -289,3 +289,27 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
         assert all(not action.isEnabled() for action in open_menu())
     finally:
         window.close()
+
+
+def test_ai_prompt_requires_real_multilingual_search_and_valid_json():
+    import json
+    p = make_missing_code_prompt([
+        CatalogEntry("hidden-id", "Original [v1.2] [한국어].zip"),
+        CatalogEntry("hidden-id-2", "Other.7z"),
+    ])
+    for phrase in ("실제 웹 검색", "일본어 원제", "제작사", "공식 작품 상세 페이지",
+                   "웹 접근 불가", "단순 버전·언어 차이만으로 제외하지",
+                   "PlayDock_Identity_Import.json", "UTF-8", "reason",
+                   "HTML 엔티티", "줄 끝 역슬래시", "파일명 변경 스크립트"):
+        assert phrase in p
+    start = p.index("## 3. 조사 대상 (원본 그대로)\n") + len("## 3. 조사 대상 (원본 그대로)\n")
+    end = p.index("\n\n## 4.", start)
+    assert json.loads(p[start:end]) == [
+        {"number": 1, "original_filename": "Original [v1.2] [한국어].zip"},
+        {"number": 2, "original_filename": "Other.7z"},
+    ]
+    example = p.split("## 4. 반환 규격 (기존 PlayDock JSON 버전 1 유지)\n",1)[1].splitlines()[0]
+    data = json.loads(example)
+    assert data["format"] == "PlayDock_Identity_Import" and data["version"] == 1
+    assert data["games"][0]["reason"] and data["games"][1]["product_code"] is None
+    assert "hidden-id" not in p
