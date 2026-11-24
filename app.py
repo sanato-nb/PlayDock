@@ -282,7 +282,13 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
 
 
 def main():
+    # Use the same themed Qt chooser for open, folder, and save dialogs.
+    QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     app = QApplication(sys.argv)
+    from PySide6.QtCore import QTranslator, QLibraryInfo
+    translator = QTranslator(app)
+    if translator.load("qtbase_ko", QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)):
+        app.installTranslator(translator)
     app.setStyle("Fusion")
     app.setStyleSheet(STYLESHEET)
     caption_filter = DarkCaptionEventFilter(app)

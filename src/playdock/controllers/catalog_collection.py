@@ -75,5 +75,7 @@ class CatalogCollectionControllerMixin:
         # Reflect new official title/category without disturbing the selection.
         if self.current() is not None:
             self.present_game()
+        else:
+            self.refresh_function_availability()
         if self.catalog_dialog is not None and self.catalog_dialog.running:
             self.catalog_dialog.on_failed("작업이 종료되었습니다.")

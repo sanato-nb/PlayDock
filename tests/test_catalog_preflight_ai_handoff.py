@@ -230,8 +230,8 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
         window.populate_games(game.id)
         rename, artwork, launch, official = open_menu()
         assert [action.text() for action in (rename, artwork, launch, official)] == [
-            "게임 이름 변경 (수동)…", "배너·아이콘 수동 설정",
-            "실행 옵션 설정…", "공식 작품 페이지 열기",
+            "게임 이름 변경 (수동)", "배너·아이콘 수동 설정",
+            "실행 옵션 설정", "공식 작품 페이지 열기",
         ]
         assert all(action.isEnabled() for action in (rename, artwork, launch))
         assert not official.isEnabled()  # no official URL yet

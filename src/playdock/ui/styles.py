@@ -66,14 +66,20 @@ QMenu { background:#192a3a; color:#dfeaf3; border:1px solid #38566c; padding:5px
 QMenu::item { padding:9px 20px 9px 22px; border-radius:3px; margin:2px; }
 QMenu::item:selected { background:#2e526d; color:#ffffff; }
 QMenu::item:checked { color:#7cc7f5; }
+QMenu::item:disabled { color:#718295; background:transparent; }
 QMenu::separator { height:1px; background:#31485a; margin:5px 8px; }
 QPushButton#Soft { background:#253649; border:1px solid #334a60; }
 QPushButton#Soft:hover { background:#344b60; }
+QPushButton#TopNavigation { background:#253649; border:1px solid #334a60; }
+QPushButton#TopNavigation:hover { background:#344b60; }
+QPushButton#TopNavigation:checked { background:#237cb2; border:1px solid #237cb2; color:#fff; font-weight:700; }
+QPushButton#TopNavigation:checked:hover { background:#2d91d0; }
 QPushButton#MenuChevron { background:#253649; border:1px solid #334a60; border-radius:4px;
     padding:9px 29px 9px 12px; color:#e6edf4; }
 QPushButton#MenuChevron:hover { background:#344b60; border-color:#506b83; }
 QPushButton#MenuChevron:pressed, QPushButton#MenuChevron[menuOpen="true"] {
     background:#1c3448; border-color:#65a1c8; }
+QPushButton#MenuChevron:disabled { background:#202b36; border:1px solid #303e4b; color:#738394; }
 QListWidget#CollectionsList { background:#192431; border:1px solid #263a4e; border-radius:5px; }
 QListWidget#CollectionsList::item { padding:7px 10px; }
 /* Steam-like collection overview and clean, deliberately empty footer. */
@@ -131,4 +137,26 @@ QScrollBar:vertical { background:#17222f; width:9px; border:none; }
 QScrollBar::handle:vertical { background:#50677c; min-height:30px; border-radius:4px; }
 QScrollBar::add-line:vertical,QScrollBar::sub-line:vertical { height:0; }
 QScrollBar::add-page:vertical,QScrollBar::sub-page:vertical { background:transparent; }
+"""
+
+
+# Scoped to Qt file/folder dialogs; native window frame remains resizable.
+FILE_DIALOG_STYLESHEET = """
+QFileDialog { background:#1d2835; color:#e5eef7; }
+QFileDialog QLabel { color:#e5eef7; }
+QFileDialog QTreeView, QFileDialog QListView {
+    background:#141e29; alternate-background-color:#1b2938; color:#edf5fc;
+    border:1px solid #405b70; border-radius:3px; outline:none;
+    selection-background-color:#315d7f; selection-color:#ffffff;
+}
+QFileDialog QTreeView::item, QFileDialog QListView::item { min-height:26px; padding:2px 4px; }
+QFileDialog QTreeView::item:selected, QFileDialog QListView::item:selected { background:#315d7f; color:#fff; }
+QFileDialog QHeaderView::section { background:#2b4358; color:#f3f7fc; padding:7px; border:0; border-right:1px solid #415a70; }
+QFileDialog QToolButton { background:#2b4053; border:1px solid #415e74; border-radius:4px; padding:5px; }
+QFileDialog QToolButton:hover { background:#3a5871; }
+QFileDialog QToolButton:disabled { background:#202d39; border-color:#304352; }
+QFileDialog QPushButton { min-width:78px; padding:8px 12px; }
+QFileDialog QPushButton:default { background:#237cb2; color:#fff; border-color:#378bc0; }
+QFileDialog QPushButton:disabled { background:#263440; color:#8493a1; border-color:#344756; }
+QFileDialog QSizeGrip { background:transparent; width:0px; height:0px; }
 """
