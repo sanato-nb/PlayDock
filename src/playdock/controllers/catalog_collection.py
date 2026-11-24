@@ -89,12 +89,17 @@ class CatalogCollectionControllerMixin:
         preview = IdentityImportPreviewDialog(proposals, rejected, previous)
         if preview.exec() != QDialog.DialogCode.Accepted:
             return
-        proposals = preview.selected_proposals()
+        selected = preview.selected_proposals()
+        chosen_ids = {p.game.id for p in selected}
+        rejected = list(rejected) + [f"{p.filename}: 조회 미선택 · {p.reason or '근거 미제공'}"
+                                    for p in proposals if p.game.id not in chosen_ids]
+        proposals = selected
         if not proposals:
             return
         # Only selected candidates are checked; no game link until a second approval.
         dialog = CatalogCollectionDialog(len(proposals),parent=self)
         dialog.import_mode = True
+        dialog.setWindowTitle("AI 품번 공식 조회 · PlayDock DB")
         dialog.import_reasons = list(rejected)
         dialog.importRequested.connect(self.import_identity_results)
         dialog.setModal(True)
@@ -105,7 +110,7 @@ class CatalogCollectionControllerMixin:
         self.catalog_worker = worker
         dialog.cancelRequested.connect(worker.requestInterruption)
         worker.progress.connect(dialog.on_progress)
-        worker.complete.connect(dialog.on_complete)
+        # Keep the dialog locked until the final approval and summary are ready.
         worker.failed.connect(dialog.on_failed)
         worker.finished.connect(self.catalog_collection_finished)
         dialog.show()
@@ -121,6 +126,9 @@ class CatalogCollectionControllerMixin:
             dialog = self.catalog_dialog
             events = list(worker.import_events)
             interrupted = worker.import_interrupted or len(events) < len(worker.entries)
+            import_error = worker.import_error
+            if import_error:
+                dialog.import_reasons.append(import_error)
             successful = {e.game_id for e in events if e.outcome in ("cached","fetched") and not e.connected}
             verified = []
             titles = {}
@@ -142,7 +150,10 @@ class CatalogCollectionControllerMixin:
             self.reload(prefer_id=self.selected_id)
             _, missing = partition_catalog_entries(game_catalog_entries(self.library,self.games))
             dialog.set_remaining(missing, make_missing_code_prompt(missing), events)
-            dialog.on_complete(events, interrupted=interrupted)
+            if import_error:
+                dialog.on_failed(import_error)
+            else:
+                dialog.on_complete(events, interrupted=interrupted)
         elif self.current() is not None:
             self.present_game()
         else:

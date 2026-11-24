@@ -20,6 +20,7 @@ class CatalogCollectionThread(QThread):
         self.import_library = import_library
         self.import_events = []
         self.import_interrupted = False
+        self.import_error = ""
 
     def run(self):
         try:
@@ -35,4 +36,6 @@ class CatalogCollectionThread(QThread):
             self.complete.emit(events, self.isInterruptionRequested() or len(events) < len(self.entries))
         except Exception as exc:
             # Keep the PlayDock window alive on unexpected SQLite failures.
-            self.failed.emit(f"공식정보 수집 오류: {type(exc).__name__}")
+            message = f"공식정보 수집 오류: {type(exc).__name__}"
+            self.import_error = message
+            self.failed.emit(message)

@@ -39,6 +39,7 @@ class CatalogCollectionDialog(QDialog):
         layout.setSpacing(12)
 
         title = QLabel("게임 정보 수집")
+        self.heading = title
         title.setObjectName("Heading")
         layout.addWidget(title)
         hint = QLabel(
@@ -126,7 +127,7 @@ class CatalogCollectionDialog(QDialog):
         self.prompt_save_button.setEnabled(handoff_ready)
         self.import_button.setEnabled(handoff_ready)
         self.summary.setText(
-            f"{'중단됨' if interrupted else '수집 완료'}  |  공식 조회 {len(events)}/{self.total}개\n"
+            f"{'중단됨' if interrupted else '등록 처리 완료' if self.import_mode else '수집 완료'}  |  공식 조회 {len(events)}/{self.total}개\n"
             f"게임 연결 {sum(bool(e.connected) for e in events)}개  ·  신규 작품 {sum(e.saved for e in events)}개  ·  기존 DB 재사용 {self.counts['cached']}개\n"
             f"상세정보 보강 {sum(e.enriched for e in events)}개  ·  조회 실패 {self.counts['excluded']}개  ·  오류 {self.counts['error']}개\n"
             f"남은 품번 없는 게임 {len(self.no_code)}개"
@@ -135,6 +136,7 @@ class CatalogCollectionDialog(QDialog):
     def set_remaining(self, missing, prompt, events):
         self.no_code = tuple(e.label for e in missing)
         self.prompt_text = prompt
+        self.heading.setText("AI 품번 가져오기 결과")
         self.preflight.setText(f"이번 공식 조회 대상 {self.total}개 · 남은 품번 없는 게임 {len(self.no_code)}개")
         reasons = list(self.import_reasons)
         reasons.extend(f"{e.label} — {e.message}" for e in events if not e.connected)

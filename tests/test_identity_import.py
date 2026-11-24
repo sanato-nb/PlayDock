@@ -165,3 +165,45 @@ def test_review_reason_and_checkbox_selection(fixture,monkeypatch):
         assert not d.selected_proposals()
     finally:
         d.close()
+
+
+@pytest.mark.parametrize("approve",[False,True])
+def test_controller_final_approval_and_remaining_count(fixture,monkeypatch,approve):
+    from types import SimpleNamespace
+    from PySide6.QtWidgets import QApplication,QWidget,QDialog
+    import controllers.catalog_collection as module
+    from ui.dialogs.catalog_collection import CatalogCollectionDialog
+    monkeypatch.setenv("QT_QPA_PLATFORM","offscreen")
+    app=QApplication.instance() or QApplication([])
+    lib,db,g=fixture
+    proposals,_=prepare_identity_import(payload(row(g,status="needs_review",reason="candidate")),lib,[g],db)
+    events=collect_import_batch(proposals,lib,db.path,collector_factory=fake_factory([]),verify_only=True)
+    class Preview:
+        def __init__(self,items,rejected,parent,*,official_titles):
+            assert db.get_link(g.id) is None
+            assert official_titles[g.id]=="Official"
+            self.items=items
+        def exec(self):
+            return QDialog.DialogCode.Accepted if approve else QDialog.DialogCode.Rejected
+        def selected_proposals(self):
+            return self.items
+    monkeypatch.setattr(module,"IdentityImportPreviewDialog",Preview)
+    class Host(QWidget,module.CatalogCollectionControllerMixin):
+        def reload(self,**kwargs):
+            pass
+    host=Host()
+    host.games=[g];host.library=lib;host.work_db=db;host.selected_id=g.id
+    dialog=CatalogCollectionDialog(1,host)
+    dialog.import_mode=True
+    host.catalog_dialog=dialog
+    host.catalog_worker=SimpleNamespace(import_library=lib,import_events=events,
+        import_interrupted=False,import_error="",entries=proposals,deleteLater=lambda:None)
+    try:
+        host.catalog_collection_finished()
+        assert (db.get_link(g.id) is not None)==approve
+        assert len(dialog.no_code)==(0 if approve else 1)
+        assert dialog.import_button.isEnabled()==(not approve)
+        assert "남은 품번 없는 게임" in dialog.summary.text()
+    finally:
+        dialog.close()
+        host.close()
