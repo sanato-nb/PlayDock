@@ -227,16 +227,18 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
             return menus[-1].actions()
 
         window.populate_games(other.id)
-        assert not open_menu()[2].isEnabled()
+        assert not open_menu()[2].isEnabled()  # no official image
+        assert not open_menu()[3].isEnabled()  # not installed
 
         window.populate_games(game.id)
-        rename, artwork, launch, official = open_menu()
-        assert [action.text() for action in (rename, artwork, launch, official)] == [
+        rename, artwork, official_images, launch, official = open_menu()
+        assert [action.text() for action in (rename, artwork, official_images, launch, official)] == [
             "게임 이름 변경 (수동)", "배너·아이콘 수동 설정",
-            "실행 옵션 설정", "공식 작품 페이지 열기",
+            "공식 배너·아이콘 적용", "실행 옵션 설정", "공식 작품 페이지 열기",
         ]
         assert all(action.isEnabled() for action in (rename, artwork, launch))
         assert not official.isEnabled()  # no official URL yet
+        assert not official_images.isEnabled()
 
         monkeypatch.setattr(metadata, "ask_text", lambda *args: ("새 표시 이름", True))
         rename.trigger()
@@ -274,8 +276,9 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
         }])
         assert window.work_db.save_verified_game_link(game.id, "dlsite", "RJ123456")
         window.reload(prefer_id=game.id)
-        assert open_menu()[3].isEnabled()
-        open_menu()[3].trigger()
+        assert not open_menu()[2].isEnabled()  # verified link alone is insufficient
+        assert open_menu()[4].isEnabled()
+        open_menu()[4].trigger()
         assert opened == [url]
         assert "DLsite" in window.game_info.text()
         assert archive.read_bytes() == b"archive content must remain untouched"
