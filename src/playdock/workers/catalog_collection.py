@@ -18,6 +18,8 @@ class CatalogCollectionThread(QThread):
         self.entries = tuple(entries)
         self.db_path = Path(db_path)
         self.import_library = import_library
+        self.import_events = []
+        self.import_interrupted = False
 
     def run(self):
         try:
@@ -27,8 +29,10 @@ class CatalogCollectionThread(QThread):
                 events = collect_batch(self.entries, self.db_path, **options)
             else:
                 events = collect_import_batch(self.entries, self.import_library,
-                                              self.db_path, **options)
-            self.complete.emit(events, len(events) < len(self.entries))
+                                              self.db_path, verify_only=True, **options)
+                self.import_events = events
+                self.import_interrupted = self.isInterruptionRequested()
+            self.complete.emit(events, self.isInterruptionRequested() or len(events) < len(self.entries))
         except Exception as exc:
             # Keep the PlayDock window alive on unexpected SQLite failures.
             self.failed.emit(f"공식정보 수집 오류: {type(exc).__name__}")

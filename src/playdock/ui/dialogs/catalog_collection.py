@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox,
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
@@ -29,8 +29,10 @@ class CatalogCollectionDialog(QDialog):
         self.prompt_text = str(prompt_text)
         self.running = True
         self.counts = Counter()
+        self.import_mode = False
+        self.import_reasons = []
         self.setWindowTitle("게임 정보 수집 · PlayDock DB")
-        self.resize(740, 535)
+        self.resize(780, 580)
         self.setMinimumSize(570, 390)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
@@ -58,6 +60,7 @@ class CatalogCollectionDialog(QDialog):
         layout.addWidget(self.progress)
         self.summary = QLabel(f"0 / {total}개 공식정보 조회 준비 중")
         self.summary.setWordWrap(True)
+        self.summary.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.summary)
 
         layout.addWidget(QLabel("조회 제외 또는 공식 확인에 실패한 게임"))
@@ -71,9 +74,6 @@ class CatalogCollectionDialog(QDialog):
         row = QHBoxLayout()
         self.prompt_copy_button = QPushButton("품번 없는 게임 AI 조사 프롬프트 복사")
         self.prompt_copy_button.setEnabled(False)
-        self.prompt_copy_button.setToolTip(
-            "수집 완료 후, 품번이 없는 파일명 목록으로 만든 조사 지침을 복사합니다."
-        )
         self.prompt_copy_button.clicked.connect(self.copy_missing_prompt)
         row.addWidget(self.prompt_copy_button)
         self.prompt_save_button = QPushButton("TXT 저장")
@@ -107,7 +107,7 @@ class CatalogCollectionDialog(QDialog):
         self.summary.setText(
             f"{index}/{total}개 · 신규 작품 {self.counts['fetched']}개 · "
             f"기존 DB 재사용 {self.counts['cached']}개 · "
-            f"게임 연결 {self.counts['cached'] + self.counts['fetched']}개 · "
+            f"공식 확인 {self.counts['cached'] + self.counts['fetched']}개 · "
             f"공식 조회 실패 {self.counts['excluded']}개 · "
             f"오류 {self.counts['error']}개"
         )
@@ -116,6 +116,7 @@ class CatalogCollectionDialog(QDialog):
 
     def on_complete(self, events, interrupted=False):
         self.running = False
+        self.counts = Counter(e.outcome for e in events)
         self.stop_button.setEnabled(False)
         self.close_button.setEnabled(True)
         if not interrupted:
@@ -125,16 +126,23 @@ class CatalogCollectionDialog(QDialog):
         self.prompt_save_button.setEnabled(handoff_ready)
         self.import_button.setEnabled(handoff_ready)
         self.summary.setText(
-            f"{'중단됨' if interrupted else '수집 완료'} · "
-            f"공식 조회 {len(events)}/{self.total}개 · "
-            f"신규 {sum(e.saved for e in events)}개 작품 저장 · "
-            f"기존 DB {self.counts['cached']}개 재사용 · "
-            f"게임 연결 {sum(bool(e.connected) for e in events)}개 · "
-            f"상세정보 보강 {sum(e.enriched for e in events)}개 · "
-            f"사전 제외(품번 없음) {len(self.no_code)}개 · "
-            f"공식 조회 실패 {self.counts['excluded']}개 · "
-            f"오류 {self.counts['error']}개"
+            f"{'중단됨' if interrupted else '수집 완료'}  |  공식 조회 {len(events)}/{self.total}개\n"
+            f"게임 연결 {sum(bool(e.connected) for e in events)}개  ·  신규 작품 {sum(e.saved for e in events)}개  ·  기존 DB 재사용 {self.counts['cached']}개\n"
+            f"상세정보 보강 {sum(e.enriched for e in events)}개  ·  조회 실패 {self.counts['excluded']}개  ·  오류 {self.counts['error']}개\n"
+            f"남은 품번 없는 게임 {len(self.no_code)}개"
         )
+
+    def set_remaining(self, missing, prompt, events):
+        self.no_code = tuple(e.label for e in missing)
+        self.prompt_text = prompt
+        self.preflight.setText(f"이번 공식 조회 대상 {self.total}개 · 남은 품번 없는 게임 {len(self.no_code)}개")
+        reasons = list(self.import_reasons)
+        reasons.extend(f"{e.label} — {e.message}" for e in events if not e.connected)
+        self.failures.setPlainText("\n".join(
+            [f"• {name} — 품번/App ID 없음" for name in self.no_code] +
+            (["\n[조사 및 조회 결과]"] + reasons if reasons else [])))
+        self.prompt_copy_button.setText("품번 없는 게임 AI 조사 프롬프트 복사")
+        self.prompt_save_button.setText("TXT 저장")
 
     def on_failed(self, reason):
         self.running = False

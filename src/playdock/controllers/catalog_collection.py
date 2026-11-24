@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from PySide6.QtWidgets import QDialog
-from services.identity_import_service import prepare_identity_import
+from services.identity_import_service import prepare_identity_import, approve_verified_import
 from ui.dialogs.identity_import import IdentityImportDialog, IdentityImportPreviewDialog
 
 from services.catalog_collection_service import (
@@ -86,10 +86,16 @@ class CatalogCollectionControllerMixin:
             show_message(previous,"AI 결과 가져오기 실패",str(exc))
             return
         preview = IdentityImportPreviewDialog(proposals, rejected, previous)
-        if preview.exec() != QDialog.DialogCode.Accepted or not proposals:
+        if preview.exec() != QDialog.DialogCode.Accepted:
             return
-        # Only the approved candidate batch is retried; the existing catalog is retained.
+        proposals = preview.selected_proposals()
+        if not proposals:
+            return
+        # Only selected candidates are checked; no game link until a second approval.
         dialog = CatalogCollectionDialog(len(proposals),parent=self)
+        dialog.import_mode = True
+        dialog.import_reasons = list(rejected)
+        dialog.importRequested.connect(self.import_identity_results)
         dialog.setModal(True)
         self.catalog_dialog = dialog
         previous.accept()
@@ -111,7 +117,28 @@ class CatalogCollectionControllerMixin:
             worker.deleteLater()
         # Newly registered IDs affect display overlays and lists; reload once.
         if imported:
+            dialog = self.catalog_dialog
+            events = list(worker.import_events)
+            interrupted = worker.import_interrupted or len(events) < len(worker.entries)
+            successful = {e.game_id for e in events if e.outcome in ("cached","fetched") and not e.connected}
+            verified = []
+            titles = {}
+            for p in worker.entries:
+                if p.game.id in successful:
+                    record = self.work_db.get_official_work(p.store,p.code)
+                    if record and record.get("title"):
+                        titles[p.game.id] = record["title"]
+                        verified.append(p)
+            if verified and not interrupted:
+                preview = IdentityImportPreviewDialog(verified, [], dialog, official_titles=titles)
+                if preview.exec() == QDialog.DialogCode.Accepted:
+                    approved = approve_verified_import(preview.selected_proposals(), events, self.library, self.work_db)
+                    registered = {e.game_id:e for e in approved}
+                    events = [registered.get(e.game_id,e) for e in events]
             self.reload(prefer_id=self.selected_id)
+            _, missing = partition_catalog_entries(game_catalog_entries(self.library,self.games))
+            dialog.set_remaining(missing, make_missing_code_prompt(missing), events)
+            dialog.on_complete(events, interrupted=interrupted)
         elif self.current() is not None:
             self.present_game()
         else:

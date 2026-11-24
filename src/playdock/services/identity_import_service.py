@@ -23,6 +23,8 @@ class IdentitySuggestion:
     code: str
     title: str
     url: str
+    status: str = "confirmed"
+    reason: str = ""
 
 
 def _unique_object(pairs):
@@ -100,8 +102,15 @@ def prepare_identity_import(text, library, games, db, *, allowed_names=None):
             reject(f"{name}: 중복 결과"); continue
         if allowed is not None and name not in allowed:
             reject(f"{name}: 현재 제외 목록에 없음"); continue
-        if row.get("status") != "confirmed":
-            reject(f"{name}: 미확인 또는 검토 필요"); continue
+        status = row.get("status")
+        reason = row.get("reason")
+        reason = reason.strip()[:1000] if isinstance(reason, str) else ""
+        if status not in ("confirmed", "needs_review"):
+            reject(f"{name}: 미확인" + (f" · {reason}" if reason else "")); continue
+        if status == "needs_review" and not reason:
+            reject(f"{name}: 검토 근거 없음"); continue
+        if status == "needs_review" and not row.get("product_code"):
+            reject(f"{name}: 품번 후보 없음 · {reason}"); continue
         store, code, title, url = (row.get(k) for k in
                                   ("store","product_code","official_title","official_url"))
         if not all(isinstance(x,str) for x in (store,code,title,url)):
@@ -114,12 +123,12 @@ def prepare_identity_import(text, library, games, db, *, allowed_names=None):
         matches = by_name.get(name, [])
         if len(matches)!=1 or not _available(library,db,matches[0],name):
             reject(f"{name}: 게임 미등록·중복·기존 품번 또는 연결 보호"); continue
-        proposals.append(IdentitySuggestion(matches[0],name,store,code,title.strip(),url))
+        proposals.append(IdentitySuggestion(matches[0],name,store,code,title.strip(),url,status,reason))
     return proposals, rejected
 
 
 def collect_import_batch(proposals, library, db_path, *, is_cancelled=lambda: False,
-                         callback=lambda i,total,event: None, collector_factory=None):
+                         callback=lambda i,total,event: None, collector_factory=None, verify_only=False):
     """Fetch by validated ID only (never open AI URLs), persist only verified work."""
     from pathlib import Path
     db = WorkDatabase(Path(db_path).parent, db_path=Path(db_path))
@@ -146,6 +155,10 @@ def collect_import_batch(proposals, library, db_path, *, is_cancelled=lambda: Fa
                     event = excluded("공식 품번 재확인 실패 · 품번 미등록")
                 elif is_cancelled() or not _available(library,db,g,suggestion.filename):
                     event = excluded("중단 또는 기존 정보 변경 · 품번 미등록")
+                elif verify_only:
+                    event = replace(result, message="공식 품번 확인 완료 · 등록 승인 대기", connected=False)
+                elif suggestion.status == "needs_review":
+                    event = excluded("미확정 후보는 공식 조회 후 별도 등록 승인이 필요합니다.")
                 else:
                     # Only an exact verified store/code is stored. User title/artwork
                     # and archive are never changed. Re-collection can repair a link
@@ -161,3 +174,28 @@ def collect_import_batch(proposals, library, db_path, *, is_cancelled=lambda: Fa
         events.append(event)
         callback(index,len(proposals),event)
     return events
+
+
+def approve_verified_import(proposals, events, library, db):
+    """Commit only explicitly selected, freshly verified candidates; no web I/O."""
+    verified = {(e.game_id,e.store,e.code):e for e in events
+                if e.outcome in ("cached","fetched") and not e.connected}
+    results = []
+    for p in proposals:
+        g = p.game
+        event = verified.get((g.id,p.store,p.code))
+        if event is None:
+            continue
+        try:
+            if not _available(library,db,g,p.filename) or not db.get_official_work(p.store,p.code):
+                results.append(replace(event,outcome="excluded",message="게임 또는 공식 정보 변경 · 등록 제외"))
+                continue
+            library.update_meta(g,product_store=p.store,product_code=p.code,
+                                identity_import_source="external_ai_verified")
+            connected = db.save_verified_game_link(g.id,p.store,p.code)
+            results.append(replace(event,connected=bool(connected),
+                outcome=event.outcome if connected else "error",
+                message="품번 등록 및 공식 연결 완료" if connected else "품번 저장됨 · DB 연결 재수집 필요"))
+        except Exception as exc:
+            results.append(replace(event,outcome="error",message=f"등록 오류: {type(exc).__name__}"))
+    return results

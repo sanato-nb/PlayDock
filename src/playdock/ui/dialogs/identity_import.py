@@ -1,6 +1,8 @@
 """Plain JSON input and explicit preview for external AI suggestions."""
 from pathlib import Path
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView)
 from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import show_message
 from services.identity_import_service import MAX_BYTES
@@ -47,29 +49,75 @@ class IdentityImportDialog(QDialog):
 
 
 class IdentityImportPreviewDialog(QDialog):
-    def __init__(self, proposals, rejected, parent=None):
+    """Explicit per-game approval. Never trust an AI candidate automatically."""
+    def __init__(self, proposals, rejected, parent=None, *, official_titles=None):
         super().__init__(parent)
-        self.setWindowTitle("품번 등록 후보 확인")
-        self.resize(780, 500)
+        self.proposals = list(proposals)
+        verified = official_titles is not None
+        self.setWindowTitle("공식 조회 결과 확인" if verified else "품번 등록 후보 확인")
+        self.resize(980, 590)
         layout = QVBoxLayout(self)
-        label = QLabel(f"등록 후보 {len(proposals)}개 · 제외 {len(rejected)}개\n"
-                       "AI가 찾은 작품이 실제 보유 게임과 같은지 확인하세요. "
-                       "공식 사이트 재조회에 성공한 품번만 등록합니다. 원본 파일명은 유지합니다.")
+        label = QLabel(f"{'공식 확인' if verified else '조회 후보'} {len(proposals)}개 · 제외 {len(rejected)}개\n"
+                       + ("실제 공식 작품명과 원본 게임을 비교하고 등록할 항목을 선택하세요."
+                          if verified else "조회할 후보만 선택하세요. 공식 조회 후 다시 등록 여부를 확인합니다."))
         label.setWordWrap(True)
         layout.addWidget(label)
-        preview = QPlainTextEdit()
-        preview.setReadOnly(True)
-        preview.setPlainText("\n".join(
-            [f"{p.filename}\n  → {p.store.upper()} {p.code} · {p.title}\n  {p.url}" for p in proposals]
-            + ["\n[제외]"] + list(rejected)))
-        layout.addWidget(preview,1)
+        self.table = QTableWidget(len(proposals), 5)
+        self.table.setHorizontalHeaderLabels(["선택", "원본 파일명", "품번 / 상태", "공식 작품명" if verified else "AI 후보 작품명", "조사 근거"])
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
+        self.table.setWordWrap(True)
+        for i, p in enumerate(self.proposals):
+            check = QTableWidgetItem()
+            check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            check.setCheckState(Qt.CheckState.Unchecked)
+            self.table.setItem(i,0,check)
+            title = official_titles.get(p.game.id, "") if verified else p.title
+            state = "공식 확인" if verified else "검토 필요" if p.status == "needs_review" else "AI 확인"
+            for col, value in enumerate((p.filename, f"{p.store.upper()} {p.code}\n{state}", title, p.reason or "근거 미제공"), 1):
+                item = QTableWidgetItem(value)
+                item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                self.table.setItem(i,col,item)
+        self.table.resizeRowsToContents()
+        layout.addWidget(self.table, 3)
+        layout.addWidget(QLabel("미확인 / 제외 사유"))
+        details = QPlainTextEdit()
+        details.setReadOnly(True)
+        details.setPlainText("\n".join(rejected))
+        details.setPlaceholderText("제외 항목 없음")
+        layout.addWidget(details, 1)
         row = QHBoxLayout()
+        select = QPushButton("전체 선택")
+        select.clicked.connect(lambda: self.select_all(True))
+        row.addWidget(select)
+        clear = QPushButton("선택 해제")
+        clear.clicked.connect(lambda: self.select_all(False))
+        row.addWidget(clear)
         row.addStretch()
-        confirm = QPushButton("확인한 후보 공식 조회 및 등록")
-        confirm.setEnabled(bool(proposals))
-        confirm.clicked.connect(self.accept)
-        row.addWidget(confirm)
+        self.confirm = QPushButton("선택 품번 등록" if verified else "선택 후보 공식 조회")
+        self.confirm.setEnabled(False)
+        self.confirm.clicked.connect(self.accept)
+        row.addWidget(self.confirm)
         cancel = QPushButton("취소")
         cancel.clicked.connect(self.reject)
         row.addWidget(cancel)
         layout.addLayout(row)
+        self.table.itemChanged.connect(self.refresh_selection)
+
+    def refresh_selection(self, *_):
+        self.confirm.setEnabled(bool(self.selected_proposals()))
+
+    def select_all(self, checked):
+        old = self.table.blockSignals(True)
+        try:
+            for i in range(len(self.proposals)):
+                self.table.item(i,0).setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        finally:
+            self.table.blockSignals(old)
+        self.refresh_selection()
+
+    def selected_proposals(self):
+        return [p for i,p in enumerate(self.proposals)
+                if self.table.item(i,0).checkState() == Qt.CheckState.Checked]

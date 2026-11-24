@@ -316,3 +316,9 @@ def test_ai_prompt_requires_real_multilingual_search_and_valid_json():
     assert data["format"] == "PlayDock_Identity_Import" and data["version"] == 1
     assert data["games"][0]["reason"] and data["games"][1]["product_code"] is None
     assert "hidden-id" not in p
+
+
+def test_prompt_preserves_evidenced_review_candidate():
+    p=make_missing_code_prompt([CatalogEntry("a","Sample.zip")])
+    assert "needs_review는 실제 검색 근거가 있는 단일 유력 후보" in p
+    assert "unconfirmed의 네 필드는 모두 null" in p

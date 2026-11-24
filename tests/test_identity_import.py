@@ -61,7 +61,8 @@ def test_import_and_recollect_preserves_original(fixture,store,code,url):
     assert not prepare_identity_import(payload(row(g)),lib,[g],db)[0]
 
 @pytest.mark.parametrize("change",[
-    {"status":"needs_review"},{"status":"unconfirmed"},{"original_filename":"Other.zip"},
+    {"status":"needs_review"},{"status":"needs_review","reason":"candidate","product_code":None},
+    {"status":"unconfirmed"},{"original_filename":"Other.zip"},
     {"original_filename":"../Sample [v1].zip"},{"store":"unknown"},
     {"product_code":"RJ000"},{"official_url":"https://evil.example/RJ123456.html"},
     {"official_url":"https://www.dlsite.com/maniax/work/=/product_id/RJ1234567.html"},
@@ -130,3 +131,37 @@ def test_optional_reason_field_remains_compatible(fixture):
         payload(row(game, reason="Official title and ID confirmed")), lib, [game], db)
     assert len(suggestions) == 1 and not rejected
     assert "product_code" not in lib.meta(game)
+
+
+def test_review_candidate_requires_final_approval(fixture):
+    from services.identity_import_service import approve_verified_import
+    lib,db,g=fixture
+    p,r=prepare_identity_import(payload(row(g,status="needs_review",reason="Official URL indexed; page blocked")),lib,[g],db)
+    assert len(p)==1 and not r and p[0].reason
+    events=collect_import_batch(p,lib,db.path,collector_factory=fake_factory([]),verify_only=True)
+    assert events[0].outcome=="fetched" and not events[0].connected
+    assert "product_code" not in lib.meta(g) and db.get_link(g.id) is None
+    assert approve_verified_import([],events,lib,db)==[]
+    result=approve_verified_import(p,events,lib,db)
+    assert result[0].connected and lib.meta(g)["product_code"]=="RJ123456"
+    assert g.archive.read_bytes()==b"untouched"
+
+
+def test_review_reason_and_checkbox_selection(fixture,monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    from ui.dialogs.identity_import import IdentityImportPreviewDialog
+    monkeypatch.setenv("QT_QPA_PLATFORM","offscreen")
+    app=QApplication.instance() or QApplication([])
+    lib,db,g=fixture
+    p,r=prepare_identity_import(payload(row(g,status="unconfirmed",reason="No official match")),lib,[g],db)
+    assert not p and "No official match" in r[0]
+    p,r=prepare_identity_import(payload(row(g,status="needs_review",reason="candidate")),lib,[g],db)
+    d=IdentityImportPreviewDialog(p,r)
+    try:
+        assert not d.selected_proposals() and not d.confirm.isEnabled()
+        d.select_all(True)
+        assert d.selected_proposals()==p and d.confirm.isEnabled()
+        d.select_all(False)
+        assert not d.selected_proposals()
+    finally:
+        d.close()
