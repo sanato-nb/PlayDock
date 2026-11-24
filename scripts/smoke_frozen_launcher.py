@@ -11,7 +11,20 @@ import tempfile
 import time
 
 exe=Path(sys.argv[1]).resolve()
-with tempfile.TemporaryDirectory(prefix="playdock-frozen-smoke-") as folder:
+# Windows may release the PyInstaller child image mapping shortly after taskkill.
+# Retry removal of this test-only temporary directory; never ignore cleanup errors.
+class RetryTemporaryDirectory(tempfile.TemporaryDirectory):
+    def cleanup(self):
+        for attempt in range(30):
+            try:
+                super().cleanup()
+                return
+            except PermissionError:
+                if attempt == 29:
+                    raise
+                time.sleep(.5)
+
+with RetryTemporaryDirectory(prefix="playdock-frozen-smoke-") as folder:
     root=Path(folder)
     copied=root/"PlayDock.exe"
     shutil.copy2(exe,copied)
@@ -45,5 +58,7 @@ with tempfile.TemporaryDirectory(prefix="playdock-frozen-smoke-") as folder:
         print("FROZEN_LAUNCHER_DB_INITIALIZED_AND_RUNNING")
     finally:
         if process.poll() is None:
-            subprocess.run(["taskkill","/PID",str(process.pid),"/T","/F"],capture_output=True)
+            killed=subprocess.run(["taskkill","/PID",str(process.pid),"/T","/F"],capture_output=True,timeout=20)
             process.wait(timeout=20)
+            if killed.returncode != 0:
+                raise RuntimeError("Test process tree cleanup failed: "+str(killed.returncode))
