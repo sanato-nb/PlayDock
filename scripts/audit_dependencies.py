@@ -45,7 +45,11 @@ for path in paths:
             if name in {"import_module","__import__","find_spec"}:
                 dynamic.append({"path":path,"line":node.lineno,"call":ast.unparse(node)[:200]})
 requirements=[line.strip() for line in (ROOT/"requirements.txt").read_text().splitlines() if line.strip() and not line.startswith("#")]
-assert {re.split(r"[<>=!~ ]",line,1)[0] for line in requirements}==set(mapping)
+declared={re.split(r"[<>=!~ ]",line,1)[0] for line in requirements}
+if "PySide6-Essentials" in declared:
+    declared.remove("PySide6-Essentials")
+    declared.add("PySide6")
+assert declared==set(mapping)
 installed=[]
 for dist in metadata.distributions():
     files=dist.files or []

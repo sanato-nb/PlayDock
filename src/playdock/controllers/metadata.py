@@ -10,7 +10,6 @@ from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
 from services.simple_title_edit import save_display_title
-from title_editor import TitleEditor
 from ui.dialogs.title import BulkTitleSettingsDialog
 from workers.work_lookup import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
@@ -264,6 +263,8 @@ class MetadataControllerMixin:
             current.raise_()
             current.activateWindow()
             return
+        # The legacy detailed editor is not needed by the normal launcher.
+        from title_editor import TitleEditor
         editor = TitleEditor(game.id, library=self.library, single_game_only=True)
         editor.closed.connect(self.title_editor_closed)
         self.title_editor_window = editor
