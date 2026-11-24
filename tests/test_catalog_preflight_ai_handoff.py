@@ -177,13 +177,13 @@ def test_controller_sends_only_eligible_entries_to_worker(app, tmp_path, monkeyp
         host.close()
 
 
-def test_topbar_placement_keeps_game_actions_out_of_the_details_panel():
+def test_topbar_placement_separates_official_and_manual_actions():
     root = Path(__file__).resolve().parents[1]
     ui = (root / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
     top, bottom = ui.split("outer.addWidget(top)", 1)
-    assert top.index("게임 정보 수집") < top.index("새로고침") < top.index("게임 관리") < top.index('"설정"')
+    assert top.index("게임 정보 수집") < top.index("새로고침") < top.index("'기능'") < top.index('"설정"')
     assert "게임 정보 수집" not in bottom
-    assert "게임 관리" not in bottom
+    assert "self.extra_menu_btn = ChevronMenuButton('게임 관리')" in bottom
     assert "이미지 직접 지정" not in bottom
 
 

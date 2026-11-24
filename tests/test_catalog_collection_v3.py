@@ -243,7 +243,7 @@ def test_ui_places_collection_before_identity_and_removes_web_image_search():
     layout = (repo / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
     meta = (repo / "src/playdock/controllers/metadata.py").read_text("utf-8")
     top = layout.split("outer.addWidget(top)", 1)[0]
-    assert top.index("게임 정보 수집") < top.index("게임 관리")
+    assert top.index("게임 정보 수집") < top.index("기능")
     assert "인터넷 이미지 검색·편집" not in layout
     assert "open_online_artwork" not in layout
     assert "def open_online_artwork" not in meta

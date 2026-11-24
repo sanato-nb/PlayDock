@@ -264,11 +264,12 @@ def test_identity_controller_accept_with_both_unchecked_saves_db_only(
     assert library.meta(game)["artwork_identity_store"] == "dlsite"
 
 
-def test_official_artwork_remains_available_in_game_context_menu():
+def test_official_artwork_action_is_in_top_function_menu():
     repo = Path(__file__).resolve().parents[1]
-    actions = (repo / "src/playdock/controllers/library.py").read_text("utf-8")
+    actions = (repo / "src/playdock/controllers/window_actions.py").read_text("utf-8")
     assert "공식 배너·아이콘 적용..." in actions
-    assert "self.identify_selected_game()" in actions
+    assert "self.has_official_image_candidates(game)" in actions
+    assert "self.identify_selected_game" in actions
 
 
 def test_confirmed_steam_fallback_wins_over_failed_dlsite_from_filename(tmp_path):

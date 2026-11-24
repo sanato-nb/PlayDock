@@ -266,15 +266,9 @@ class LibraryControllerMixin:
         elif kind == 'game':
             choice = menu.addAction('모음집에 추가 / 제거')
             launch = menu.addAction('플레이 / 설치')
-            edit_name = menu.addAction('게임 이름 설정...')
-            db_lookup = menu.addAction('공식 배너·아이콘 적용...')
-            official_page = menu.addAction('저장된 공식 작품 페이지 열기')
+            # Context menu handles only library/list operations.
+            # Official name/art -> top '기능'; manual edits -> game '게임 관리'.
             game = self.current()
-            db_lookup.setEnabled(self.has_collected_game_info(game))
-            menu.addSeparator()
-            local_art = menu.addAction('로컬 이미지 자동 찾기')
-            backup = menu.addAction('세이브 폴더 백업...')
-            restore = menu.addAction('세이브 ZIP 복원 (새 폴더)...')
             remove = None
             if game is not None and game.installed and not game.external:
                 menu.addSeparator()
@@ -288,18 +282,6 @@ class LibraryControllerMixin:
                 self.edit_game_collections()
             elif picked == launch:
                 self.main_action()
-            elif picked == edit_name:
-                self.open_selected_name_settings()
-            elif picked == db_lookup:
-                self.identify_selected_game()
-            elif picked == official_page:
-                self.open_saved_official_page()
-            elif picked == local_art:
-                self.refresh_local_art()
-            elif picked == backup:
-                self.backup_saves()
-            elif picked == restore:
-                self.restore_saves()
             elif remove is not None and picked == remove:
                 self.uninstall_game()
             elif disconnect is not None and picked == disconnect:

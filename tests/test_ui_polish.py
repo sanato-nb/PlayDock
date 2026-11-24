@@ -30,6 +30,7 @@ def test_popup_menu_buttons_use_painter_chevron_not_font_triangle():
     assert "self.extra_menu_btn = ChevronMenuButton('게임 관리')" in SOURCE
     assert 'more_button = ChevronMenuButton("더보기")' not in SOURCE
     assert 'self.extra_menu_btn.clicked.connect(self.show_extra_menu)' in SOURCE
+    assert 'self.function_menu_btn.clicked.connect(self.show_function_menu)' in SOURCE
     assert 'def show_game_menu(' not in SOURCE
     assert '이미지 관리  ▾' not in SOURCE
     assert 'QPushButton#MenuChevron' in SOURCE

@@ -20,7 +20,7 @@ def body_of(method):
 
 
 def test_all_dropdowns_use_async_popups_not_blocking_exec():
-    for name in ('open_filter_menu', 'show_extra_menu'):
+    for name in ('open_filter_menu', 'show_extra_menu', 'show_function_menu'):
         body = body_of(name)
         assert '.present_popup(' in body, name
         assert '.exec(' not in body, name
@@ -56,7 +56,7 @@ def test_mode_filter_still_emits_selection_changes():
 def test_popup_actions_still_connected_to_business_functions():
     assert 'self.change_image("hero")' in body_of('show_extra_menu')
     assert 'self.change_image("icon")' in body_of('show_extra_menu')
-    assert 'self.refresh_local_art()' in body_of('sidebar_context_menu')
+    assert 'self.identify_selected_game' in body_of('show_function_menu')
     assert 'self.fetch_art()' not in body_of('show_extra_menu')
     assert 'self.rename_selected_game' in body_of('show_extra_menu')
     assert 'def show_game_menu(' not in APP

@@ -91,10 +91,7 @@ def test_popup_preserves_all_actions_and_database_status(app):
         "folder_wizard": "folders",
         "data_manager_dialog": "data",
         "library_info_dialog": "properties",
-        "settings_dialog": "ai",
         "show_database_status": "db",
-        "open_bulk_name_settings": "bulk",
-        "open_artwork_library": "artwork",
     }
     for method, tag in paths.items():
         setattr(owner, method, lambda tag=tag: invoked.append(tag))
@@ -106,12 +103,11 @@ def test_popup_preserves_all_actions_and_database_status(app):
     actions = [x for x in shown[0][0].actions() if not x.isSeparator()]
     assert [x.text() for x in actions] == [
         "폴더 설정...", "데이터 관리...", "라이브러리 속성...",
-        "AI 설정...", "DB 상태 확인...",
-        "게임 이름 설정 (여러 게임)...", "내 이미지 보관 폴더 열기",
+        "DB 상태 확인...",
     ]
     for action in actions:
         action.trigger()
-    assert invoked == ["folders", "data", "properties", "ai", "db", "bulk", "artwork"]
+    assert invoked == ["folders", "data", "properties", "db"]
     owner.close()
 
 

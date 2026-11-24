@@ -18,7 +18,7 @@ from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
 from services.identity_artwork_worker import IdentityArtworkThread
 from experiments.dlsite_detector.code_only import Work
-from services.official_artwork_service import apply_checked_images
+from services.official_artwork_service import apply_checked_images, trusted_image_url
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 
 
@@ -142,15 +142,29 @@ class MetadataControllerMixin:
     def has_collected_game_info(self, game=None) -> bool:
         return self.collected_game_record(game) is not None
 
+    def has_official_image_candidates(self, game=None) -> bool:
+        """Enable official image action only when DB contains trusted candidates.
+
+        No website calls are made during UI selection or menu opening.
+        """
+        record = self.collected_game_record(game)
+        if not record:
+            return False
+        return any(
+            isinstance(row, dict)
+            and row.get("kind") in ("hero", "icon")
+            and trusted_image_url(record["store"], record["code"], row.get("url", ""))
+            for row in record.get("images", ())
+        )
+
     def identify_selected_game(self):
         """Image settings only; collected DB identity must exist first."""
         game = self.current()
         if game is None:
             return
         record = self.collected_game_record(game)
-        if not record:
-            show_message(self, "게임 정보 수집 필요",
-                         "먼저 게임 정보 수집으로 해당 게임의 공식 작품을 확인해 주세요.")
+        if not record or not self.has_official_image_candidates(game):
+            # Normally unreachable: official-image action is disabled in menu.
             return
         if (self.identity_lookup_worker is not None
                 and self.identity_lookup_worker.isRunning()):
@@ -283,6 +297,21 @@ class MetadataControllerMixin:
             self.set_message(
                 "게임 표시 이름을 변경했습니다. 실제 압축파일명은 변경하지 않았습니다."
             )
+
+    def open_official_name_settings(self):
+        """Use only verified work links in the existing bulk title dialog."""
+        if self.title_editor_window is not None and self.title_editor_window.isVisible():
+            show_message(self, "이름 설정 진행 중", "열려 있는 이름 설정 창을 닫아 주세요.")
+            return
+        if not self.games:
+            return
+        dialog = BulkTitleSettingsDialog(self.library, self.games, None, self)
+        index = dialog.mode.findData("lookup")
+        if index >= 0:
+            dialog.mode.setCurrentIndex(index)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.reload(prefer_id=self.selected_id)
+            self.set_message("선택한 게임의 공식 이름을 적용했습니다. 원본 압축파일명은 유지됩니다.")
 
     def open_bulk_name_settings(self):
         """User selects game checkboxes, previews, and confirms each bulk edit."""

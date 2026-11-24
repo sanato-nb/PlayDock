@@ -18,15 +18,28 @@ class WindowActionControllerMixin:
             lambda _checked=False: self.data_manager_dialog())
         menu.addAction("라이브러리 속성...").triggered.connect(
             lambda _checked=False: self.library_info_dialog())
-        menu.addAction("AI 설정...").triggered.connect(
-            lambda _checked=False: self.settings_dialog())
         menu.addSeparator()
         menu.addAction("DB 상태 확인...").triggered.connect(
             lambda _checked=False: self.show_database_status())
-        menu.addSeparator()
-        menu.addAction('게임 이름 설정 (여러 게임)...', self.open_bulk_name_settings)
-        menu.addAction('내 이미지 보관 폴더 열기', self.open_artwork_library)
         self.settings_menu_btn.present_popup(menu, right_align=True)
+
+
+    def show_function_menu(self):
+        """Official-data actions, distinct from one game's four manual tools."""
+        menu = QMenu(self.function_menu_btn)
+        game = self.current() if self.main_stack.currentWidget() is self.scroll else None
+
+        artwork = menu.addAction("공식 배너·아이콘 적용...", self.identify_selected_game)
+        artwork.setEnabled(game is not None and self.has_official_image_candidates(game))
+        artwork.setToolTip(
+            "게임 정보 수집에서 검증된 공식 이미지 URL이 있는 게임만 이용할 수 있습니다."
+        )
+
+        official_names = menu.addAction(
+            "공식 게임명 설정 (여러 게임)...", self.open_official_name_settings
+        )
+        official_names.setEnabled(any(self.has_collected_game_info(g) for g in self.games))
+        self.function_menu_btn.present_popup(menu, right_align=True)
 
 
     def show_database_status(self):
@@ -66,5 +79,5 @@ class WindowActionControllerMixin:
         launch.setEnabled(game is not None and game.installed)
 
         official = menu.addAction('공식 작품 페이지 열기', self.open_saved_official_page)
-        official.setEnabled(game is not None)
+        official.setEnabled(game is not None and self.has_collected_game_info(game))
         self.extra_menu_btn.present_popup(menu, right_align=True)

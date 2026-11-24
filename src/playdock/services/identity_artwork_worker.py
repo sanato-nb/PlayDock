@@ -45,6 +45,15 @@ class IdentityArtworkThread(QThread):
                                                record.get("category") or "",
                                                record["page_url"], "verified", store)
                             store_records[(store, code)] = record
+            # The local archive basename may no longer contain a store code.
+            # Official image mode has a verified DB link; read that exact row,
+            # never reconstruct its identity from the filename.
+            if (self.verified_work is not None and self.db_path is not None
+                    and self.db_path.is_file()):
+                work = self.verified_work
+                verified = db.get_official_work(work.store, work.code)
+                if verified is not None:
+                    store_records[(work.store, work.code)] = verified
             item = InputItem(self.label, self.origin)
             if self.verified_work is not None:
                 work = self.verified_work
