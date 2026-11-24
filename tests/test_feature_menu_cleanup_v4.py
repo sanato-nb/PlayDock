@@ -208,7 +208,7 @@ def test_top_navigation_follows_visible_screen(app, tmp_path, monkeypatch):
 
 def test_shared_file_dialog_style_keeps_filters_and_disables_grip(app, tmp_path):
     from PySide6.QtWidgets import QFileDialog, QToolButton
-    from ui.dialogs.common import style_file_dialog
+    from ui.dialogs.file_dialog import style_file_dialog
     dialog = QFileDialog(None, "이미지 선택", str(tmp_path), "이미지 (*.png *.jpg)")
     dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)

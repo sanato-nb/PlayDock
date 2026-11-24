@@ -190,7 +190,7 @@ def test_topbar_placement_separates_official_and_manual_actions():
 def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, monkeypatch):
     import app as application
     from PIL import Image
-    from ui.dialogs.common import PlayDockFileDialog as QFileDialog
+    from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
     from controllers import game_actions, metadata
 
     archive_root = tmp_path / "archives"

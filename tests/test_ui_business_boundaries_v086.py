@@ -163,7 +163,7 @@ def test_business_writes_do_not_live_in_ui_files():
     official = (ROOT / "services" / "official_artwork_service.py").read_text(encoding="utf-8")
     controller = (ROOT / "controllers" / "metadata.py").read_text(encoding="utf-8")
     titles = (ui / "dialogs" / "title.py").read_text(encoding="utf-8")
-    library_dialog = (ui / "dialogs" / "library.py").read_text(encoding="utf-8")
+    library_dialog = "\n".join((ui / "dialogs" / name).read_text(encoding="utf-8") for name in ("library.py", "folder_settings.py", "collection_settings.py", "cache_manager.py", "data_manager.py"))
     assert "actions.apply_selection(" in official
     assert "apply_checked_images(" in controller
     assert "selected_kinds(" in artwork

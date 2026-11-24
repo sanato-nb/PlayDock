@@ -71,7 +71,7 @@ def test_setup_wizard_titlebar_includes_shared_style():
 def test_file_chooser_has_own_dark_caption_and_retains_native_qt_selection(monkeypatch, tmp_path):
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication, QDialog, QFileDialog
-    from ui.dialogs.common import PlayDockFileDialog
+    from ui.dialogs.file_dialog import PlayDockFileDialog
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     app = QApplication.instance() or QApplication([])
     image = tmp_path / "test.png"
@@ -101,7 +101,7 @@ def test_file_chooser_has_own_dark_caption_and_retains_native_qt_selection(monke
 
 def test_file_chooser_save_and_directory_wrappers(monkeypatch, tmp_path):
     from PySide6.QtWidgets import QApplication, QDialog, QFileDialog
-    from ui.dialogs.common import PlayDockFileDialog
+    from ui.dialogs.file_dialog import PlayDockFileDialog
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     app = QApplication.instance() or QApplication([])
     seen = []

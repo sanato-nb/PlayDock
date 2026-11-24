@@ -24,7 +24,8 @@ from services.localized_titles import LANGUAGES, is_code_only_title
 
 
 from workers.title import TitleWorker, BulkTitleWorker
-from ui.dialogs.title import BulkPreviewDialog, KoreanWebCandidatesDialog, BulkTitleSettingsDialog
+from ui.dialogs.title_preview import BulkPreviewDialog, KoreanWebCandidatesDialog
+from ui.dialogs.title import BulkTitleSettingsDialog
 
 
 class TitleEditorActionsMixin:

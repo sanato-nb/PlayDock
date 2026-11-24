@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import sys
 
-from ui.dialogs.common import PlayDockFileDialog as QFileDialog
+from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 
 from core import uninstall_target, executable_candidates, chosen_executable, archive_requires_password
 from services.launch_approval import (

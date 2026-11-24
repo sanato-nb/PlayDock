@@ -53,8 +53,9 @@ from ui.editor_layout import build_title_editor_ui
 
 
 from workers.title import TitleWorker, BulkTitleWorker
-from ui.dialogs.title import (DarkDialogCaptionFilter, BulkPreviewDialog,
-                              KoreanWebCandidatesDialog, BulkTitleSettingsDialog)
+from ui.dialogs.caption import DarkDialogCaptionFilter
+from ui.dialogs.title_preview import BulkPreviewDialog, KoreanWebCandidatesDialog
+from ui.dialogs.title import BulkTitleSettingsDialog
 from controllers.title_editor import TitleEditorActionsMixin
 
 class TitleEditor(TitleEditorActionsMixin, QMainWindow):

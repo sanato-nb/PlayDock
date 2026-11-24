@@ -21,9 +21,9 @@ from artwork import discover_local
 
 
 from ui.widgets.launcher import collection_chevron, friendly_bytes, game_placeholder_icon
-from ui.dialogs.common import PlayDockFileDialog as QFileDialog
+from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import ask_text, ask_yes_no, show_message
-from ui.dialogs.library import GameCollectionsDialog
+from ui.dialogs.collection_settings import GameCollectionsDialog
 from services.official_work_service import official_info_rows
 
 

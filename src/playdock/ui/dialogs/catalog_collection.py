@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
 )
 
-from ui.dialogs.common import PlayDockFileDialog as QFileDialog
+from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 
 
 class CatalogCollectionDialog(QDialog):

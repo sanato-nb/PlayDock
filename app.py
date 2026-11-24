@@ -97,12 +97,15 @@ from ui.launcher_layout import build_main_ui
 # Public compatibility imports: existing integrations may import these from app.py.
 from ui.widgets.launcher import (collection_chevron, PopupMenuState, LibraryFilterButton,
                                  ChevronMenuButton, friendly_bytes, game_placeholder_icon, Banner)
-from ui.dialogs.common import (apply_windows_dark_titlebar, DarkCaptionEventFilter,
-                               DialogCloseButton, ThemedDialog, TextEntryDialog, ChoiceDialog,
+from ui.dialogs.caption import apply_windows_dark_titlebar, DarkCaptionEventFilter
+from ui.dialogs.common import (DialogCloseButton, ThemedDialog, TextEntryDialog, ChoiceDialog,
                                MessageDialog, ask_text, ask_archive_password, ask_choice,
                                ask_yes_no, show_message)
-from ui.dialogs.library import (FirstRunDialog, GameCollectionsDialog,
-                                CacheManagerDialog, DataManagerDialog, LibraryInfoDialog)
+from ui.dialogs.folder_settings import FirstRunDialog
+from ui.dialogs.collection_settings import GameCollectionsDialog
+from ui.dialogs.cache_manager import CacheManagerDialog
+from ui.dialogs.data_manager import DataManagerDialog
+from ui.dialogs.library import LibraryInfoDialog
 from workers.game_tasks import InstallThread, UninstallThread, SaveBackupThread
 
 from controllers.library import LibraryControllerMixin
