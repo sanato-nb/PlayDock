@@ -28,3 +28,7 @@ test_ui_package_v081은 현재 정식 경로를 직접 import하고 제거 경�
 ## 검증
 
 scripts/audit_legacy_ui_cleanup.py는 기준 Git 트리 대비 삭제 집합 정확성, 나머지 본체 SHA 동일, 실험 파일 보존, 제거 모듈 직접 import 유무를 검증한다. Windows 전체 테스트 실행 전 결과를 확인한다. 2-A 검증 워크플로는 해당 스냅샷을 수동 재현하도록 고정했다. 검증 성공 전 main에는 병합하지 않는다.
+
+## 최종 검증 완료
+
+[Windows 실행 45339885719](https://github.com/sanato-nb/PlayDock/actions/runs/45339885719): 1103 passed, 1 skipped. 6개 파일·605줄 제거, 나머지 본체/진입점 84개 SHA 보존, 제거 모듈 직접 import 0. [산출물](https://github.com/sanato-nb/PlayDock/actions/runs/45339885719/artifacts/14894664528). 2-B 완료.

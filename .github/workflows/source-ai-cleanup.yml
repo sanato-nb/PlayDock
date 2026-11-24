@@ -1,0 +1,51 @@
+name: PlayDock 불필요한 AI 기능 정리 검증
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/audit_ai_cleanup.py
+      - .github/workflows/source-ai-cleanup.yml
+      - src/playdock/ai_providers.py
+      - src/playdock/artwork.py
+      - src/playdock/ui/dialogs/library.py
+      - app.py
+      - tests/test_ai_providers.py
+      - tests/test_setup.py
+      - tests/test_gemini_quota_errors.py
+      - tests/test_dark_dropdown.py
+      - tests/test_search_only_ui.py
+      - tests/audit/test_usage_routes.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 제거 범위 및 필수 코드 보존 감사
+        run: python scripts/audit_ai_cleanup.py
+      - name: Qt 및 테스트 의존성 설치
+        run: python -m pip install -r requirements.txt pytest
+      - name: 전체 Windows 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-AI-Cleanup-Audit
+          path: audit_output/
