@@ -119,10 +119,9 @@ def make_missing_code_prompt(entries) -> str:
 
 def entry_input(entry: CatalogEntry) -> InputItem:
     label = entry.label
-    if entry.explicit_code and entry.explicit_code.upper() not in label.upper():
+    if entry.explicit_code and entry.explicit_code.upper() not in codes_in(label):
         label += f" [{entry.explicit_code}]"
-    if entry.steam_app_id and not re.search(
-            rf"(?i)(?:steam|appid).*?{re.escape(entry.steam_app_id)}", label):
+    if entry.steam_app_id and entry.steam_app_id not in steam_ids_in(label):
         label += f" [Steam {entry.steam_app_id}]"
     # DB collection is for scanned games; do not mistake bare numbers for IDs.
     return InputItem(label, "archive")
@@ -179,12 +178,13 @@ class CatalogCollector:
         for store, ids in (("dlsite", dl_ids), ("steam", steam_ids)):
             for code in ids:
                 key = code if store == "dlsite" else "STEAM:" + code
-                if key not in self.cache and not force_lookup:
-                    verified, existing = cached_work(self.db, store, code)
-                    if verified:
-                        self.cache[key] = verified
-                        details[(store, code)] = existing
-                        previously.add((store, code))
+                if key not in self.cache:
+                    if not force_lookup:
+                        verified, existing = cached_work(self.db, store, code)
+                        if verified:
+                            self.cache[key] = verified
+                            details[(store, code)] = existing
+                            previously.add((store, code))
                 elif self.cache[key].status == "verified":
                     previously.add((store, code))
         result = self.checker(input_item, cache=self.cache)

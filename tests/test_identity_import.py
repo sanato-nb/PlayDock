@@ -111,3 +111,14 @@ def test_dialog_import_only_after_completion(monkeypatch):
     d.import_button.click()
     assert hits==[True]
     d.close()
+
+
+def test_import_rechecks_even_if_work_exists(fixture):
+    lib,db,g=fixture
+    db._upsert_verified([{"store":"dlsite","code":"RJ123456","title":"Cached",
+                         "page_url":DL}])
+    p,_=prepare_identity_import(payload(row(g)),lib,[g],db)
+    calls=[]
+    events=collect_import_batch(p,lib,db.path,collector_factory=fake_factory(calls,False))
+    assert len(calls)==1 and not events[0].connected
+    assert db.get_link(g.id) is None and "product_code" not in lib.meta(g)
