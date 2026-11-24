@@ -133,8 +133,7 @@ class MetadataControllerMixin:
         if "product_code" in meta and not meta.get("product_code"):
             return None
         try:
-            linked = self.work_db.get_link(game.id)
-            return self.work_db.get_official_work(*linked) if linked else None
+            return self.work_db.get_linked_official_work(game.id)
         except (OSError, ValueError):
             return None
 
@@ -146,7 +145,10 @@ class MetadataControllerMixin:
 
         No website calls are made during UI selection or menu opening.
         """
-        record = self.collected_game_record(game)
+        return self._record_has_official_images(self.collected_game_record(game))
+
+    @staticmethod
+    def _record_has_official_images(record) -> bool:
         if not record:
             return False
         return any(
@@ -162,7 +164,7 @@ class MetadataControllerMixin:
         if game is None:
             return
         record = self.collected_game_record(game)
-        if not record or not self.has_official_image_candidates(game):
+        if not self._record_has_official_images(record):
             # Normally unreachable: official-image action is disabled in menu.
             return
         if (self.identity_lookup_worker is not None

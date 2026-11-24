@@ -417,6 +417,40 @@ class WorkDatabase:
             return None
         return _record(row)
 
+    def get_linked_official_work(self, game_id: str):
+        """Resolve a local game's verified official row in one DB connection.
+
+        Normal links need one SELECT. Preserve the legacy normalization of
+        stored link values if an older database contains noncanonical links.
+        """
+        with self.connect() as conn:
+            row = conn.execute(
+                """SELECT w.*, l.store AS _link_store, l.code AS _link_code
+                   FROM library_links AS l
+                   LEFT JOIN works AS w ON w.store=l.store AND w.code=l.code
+                   WHERE l.game_id=?""", (game_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            store = str(row["_link_store"]).strip().lower()
+            code = str(row["_link_code"] or "").strip()
+            if store not in ("dlsite", "steam"):
+                return None
+            if store == "dlsite":
+                code = code.upper()
+            if (store, code) != (row["_link_store"], row["_link_code"]):
+                row = conn.execute(
+                    "SELECT * FROM works WHERE store=? AND code=?", (store, code)
+                ).fetchone()
+                if row is None:
+                    return None
+            if not row["page_url"] or not _valid_identity(store, code, row["page_url"]):
+                return None
+            record = dict(row)
+            record.pop("_link_store", None)
+            record.pop("_link_code", None)
+            return _record(record)
+
     def save_official_image_urls(self, store: str, code: str,
                                  url_by_kind: dict[str, str]) -> int:
         """Keep verified official URL candidates in works.images_json.

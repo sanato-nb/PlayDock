@@ -399,12 +399,13 @@ class LibraryControllerMixin:
         collection_names = ", ".join(col["name"] for col in belonging) if belonging else "없음"
         from html import escape
         confirmed = self.collected_game_record(game)
+        product_code = self.library.product_code(game)
         info_rows = [
             ('모음집', collection_names),
             ('공식 작품 확인', (confirmed['store'].upper() + ' · ' + confirmed['code'])
              if confirmed else '정보 수집 필요'),
-            *([('작품 코드', self.library.product_code(game))] if self.library.product_code(game) else []),
-            *self.work_db_info_rows(game),
+            *([('작품 코드', product_code)] if product_code else []),
+            *official_info_rows(confirmed),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),
             ('상태', game.status),
             ('압축 파일', archive + size),

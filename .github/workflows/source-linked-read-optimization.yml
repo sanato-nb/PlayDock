@@ -1,0 +1,37 @@
+name: PlayDock 공식 작품 중복 조회 최적화 검증
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - .github/workflows/source-linked-read-optimization.yml
+      - tests/audit/test_linked_read_optimization.py
+      - src/playdock/database/work_repository.py
+      - src/playdock/controllers/metadata.py
+      - src/playdock/controllers/library.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Qt 및 테스트 의존성
+        run: python -m pip install -r requirements.txt pytest
+      - name: 조회 동등성과 SQLite 연결 횟수 검증
+        run: python -m pytest -q -s tests/audit/test_linked_read_optimization.py
+      - name: 전체 Windows 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q

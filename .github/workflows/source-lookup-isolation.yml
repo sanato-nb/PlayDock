@@ -1,12 +1,5 @@
 name: PlayDock 정식 작품 조회 엔진 독립 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - scripts/audit_official_lookup_isolation.py
-      - .github/workflows/source-lookup-isolation.yml
-      - src/playdock/integrations/official_lookup/**
-      - tests/audit/test_official_lookup_isolation.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: c8fd2bf0998a3b3b8859267cc07b7677a25218f8
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
