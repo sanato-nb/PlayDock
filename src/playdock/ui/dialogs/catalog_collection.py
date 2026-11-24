@@ -19,6 +19,7 @@ from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 
 class CatalogCollectionDialog(QDialog):
     cancelRequested = Signal()
+    importRequested = Signal()
 
     def __init__(self, total: int, parent=None, *,
                  excluded_no_code=(), prompt_text=""):
@@ -39,7 +40,7 @@ class CatalogCollectionDialog(QDialog):
         title.setObjectName("Heading")
         layout.addWidget(title)
         hint = QLabel(
-            "압축파일명에 DLsite 품번 또는 Steam App ID가 있는 게임만 공식 사이트에서 확인합니다.\n"
+            "압축파일명 또는 등록된 DLsite 품번·Steam App ID로 공식 사이트에서 확인합니다.\n"
             "품번이 없는 게임은 검색에서 제외하고, 수집 완료 후 AI 조사 프롬프트를 제공합니다.\n"
             "이미 저장된 작품은 재사용하며 게임 이름과 배너·아이콘은 변경하지 않습니다."
         )
@@ -79,6 +80,10 @@ class CatalogCollectionDialog(QDialog):
         self.prompt_save_button.setEnabled(False)
         self.prompt_save_button.clicked.connect(self.save_missing_prompt)
         row.addWidget(self.prompt_save_button)
+        self.import_button = QPushButton("AI 결과 가져오기")
+        self.import_button.setEnabled(False)
+        self.import_button.clicked.connect(self.importRequested.emit)
+        row.addWidget(self.import_button)
         row.addStretch()
         self.stop_button = QPushButton("중단")
         self.stop_button.clicked.connect(self.request_cancel)
@@ -118,6 +123,7 @@ class CatalogCollectionDialog(QDialog):
         handoff_ready = bool(self.no_code and self.prompt_text and not interrupted)
         self.prompt_copy_button.setEnabled(handoff_ready)
         self.prompt_save_button.setEnabled(handoff_ready)
+        self.import_button.setEnabled(handoff_ready)
         self.summary.setText(
             f"{'중단됨' if interrupted else '수집 완료'} · "
             f"공식 조회 {len(events)}/{self.total}개 · "
@@ -136,6 +142,7 @@ class CatalogCollectionDialog(QDialog):
         self.close_button.setEnabled(True)
         self.prompt_copy_button.setEnabled(False)
         self.prompt_save_button.setEnabled(False)
+        self.import_button.setEnabled(False)
         self.summary.setText(f"수집 중단 · {reason}")
         self.failures.appendPlainText(reason)
 

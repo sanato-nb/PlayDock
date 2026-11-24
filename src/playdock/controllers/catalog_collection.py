@@ -1,6 +1,10 @@
 """PlayDock controller for batch official game-information DB collection."""
 from __future__ import annotations
 
+from PySide6.QtWidgets import QDialog
+from services.identity_import_service import prepare_identity_import
+from ui.dialogs.identity_import import IdentityImportDialog, IdentityImportPreviewDialog
+
 from services.catalog_collection_service import (
     game_catalog_entries, partition_catalog_entries, make_missing_code_prompt,
 )
@@ -49,6 +53,7 @@ class CatalogCollectionControllerMixin:
             parent=self,
         )
         self.catalog_dialog = dialog
+        dialog.importRequested.connect(self.import_identity_results)
         if not entries:
             # No network calls needed; still offer the AI handoff after finish.
             dialog.on_complete([], interrupted=False)
@@ -66,12 +71,48 @@ class CatalogCollectionControllerMixin:
         dialog.show()
         worker.start()
 
+    def import_identity_results(self):
+        previous = self.catalog_dialog
+        if previous is None or previous.running or (self.catalog_worker is not None and self.catalog_worker.isRunning()):
+            return
+        editor = IdentityImportDialog(previous)
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        try:
+            proposals, rejected = prepare_identity_import(
+                editor.edit.toPlainText(), self.library, self.games, self.work_db,
+                allowed_names=previous.no_code)
+        except (ValueError, OSError) as exc:
+            show_message(previous,"AI 결과 가져오기 실패",str(exc))
+            return
+        preview = IdentityImportPreviewDialog(proposals, rejected, previous)
+        if preview.exec() != QDialog.DialogCode.Accepted or not proposals:
+            return
+        # Only the approved candidate batch is retried; the existing catalog is retained.
+        dialog = CatalogCollectionDialog(len(proposals),parent=self)
+        dialog.setModal(True)
+        self.catalog_dialog = dialog
+        previous.accept()
+        worker = CatalogCollectionThread(proposals,self.work_db.path,parent=self,
+                                         import_library=self.library)
+        self.catalog_worker = worker
+        dialog.cancelRequested.connect(worker.requestInterruption)
+        worker.progress.connect(dialog.on_progress)
+        worker.complete.connect(dialog.on_complete)
+        worker.failed.connect(dialog.on_failed)
+        worker.finished.connect(self.catalog_collection_finished)
+        dialog.show()
+        worker.start()
+
     def catalog_collection_finished(self):
         worker, self.catalog_worker = self.catalog_worker, None
+        imported = worker is not None and getattr(worker,"import_library",None) is not None
         if worker is not None:
             worker.deleteLater()
-        # Reflect new official title/category without disturbing the selection.
-        if self.current() is not None:
+        # Newly registered IDs affect display overlays and lists; reload once.
+        if imported:
+            self.reload(prefer_id=self.selected_id)
+        elif self.current() is not None:
             self.present_game()
         else:
             self.refresh_function_availability()

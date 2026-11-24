@@ -26,7 +26,7 @@ def app(monkeypatch):
     return QApplication.instance() or QApplication([])
 
 
-def test_preflight_only_accepts_identifiers_in_archive_filename(tmp_path):
+def test_preflight_accepts_filename_and_explicit_saved_identifiers(tmp_path):
     library = Library(tmp_path / "data")
     root = tmp_path / "private archives"
     root.mkdir()
@@ -40,14 +40,16 @@ def test_preflight_only_accepts_identifiers_in_archive_filename(tmp_path):
         p.write_bytes(b"KEEP ALL ORIGINAL ARCHIVE BYTES")
     games = [Game(f"game{i}", p.stem, root, archive=p)
              for i, p in enumerate(paths)]
-    # A displayed title, or even a manually stored code, is NOT a code
-    # appearing in the archive filename. Keep this one out of web lookups.
+    # Explicit stored IDs are now accepted; display-only title IDs are not.
     library.update_meta(games[2], title="Goblin [RJ123456]",
                         product_code="RJ123456")
     full = game_catalog_entries(library, games)
     eligible, missing = partition_catalog_entries(full)
-    assert [e.label for e in eligible] == [paths[0].name, paths[1].name]
-    assert [e.label for e in missing] == [paths[2].name, paths[3].name]
+    library.update_meta(games[3], title="Display only [RJ654321]")
+    full = game_catalog_entries(library, games)
+    eligible, missing = partition_catalog_entries(full)
+    assert [e.label for e in eligible] == [paths[0].name, paths[1].name, paths[2].name]
+    assert [e.label for e in missing] == [paths[3].name]
     assert all(p.read_bytes() == b"KEEP ALL ORIGINAL ARCHIVE BYTES" for p in paths)
     assert not list((library.store).rglob("playdock.db"))
 
