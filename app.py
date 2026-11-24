@@ -103,7 +103,7 @@ from ui.dialogs.common import (apply_windows_dark_titlebar, DarkCaptionEventFilt
                                ask_yes_no, show_message)
 from ui.dialogs.library import (FirstRunDialog, GameCollectionsDialog,
                                 CacheManagerDialog, DataManagerDialog, LibraryInfoDialog)
-from services.workers import InstallThread, UninstallThread, SaveBackupThread
+from workers.game_tasks import InstallThread, UninstallThread, SaveBackupThread
 
 from controllers.library import LibraryControllerMixin
 from controllers.game_actions import GameActionControllerMixin

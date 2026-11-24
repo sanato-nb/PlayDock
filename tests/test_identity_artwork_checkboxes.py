@@ -19,7 +19,7 @@ from services.official_artwork_service import (
     OfficialImage, official_image_urls, prepare_official_images,
     trusted_image_url, apply_checked_images, _steam_api_art,
 )
-from services.identity_artwork_worker import IdentityArtworkThread
+from workers.identity_artwork import IdentityArtworkThread
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 from controllers.metadata import MetadataControllerMixin
 
@@ -207,7 +207,7 @@ def test_db_official_artwork_urls_persist_without_extra_tables(tmp_path, dl_work
 
 
 def test_background_worker_uses_standalone_scanner_engine(monkeypatch, dl_work):
-    from services import identity_artwork_worker as module
+    from workers import identity_artwork as module
     result = Result("RJ123456.zip", "archive", "confirmed",
                     (dl_work,), selected_store="dlsite")
     seen = []

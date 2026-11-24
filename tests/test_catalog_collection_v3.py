@@ -15,8 +15,8 @@ from services.catalog_collection_service import (
     CatalogEntry, CatalogEvent, CatalogCollector, collect_batch,
     game_catalog_entries, entry_input,
 )
-from services.title_workers import _db_title, BulkTitleWorker, TitleWorker
-from services.identity_artwork_worker import IdentityArtworkThread
+from workers.title import _db_title, BulkTitleWorker, TitleWorker
+from workers.identity_artwork import IdentityArtworkThread
 from ui.dialogs.catalog_collection import CatalogCollectionDialog
 
 
@@ -169,7 +169,7 @@ def test_no_path_or_manual_title_sent_to_checker(tmp_path):
 
 
 def test_bulk_titles_consume_db_first_and_never_fake_korean(tmp_path, monkeypatch):
-    from services import title_workers
+    from workers import title as title_workers
     db = WorkDatabase(tmp_path / "data")
     db.save_work(fake_detail("RJ123456"))
     title, source, language = _db_title(
@@ -196,7 +196,7 @@ def test_bulk_titles_consume_db_first_and_never_fake_korean(tmp_path, monkeypatc
 
 def test_cached_identity_thread_uses_db_for_website_verification(
         tmp_path, monkeypatch):
-    from services import identity_artwork_worker as module
+    from workers import identity_artwork as module
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "steam", "code": "1091500", "title": "Saved official",
@@ -252,7 +252,7 @@ def test_ui_places_collection_before_identity_and_removes_web_image_search():
 
 
 def test_steam_name_preview_uses_unified_db_without_web(tmp_path, monkeypatch):
-    from services import title_workers
+    from workers import title as title_workers
     from services.bulk_title_service import BulkTitleActions
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{

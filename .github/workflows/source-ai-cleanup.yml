@@ -1,20 +1,5 @@
 name: PlayDock 불필요한 AI 기능 정리 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - scripts/audit_ai_cleanup.py
-      - .github/workflows/source-ai-cleanup.yml
-      - src/playdock/ai_providers.py
-      - src/playdock/artwork.py
-      - src/playdock/ui/dialogs/library.py
-      - app.py
-      - tests/test_ai_providers.py
-      - tests/test_setup.py
-      - tests/test_gemini_quota_errors.py
-      - tests/test_dark_dropdown.py
-      - tests/test_search_only_ui.py
-      - tests/audit/test_usage_routes.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: 6182f8c03e4a6d5923b77f6ded5d5c5d5cd90db8
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

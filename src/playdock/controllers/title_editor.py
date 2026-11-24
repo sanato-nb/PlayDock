@@ -23,7 +23,7 @@ from ai_providers import PROVIDERS, current_provider, current_models
 from localized_titles import LANGUAGES, is_code_only_title
 
 
-from services.title_workers import TitleWorker, BulkTitleWorker
+from workers.title import TitleWorker, BulkTitleWorker
 from ui.dialogs.title import BulkPreviewDialog, KoreanWebCandidatesDialog, BulkTitleSettingsDialog
 
 

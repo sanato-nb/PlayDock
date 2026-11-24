@@ -18,7 +18,7 @@ from launch_options import parse_game_arguments
 
 
 from ui.dialogs.common import ask_text, ask_choice, ask_yes_no, show_message, ask_archive_password
-from services.workers import InstallThread, UninstallThread, SaveBackupThread
+from workers.game_tasks import InstallThread, UninstallThread, SaveBackupThread
 
 
 class GameActionControllerMixin:

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 from core import Library
 from database.work_repository import WorkDatabase
 from experiments.dlsite_detector.code_only import Work
-from services.identity_artwork_worker import IdentityArtworkThread
+from workers.identity_artwork import IdentityArtworkThread
 from ui.widgets.launcher import ChevronMenuButton
 from controllers.window_actions import WindowActionControllerMixin
 
@@ -130,7 +130,7 @@ def test_exact_four_manual_game_management_functions_and_only_four_settings(
 
 def test_image_worker_uses_verified_game_link_even_if_filename_has_no_code(
         app, tmp_path, monkeypatch):
-    from services import identity_artwork_worker as module
+    from workers import identity_artwork as module
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "dlsite", "code": "RJ123456",

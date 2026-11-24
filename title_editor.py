@@ -52,7 +52,7 @@ from ui.editor_layout import build_title_editor_ui
 
 
 
-from services.title_workers import TitleWorker, BulkTitleWorker
+from workers.title import TitleWorker, BulkTitleWorker
 from ui.dialogs.title import (DarkDialogCaptionFilter, BulkPreviewDialog,
                               KoreanWebCandidatesDialog, BulkTitleSettingsDialog)
 from controllers.title_editor import TitleEditorActionsMixin

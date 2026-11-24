@@ -34,7 +34,7 @@ from localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
 
 
-from services.title_workers import BulkTitleWorker
+from workers.title import BulkTitleWorker
 
 
 class DarkDialogCaptionFilter(QObject):

@@ -5,7 +5,7 @@ import webbrowser
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                QCheckBox, QPushButton)
 from ui.selectors import DarkMenuSelect
-from services.work_lookup_worker import WorkLookupThread  # 기존 import 호환
+from workers.work_lookup import WorkLookupThread  # 기존 import 호환
 
 
 class WorkPreviewDialog(QDialog):

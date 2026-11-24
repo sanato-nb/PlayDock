@@ -13,9 +13,9 @@ from core import Game, Library
 from database.work_repository import WorkDatabase
 from experiments.dlsite_detector.code_only import InputItem, Work, Result
 from services.catalog_collection_service import CatalogEntry, CatalogCollector
-from services.identity_artwork_worker import IdentityArtworkThread
+from workers.identity_artwork import IdentityArtworkThread
 from services.bulk_title_service import BulkTitleActions
-from services.title_workers import BulkTitleWorker
+from workers.title import BulkTitleWorker
 from simple_title_edit import save_display_title, restore_filename_title
 from controllers.metadata import MetadataControllerMixin
 
@@ -100,7 +100,7 @@ def test_works_row_alone_does_not_unlock_uncollected_game(tmp_path):
 
 
 def test_image_only_mode_never_runs_identity_search(tmp_path, monkeypatch):
-    from services import identity_artwork_worker as module
+    from workers import identity_artwork as module
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "dlsite", "code": "RJ123456",
@@ -129,7 +129,7 @@ def test_image_only_mode_never_runs_identity_search(tmp_path, monkeypatch):
 
 
 def test_official_title_uses_collected_db_not_web(tmp_path, monkeypatch):
-    from services import title_workers
+    from workers import title as title_workers
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "dlsite", "code": "RJ123456",
