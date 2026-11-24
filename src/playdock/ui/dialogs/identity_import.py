@@ -1,8 +1,9 @@
 """Plain JSON input and explicit preview for external AI suggestions."""
 from pathlib import Path
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QEvent, QRectF
+from PySide6.QtGui import QColor, QPen, QPainter
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView)
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QStyledItemDelegate, QAbstractItemView)
 from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import show_message
 from services.identity_import_service import MAX_BYTES
@@ -48,46 +49,105 @@ class IdentityImportDialog(QDialog):
             show_message(self,"파일 읽기 실패",str(exc))
 
 
+class CandidateCheckDelegate(QStyledItemDelegate):
+    """Readable check marks independent of the operating system's palette."""
+    def paint(self, painter, option, index):
+        super().paint(painter, option, index)
+        painter.save()
+        painter.fillRect(option.rect, QColor("#1b2836"))
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
+        box = QRectF(option.rect.center().x()-9, option.rect.center().y()-9, 18, 18)
+        painter.setPen(QPen(QColor("#8bb4ce" if not checked else "#59b8ee"), 1.5))
+        painter.setBrush(QColor("#101923" if not checked else "#207cac"))
+        painter.drawRoundedRect(box, 3, 3)
+        if checked:
+            painter.setPen(QPen(QColor("#ffffff"), 2, Qt.PenStyle.SolidLine,
+                                Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+            x,y = box.x(),box.y()
+            painter.drawLine(int(x+4),int(y+9),int(x+8),int(y+13))
+            painter.drawLine(int(x+8),int(y+13),int(x+14),int(y+5))
+        painter.restore()
+
+    def editorEvent(self, event, model, option, index):
+        if not index.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+            return False
+        mouse = event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton
+        key = event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Select)
+        if mouse or key:
+            checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
+            return model.setData(index, Qt.CheckState.Unchecked.value if checked else Qt.CheckState.Checked.value,
+                                 Qt.ItemDataRole.CheckStateRole)
+        return False
+
+
 class IdentityImportPreviewDialog(QDialog):
-    """Explicit per-game approval. Never trust an AI candidate automatically."""
+    """Compact candidates, complete evidence on selection, explicit approval."""
     def __init__(self, proposals, rejected, parent=None, *, official_titles=None):
         super().__init__(parent)
         self.proposals = list(proposals)
+        self.official_titles = official_titles
         verified = official_titles is not None
         self.setWindowTitle("공식 조회 결과 확인" if verified else "품번 등록 후보 확인")
         self.resize(980, 590)
         layout = QVBoxLayout(self)
-        label = QLabel(f"{'공식 확인' if verified else '조회 후보'} {len(proposals)}개 · 제외 {len(rejected)}개\n"
-                       + ("실제 공식 작품명과 원본 게임을 비교하고 등록할 항목을 선택하세요."
-                          if verified else "조회할 후보만 선택하세요. 공식 조회 후 다시 등록 여부를 확인합니다."))
+        label = QLabel(f"{'공식 확인' if verified else '조회 후보'} {len(proposals)}개 · "
+                       f"{'조회 실패 / 제외' if verified else '제외'} {len(rejected)}개\n"
+                       + ("공식 작품명과 원본 파일명을 비교하고 등록할 항목을 선택하세요."
+                          if verified else "조회할 후보를 선택하세요. 공식 조회 후 다시 등록 여부를 확인합니다."))
         label.setWordWrap(True)
         layout.addWidget(label)
-        self.table = QTableWidget(len(proposals), 5)
-        self.table.setHorizontalHeaderLabels(["선택", "원본 파일명", "품번 / 상태", "공식 작품명" if verified else "AI 후보 작품명", "조사 근거"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table = QTableWidget(len(proposals), 4)
+        self.table.setHorizontalHeaderLabels(["선택", "원본 파일명", "품번 / 상태", "공식 작품명" if verified else "AI 후보 작품명"])
+        self.table.setStyleSheet("QTableWidget { alternate-background-color:#1c2b39; gridline-color:#304253; }"
+                                 "QTableWidget::item:selected { background:#31526b; color:#fff; }"
+                                 "QHeaderView::section { background:#25394a; color:#e2edf6; padding:5px; border:1px solid #344b60; }")
+        self.table.setAlternatingRowColors(True)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().hide()
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        self.table.verticalHeader().setDefaultSectionSize(44)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 54)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(2, 155)
         self.table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
-        self.table.setWordWrap(True)
+        self.table.setWordWrap(False)
+        self.table.setItemDelegateForColumn(0, CandidateCheckDelegate(self.table))
         for i, p in enumerate(self.proposals):
             check = QTableWidgetItem()
-            check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+            check.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsSelectable)
             check.setCheckState(Qt.CheckState.Unchecked)
             self.table.setItem(i,0,check)
             title = official_titles.get(p.game.id, "") if verified else p.title
             state = "공식 확인" if verified else "검토 필요" if p.status == "needs_review" else "AI 확인"
-            for col, value in enumerate((p.filename, f"{p.store.upper()} {p.code}\n{state}", title, p.reason or "근거 미제공"), 1):
+            for col, value in enumerate((p.filename, f"{p.store.upper()} {p.code}\n{state}", title), 1):
                 item = QTableWidgetItem(value)
                 item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+                if col == 2:
+                    item.setForeground(QColor("#93d8b2" if verified else "#e7c17e" if p.status == "needs_review" else "#dceaf6"))
                 self.table.setItem(i,col,item)
-        self.table.resizeRowsToContents()
-        layout.addWidget(self.table, 3)
-        layout.addWidget(QLabel("미확인 / 제외 사유"))
-        details = QPlainTextEdit()
-        details.setReadOnly(True)
-        details.setPlainText("\n".join(rejected))
-        details.setPlaceholderText("제외 항목 없음")
-        layout.addWidget(details, 1)
+        layout.addWidget(self.table, 4)
+        layout.addWidget(QLabel("선택한 게임 상세정보 / 조사 근거"))
+        self.evidence = QPlainTextEdit()
+        self.evidence.setReadOnly(True)
+        self.evidence.setPlaceholderText("게임 행을 선택하면 전체 파일명과 조사 근거를 표시합니다.")
+        self.evidence.setMaximumHeight(110)
+        layout.addWidget(self.evidence, 1)
+        self.table.currentCellChanged.connect(self.show_evidence)
+        if self.proposals:
+            self.table.setCurrentCell(0,1)
+            self.show_evidence(0)
+        layout.addWidget(QLabel("공식 조회 실패 / 제외 사유" if verified else "미확인 / 제외 사유"))
+        self.excluded_details = QPlainTextEdit()
+        self.excluded_details.setReadOnly(True)
+        self.excluded_details.setPlainText("\n".join(rejected))
+        self.excluded_details.setPlaceholderText("제외 항목 없음")
+        self.excluded_details.setMaximumHeight(85)
+        layout.addWidget(self.excluded_details, 1)
         row = QHBoxLayout()
         select = QPushButton("전체 선택")
         select.clicked.connect(lambda: self.select_all(True))
@@ -95,8 +155,11 @@ class IdentityImportPreviewDialog(QDialog):
         clear = QPushButton("선택 해제")
         clear.clicked.connect(lambda: self.select_all(False))
         row.addWidget(clear)
+        self.selection_count = QLabel("선택 0개")
+        row.addWidget(self.selection_count)
         row.addStretch()
         self.confirm = QPushButton("선택 품번 등록" if verified else "선택 후보 공식 조회")
+        self.confirm.setObjectName("Blue")
         self.confirm.setEnabled(False)
         self.confirm.clicked.connect(self.accept)
         row.addWidget(self.confirm)
@@ -106,8 +169,21 @@ class IdentityImportPreviewDialog(QDialog):
         layout.addLayout(row)
         self.table.itemChanged.connect(self.refresh_selection)
 
+    def show_evidence(self, row, *_):
+        if not 0 <= row < len(self.proposals):
+            self.evidence.clear()
+            return
+        p = self.proposals[row]
+        lines = [p.filename, f"{p.store.upper()} {p.code} · AI 후보: {p.title}"]
+        if self.official_titles is not None:
+            lines.append("공식 작품명: " + self.official_titles.get(p.game.id, ""))
+        lines.extend((p.url, "조사 근거: " + (p.reason or "근거 미제공")))
+        self.evidence.setPlainText("\n".join(lines))
+
     def refresh_selection(self, *_):
-        self.confirm.setEnabled(bool(self.selected_proposals()))
+        count = len(self.selected_proposals())
+        self.selection_count.setText(f"선택 {count}개")
+        self.confirm.setEnabled(bool(count))
 
     def select_all(self, checked):
         old = self.table.blockSignals(True)

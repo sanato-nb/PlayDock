@@ -410,9 +410,9 @@ class LibraryControllerMixin:
         product_code = self.library.product_code(game)
         info_rows = [
             ('모음집', collection_names),
-            ('공식 작품 확인', (confirmed['store'].upper() + ' · ' + confirmed['code'])
-             if confirmed else '정보 수집 필요'),
-            *([('작품 코드', product_code)] if product_code else []),
+            ('공식 작품 확인', '확인 완료' if confirmed else '정보 수집 필요'),
+            *([('작품 코드', product_code)] if product_code and
+               (not confirmed or product_code != confirmed['code']) else []),
             *official_info_rows(confirmed),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),
             ('상태', game.status),

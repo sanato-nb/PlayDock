@@ -65,11 +65,16 @@ def official_info_rows(record):
     if not record:
         return []
     store = "DLsite" if record["store"] == "dlsite" else "Steam"
+    category = str(record.get("category") or "")
+    # DLsite URL section identifiers are storefront labels, not game genres.
+    if record["store"] == "dlsite":
+        category = {"maniax":"성인 동인", "home":"일반 동인", "pro":"상업 작품",
+                    "soft":"PC 소프트웨어", "girls":"여성향", "bl":"BL", "books":"전자책"}.get(category.lower(), category)
     rows = [
         ("공식 판매처", store),
         ("공식 품번 / App ID", record["code"]),
         ("공식 작품명", record["title"]),
-        ("공식 작품 종류·분류", record.get("category") or "정보 없음"),
+        ("공식 판매처 분류", category or "정보 없음"),
         ("공식 작품 페이지", record["page_url"]),
     ]
     if record.get("maker"):

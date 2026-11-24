@@ -290,13 +290,25 @@ class Banner(QWidget):
         bottom.setColorAt(0, QColor(12, 20, 30, 0))
         bottom.setColorAt(1, QColor(13, 22, 32, 190))
         p.fillRect(area, bottom)
+        # Extra contrast only on real artwork; no change to stored image or placeholder.
+        if not self.image.isNull():
+            text_fade = QLinearGradient(0, area.height()*0.35, 0, area.height())
+            text_fade.setColorAt(0, QColor(8, 14, 22, 0))
+            text_fade.setColorAt(0.50, QColor(8, 14, 22, 160))
+            text_fade.setColorAt(1, QColor(8, 14, 22, 220))
+            p.fillRect(area, text_fade)
         font = QFont("Malgun Gothic", 26, QFont.Weight.Bold)
         p.setFont(font)
         p.setPen(QColor("#fcfdff"))
         from PySide6.QtCore import QRect
         title_rect = QRect(28, area.height() - 112, max(200, area.width() - 60), 66)
-        p.drawText(title_rect, Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
-                   p.fontMetrics().elidedText(self.title, Qt.TextElideMode.ElideRight, title_rect.width()))
+        rendered_title = p.fontMetrics().elidedText(self.title, Qt.TextElideMode.ElideRight, title_rect.width())
+        alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        if not self.image.isNull():
+            p.setPen(QColor(0,0,0,210))
+            p.drawText(title_rect.translated(1,2), alignment, rendered_title)
+            p.setPen(QColor("#fcfdff"))
+        p.drawText(title_rect, alignment, rendered_title)
         font = QFont("Malgun Gothic", 11)
         p.setFont(font)
         p.setPen(QColor("#cbdde7"))

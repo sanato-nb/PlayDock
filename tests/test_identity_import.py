@@ -207,3 +207,61 @@ def test_controller_final_approval_and_remaining_count(fixture,monkeypatch,appro
     finally:
         dialog.close()
         host.close()
+
+
+def test_compact_preview_keeps_complete_evidence_and_selection(fixture,monkeypatch):
+    from PySide6.QtWidgets import QApplication
+    from ui.dialogs.identity_import import IdentityImportPreviewDialog, CandidateCheckDelegate
+    monkeypatch.setenv("QT_QPA_PLATFORM","offscreen")
+    app=QApplication.instance() or QApplication([])
+    lib,db,g=fixture
+    reason="Detailed evidence "*40
+    p,_=prepare_identity_import(payload(row(g,status="needs_review",reason=reason)),lib,[g],db)
+    d=IdentityImportPreviewDialog(p,["Other.zip — lookup failed"],official_titles={g.id:"Official"})
+    try:
+        assert d.table.columnCount()==4 and d.table.rowHeight(0)==44
+        assert isinstance(d.table.itemDelegateForColumn(0),CandidateCheckDelegate)
+        assert p[0].reason in d.evidence.toPlainText()
+        assert "Official" in d.evidence.toPlainText()
+        assert "Other.zip" in d.excluded_details.toPlainText()
+        d.select_all(True)
+        assert d.selection_count.text()=="선택 1개"
+        assert d.selected_proposals()==p
+    finally:
+        d.close()
+
+
+def test_final_preview_receives_failed_lookup(fixture,monkeypatch):
+    from types import SimpleNamespace
+    from PySide6.QtWidgets import QApplication,QWidget,QDialog
+    import controllers.catalog_collection as module
+    from ui.dialogs.catalog_collection import CatalogCollectionDialog
+    monkeypatch.setenv("QT_QPA_PLATFORM","offscreen")
+    app=QApplication.instance() or QApplication([])
+    lib,db,g=fixture
+    p,_=prepare_identity_import(payload(row(g,status="needs_review",reason="candidate")),lib,[g],db)
+    events=collect_import_batch(p,lib,db.path,collector_factory=fake_factory([],False),verify_only=True)
+    seen=[]
+    class Preview:
+        def __init__(self,items,rejected,parent,*,official_titles):
+            assert not items and not official_titles
+            seen.extend(rejected)
+        def exec(self): return QDialog.DialogCode.Rejected
+    monkeypatch.setattr(module,"IdentityImportPreviewDialog",Preview)
+    class Host(QWidget,module.CatalogCollectionControllerMixin):
+        def reload(self,**kwargs): pass
+    host=Host()
+    host.games=[g];host.library=lib;host.work_db=db;host.selected_id=g.id
+    dialog=CatalogCollectionDialog(1,host)
+    dialog.import_mode=True
+    host.catalog_dialog=dialog
+    host.catalog_worker=SimpleNamespace(import_library=lib,import_events=events,
+        import_interrupted=False,import_error="",entries=p,deleteLater=lambda:None)
+    try:
+        host.catalog_collection_finished()
+        assert len(seen)==1 and g.archive.name in seen[0]
+        assert "재확인 실패" in seen[0]
+        assert db.get_link(g.id) is None and len(dialog.no_code)==1
+    finally:
+        dialog.close()
+        host.close()

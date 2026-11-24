@@ -138,8 +138,17 @@ class CatalogCollectionControllerMixin:
                     if record and record.get("title"):
                         titles[p.game.id] = record["title"]
                         verified.append(p)
-            if verified and not interrupted:
-                preview = IdentityImportPreviewDialog(verified, [], dialog, official_titles=titles)
+            verified_ids = {p.game.id for p in verified}
+            events_by_id = {e.game_id:e for e in events}
+            lookup_failures = []
+            for p in worker.entries:
+                if p.game.id not in verified_ids:
+                    event = events_by_id.get(p.game.id)
+                    reason = (event.message if event and event.outcome not in ("cached","fetched")
+                              else "공식 작품명 확인 불가" if event else "조회 미처리")
+                    lookup_failures.append(f"{p.filename} — {reason}")
+            if not interrupted and (verified or lookup_failures):
+                preview = IdentityImportPreviewDialog(verified, lookup_failures, dialog, official_titles=titles)
                 if preview.exec() == QDialog.DialogCode.Accepted:
                     approved = approve_verified_import(preview.selected_proposals(), events, self.library, self.work_db)
                     registered = {e.game_id:e for e in approved}
