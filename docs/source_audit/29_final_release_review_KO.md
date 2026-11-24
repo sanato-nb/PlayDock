@@ -17,3 +17,12 @@
 - ZipCrypto 1개 skip은 별도 테스트 환경 필요.
 - 기존 설정/호환 경로/선택적 텍스트 AI 검색 보존. UI 기준 승인 없이 변경 금지.
 - 초안 PR로 변경을 검토할 수 있게 준비하되 최종 검증 및 승인 전 main 병합·공개 출시 없음.
+
+## 최종 자동 검증 완료 — 2026-11-24
+검증 대상 커밋 `ad4e2d9815aa1bbbaa5989c94ed81a27a0fec1bf`. [Windows 통합 검증 45369495467](https://github.com/sanato-nb/PlayDock/actions/runs/45369495467) 성공. 전체 1280 passed, 실패 0, skip 0 (37.01초). 기능별 검증, 정식 EXE 3종 및 자체 검사, 동결 EXE 내부 구성·격리 실행, 잔존 감사, 사용자 데이터 호환, 개인정보 제외 공개 ZIP 및 독립 체크섬 검사 모두 성공. 이전 합성 데이터 10개 및 게임 파일 5개, 게임 3개/모음집 2개 보존. 배포 후보:
+- [기존 설치 교체용 본체](https://github.com/sanato-nb/PlayDock/actions/runs/45369495467/artifacts/14907418915): PlayDock.exe 67708901 bytes, SHA256 d89b837d320071c3fc1f7d3ae2e2634c2df4e115e3f6b3134827becc5645cefd.
+- [신규 설치기](https://github.com/sanato-nb/PlayDock/actions/runs/45369495467/artifacts/14907634324): 90135216 bytes, SHA256 4515a1030127a531c3a46bcfa02f05e2ff900326d1e0c0f82ba6e972814affdf.
+- [전체 배포 ZIP](https://github.com/sanato-nb/PlayDock/actions/runs/45369495467/artifacts/14907204659): 168682051 bytes, SHA256 900c4ff2ad7105030f7aeaa4bac1b6b673676255917237c6006df53b2847d2b2. 허용된 9개 항목, data/ 빈 상태.
+- [검증 증거](https://github.com/sanato-nb/PlayDock/actions/runs/45369495467/artifacts/14907809093).
+
+최적화 구현 및 자동 검증 종료. 최종 검증 후 이 문서 및 체크리스트만 변경하며 제품 소스·테스트·빌드·UI는 검증된 커밋과 동일하다. PR #3 검토 상태 유지. 실제 Windows 사용자 화면/게임/외부 사이트 및 시작 시간 검수 미실시; 정식 버전 확정 및 main 병합/공개 출시 전 해당 사항 확인. 배포 후보는 기존 0.8.3 포장 라벨을 유지하며 정식 새 버전이 아니다.

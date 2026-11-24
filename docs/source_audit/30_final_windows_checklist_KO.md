@@ -17,3 +17,6 @@ Info-ZIP 명령 `zip -q -X -j -P my-test-secret Secret.zip Game.exe`로 만든 �
 - [ ] 기존과 후보 EXE의 실제 시작 시간 필요 시 동일 PC/게임 목록에서 준비 실행 후 교차 반복. scripts/benchmark_frozen_exe.py는 Python 3.12 Windows에서 --baseline / --optimized (각 EXE 3종 포함 폴더) --output 경로로 사용 가능; CI는 HWND 확인 실패로 실제 시작 시간 미확정.
 
 자동 검증과 실제 사용자 Windows 확인을 구분한다. main 병합 및 정식 공개 버전 확정은 아직 수행하지 않는다.
+
+## 최종 자동 검사 결과
+[45369495467](https://github.com/sanato-nb/PlayDock/actions/runs/45369495467) 성공. 1280 passed / 0 failed / 0 skipped. ZipCrypto 정상·누락/오류 암호와 원본 보존 테스트 통과. 실제 EXE 및 깨끗한 배포 후보 생성 완료. 위 체크리스트의 실제 사용자 환경 확인 항목은 자동 성공으로 대신하지 않는다. [최종 배포 검증 기록](29_final_release_review_KO.md).
