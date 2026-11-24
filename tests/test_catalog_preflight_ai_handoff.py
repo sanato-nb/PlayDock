@@ -233,7 +233,8 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
             "게임 이름 변경 (수동)…", "배너·아이콘 수동 설정",
             "실행 옵션 설정…", "공식 작품 페이지 열기",
         ]
-        assert all(action.isEnabled() for action in (rename, artwork, launch, official))
+        assert all(action.isEnabled() for action in (rename, artwork, launch))
+        assert not official.isEnabled()  # no official URL yet
 
         monkeypatch.setattr(metadata, "ask_text", lambda *args: ("새 표시 이름", True))
         rename.trigger()
@@ -261,7 +262,7 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
         monkeypatch.setattr(metadata, "show_message", lambda *args: messages.append(args[1]))
         monkeypatch.setattr(metadata.webbrowser, "open", lambda url: opened.append(url) or True)
         official.trigger()
-        assert messages == ["공식 작품정보 없음"]
+        assert messages == []  # disabled action never opens a dialog
         assert opened == []
 
         url = "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"
@@ -271,6 +272,7 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
         }])
         assert window.work_db.save_verified_game_link(game.id, "dlsite", "RJ123456")
         window.reload(prefer_id=game.id)
+        assert open_menu()[3].isEnabled()
         open_menu()[3].trigger()
         assert opened == [url]
         assert "DLsite" in window.game_info.text()
