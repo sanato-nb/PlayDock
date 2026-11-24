@@ -24,7 +24,7 @@ from ui.widgets.launcher import collection_chevron, friendly_bytes, game_placeho
 from ui.dialogs.common import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import ask_text, ask_yes_no, show_message
 from ui.dialogs.library import GameCollectionsDialog
-from services.official_work_service import official_metadata_for_game, official_info_rows
+from services.official_work_service import official_info_rows
 
 
 class LibraryControllerMixin:

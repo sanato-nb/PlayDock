@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import os
 from sqlite3 import Error as SQLiteError
-import subprocess
 import sys
 import webbrowser
 

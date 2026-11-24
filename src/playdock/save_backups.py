@@ -5,8 +5,7 @@ Restore always creates a fresh subfolder; original saves are never overwritten.
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path, PurePosixPath
-from hashlib import sha256
+from pathlib import Path
 import json
 import os
 import stat

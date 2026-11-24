@@ -7,7 +7,7 @@ from PySide6.QtCore import Qt, Signal, QTimer, QUrl
 from PySide6.QtGui import QPixmap, QDesktopServices
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QScrollArea, QWidget,
-    QLabel, QLineEdit, QPushButton, QComboBox, QSlider, QFrame, QMessageBox,
+    QLabel, QLineEdit, QPushButton, QSlider, QFrame, QMessageBox,
 )
 from ui.selectors import DarkMenuSelect
 

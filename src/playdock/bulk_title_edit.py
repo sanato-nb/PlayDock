@@ -19,7 +19,6 @@ from simple_title_edit import (
     restore_filename_title, undo_display_title,
 )
 from localized_titles import LANGUAGES, language_is_plausible
-from product_titles import clean_title
 
 
 @dataclass
