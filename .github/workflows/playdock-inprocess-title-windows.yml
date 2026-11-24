@@ -20,6 +20,7 @@ on:
       - "tests/test_catalog_collection_v3.py"
       - "tests/test_catalog_preflight_ai_handoff.py"
       - "tests/test_feature_menu_cleanup_v4.py"
+      - "tests/test_collection_board.py"
       - "tests/test_search_only_ui.py"
       - "tests/test_popup_menus.py"
       - "tests/test_ui_polish.py"

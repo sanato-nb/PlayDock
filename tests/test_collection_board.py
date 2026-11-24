@@ -41,7 +41,9 @@ def test_board_has_overview_and_click_navigation_without_network_calls():
     assert 'self.createRequested.emit' in board
     assert 'self.collectionOpened.emit(cid)' in board
     assert 'self.gameOpened.emit(gid)' in board
-    assert "self.collections_nav" not in app  # navigation button needn't expose private state
+    assert "self.collections_nav_btn = collections_nav" in app
+    assert "self.main_stack.currentChanged.connect(self.sync_top_navigation)" in app
+    assert "button.setChecked(active)" in app
     assert 'self.action_button("내 모음집", self.show_collections_overview)' in app
     assert 'self.main_stack.addWidget(self.collections_board)' in app
     assert 'self.main_stack.setCurrentWidget(self.collections_board)' in app
