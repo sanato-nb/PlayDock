@@ -74,7 +74,8 @@ def official_info_rows(record):
         ("공식 판매처", store),
         ("공식 품번 / App ID", record["code"]),
         ("공식 작품명", record["title"]),
-        ("공식 판매처 분류", category or "정보 없음"),
+        ("공식 판매처 분류" if record["store"] == "dlsite" else "공식 작품 종류·분류",
+         category or "정보 없음"),
         ("공식 작품 페이지", record["page_url"]),
     ]
     if record.get("maker"):

@@ -133,6 +133,14 @@ def test_legacy_scanner_imports_into_main_without_other_db_writes(tmp_path):
     steam = db.get_official_work("steam", "1091500")
     assert steam["title"] == "Steam Official Game"
     assert dict(official_info_rows(steam))["공식 작품 종류·분류"] == "game"
+    # DLsite categories are storefront sections; Steam retains its work type.
+    dlsite = db.get_official_work("dlsite", "RJ123456")
+    assert dict(official_info_rows(dlsite))["공식 판매처 분류"] == "성인 동인"
+    assert dlsite["category"] == "maniax"
+    assert db.get_official_work("dlsite", "RJ123456")["category"] == "maniax"
+    assert "공식 판매처 분류" not in dict(official_info_rows(steam))
+    assert dict(official_info_rows({**dlsite, "category": "unknown-section"}))["공식 판매처 분류"] == "unknown-section"
+    assert source.read_bytes() == original
 
 
 def test_one_time_legacy_scanner_auto_import_from_old_location(tmp_path, monkeypatch):
