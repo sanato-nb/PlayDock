@@ -1,18 +1,9 @@
 name: Build clean PlayDock public release
 
+# EXE 배포가 필요할 때 Actions 탭에서 수동으로 실행합니다.
+# 일반 소스코드 커밋에서는 Windows 빌드를 자동 실행하지 않습니다.
 on:
   workflow_dispatch:
-  push:
-    branches: [main, master]
-    paths:
-      - '**/*.py'
-      - 'requirements.txt'
-      - 'assets/**'
-      - 'tests/**'
-      - 'Build-Windows-Release.ps1'
-      - 'make_public_release.py'
-      - 'docs/**'
-      - '.github/workflows/build-windows-exe.yml'
 
 permissions:
   contents: read
