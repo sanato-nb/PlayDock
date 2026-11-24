@@ -2,7 +2,7 @@ name: PlayDock 기능·게임 관리 메뉴 정리 Windows 검증
 
 on:
   push:
-    branches: [experiment-bidirectional-lookup-20261121, feature/game-management-menu-20261124]
+    branches: [main, experiment-bidirectional-lookup-20261121, feature/game-management-menu-20261124]
     paths:
       - "app.py"
       - "src/playdock/database/work_repository.py"
