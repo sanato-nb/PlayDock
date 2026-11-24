@@ -45,4 +45,4 @@ def test_native_windows_titlebar_is_dark_without_frameless_window():
     assert "from native_caption import windows_dark_caption" in APP
     assert "class DarkCaptionEventFilter(QObject)" in APP
     assert "app.installEventFilter(caption_filter)" in APP
-    assert "FramelessWindowHint" not in (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8').split('class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, WindowActionControllerMixin, QMainWindow):', 1)[1]
+    assert "FramelessWindowHint" not in (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8').split('class MainWindow(', 1)[1]

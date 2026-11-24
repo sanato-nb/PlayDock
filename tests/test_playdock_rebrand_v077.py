@@ -20,8 +20,15 @@ def test_release_names_and_build_payload():
     root = Path(__file__).resolve().parents[1]
     for filename in ('Build-Windows-Release.ps1', 'build_setup_windows.bat', '00_BUILD_WINDOWS_EXE.bat'):
         source = (root/"scripts"/filename).read_text('utf-8-sig')
-        for name in ('PlayDock.exe', 'PlayDock_TitleEditor.exe', 'PlayDock_Setup.exe', 'PlayDock_Uninstall.exe'):
+        for name in ('PlayDock.exe', 'PlayDock_Setup.exe', 'PlayDock_Uninstall.exe'):
             assert name in source
+    # The title editor is now a window inside PlayDock.exe. Keep the legacy
+    # binary name only for safe removal of previous installations.
+    build = (root / 'scripts' / 'Build-Windows-Release.ps1').read_text('utf-8-sig')
+    assert "Run-PyInstaller 'PlayDock_TitleEditor'" not in build
+    assert "'dist\\PlayDock_TitleEditor.exe;payload'" not in build
+    assert 'from title_editor import TitleEditor' in (
+        root / 'src/playdock/controllers/metadata.py').read_text(encoding='utf-8')
     assert mgr.DISPLAY_NAME == 'PlayDock'
     assert mgr.MAIN_EXE == 'PlayDock.exe'
     assert mgr.EDITOR_EXE == 'PlayDock_TitleEditor.exe'

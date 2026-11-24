@@ -38,14 +38,12 @@ from data_management import inventory, backup_data, inspect_backup, restore_data
 from ui.collection_board import CollectionBoard
 from library_tree import make_sidebar_groups
 from artwork import get_secret, set_secret, save_image, discover_local
-from ui.artwork_dialog import OnlineArtworkDialog
 from ui.selectors import DarkMenuSelect
 from ai_providers import (PROVIDERS, current_provider, current_models, save_provider_settings)
 from setup_paths import save_folder_settings, proposed_paths
 from native_caption import windows_dark_caption
 from launch_options import parse_game_arguments
 from save_backups import create_save_backup, restore_save_backup
-from title_editor_entry import title_editor_command
 from work_db import WorkDatabase
 from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
 
@@ -124,16 +122,20 @@ from services.workers import InstallThread, UninstallThread, SaveBackupThread
 from controllers.library import LibraryControllerMixin
 from controllers.game_actions import GameActionControllerMixin
 from controllers.metadata import MetadataControllerMixin
+from controllers.catalog_collection import CatalogCollectionControllerMixin
 from controllers.window_actions import WindowActionControllerMixin
 from controllers.data_manager import DataManagementController
 
-class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, WindowActionControllerMixin, QMainWindow):
+class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataControllerMixin, CatalogCollectionControllerMixin, WindowActionControllerMixin, QMainWindow):
     def __init__(self):
         super().__init__()
         self.library = Library()
         self.collections = CollectionStore(self.library.store)
-        self.work_db = WorkDatabase(self.library.store)
+        self.work_db = WorkDatabase(self.library.store, import_legacy=True)
         self.work_lookup_worker = None
+        self.identity_lookup_worker = None
+        self.catalog_worker = None
+        self.catalog_dialog = None
         self.games: list[Game] = []
         self.data_actions = DataManagementController(self)
         self.selected_id: str | None = None
@@ -144,14 +146,8 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.removing_game: Game | None = None
         self.save_worker: SaveBackupThread | None = None
         self.sort_mode = "name"
-        # The editor is an independent process. Polling lets the launcher
-        # refresh edited titles after it exits without keeping Qt process
-        # objects alive if the main window is closed first.
-        self.title_editor_process: subprocess.Popen | None = None
-        self.title_editor_game_id: str | None = None
-        self.title_editor_monitor = QTimer(self)
-        self.title_editor_monitor.setInterval(1000)
-        self.title_editor_monitor.timeout.connect(self.title_editor_check_finished)
+        # Single-game title editor is an in-process Qt window.
+        self.title_editor_window = None
         self.setWindowTitle("PlayDock")
         icon_root = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent))
         ico = icon_root / 'assets' / 'playdock.ico'
@@ -161,6 +157,16 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.setMinimumSize(950, 620)
         self.build_ui()
         self.reload()
+
+    def closeEvent(self, event):
+        if self.catalog_worker is not None and self.catalog_worker.isRunning():
+            self.catalog_worker.requestInterruption()
+            event.ignore()
+            if self.catalog_dialog is not None:
+                self.catalog_dialog.raise_()
+            self.set_message("DB 수집 중단을 요청했습니다. 진행 중인 공식 사이트 조회가 끝나면 종료할 수 있습니다.")
+            return
+        super().closeEvent(event)
 
     def action_button(self, label: str, fn, primary: bool = False) -> QPushButton:
         btn = QPushButton(label)

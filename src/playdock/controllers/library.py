@@ -24,6 +24,7 @@ from artwork import discover_local
 from ui.widgets.launcher import collection_chevron, friendly_bytes, game_placeholder_icon
 from ui.dialogs.common import ask_text, ask_yes_no, show_message
 from ui.dialogs.library import GameCollectionsDialog
+from services.official_work_service import official_metadata_for_game, official_info_rows
 
 
 class LibraryControllerMixin:
@@ -145,6 +146,8 @@ class LibraryControllerMixin:
             self.folder_btn.setEnabled(False)
             self.uninstall_btn.setVisible(False)
             self.select_exe_btn.setEnabled(False)
+            self.identity_scan_btn.setEnabled(False)
+            self.game_name_btn.setEnabled(False)
 
 
     def on_tree_select(self):
@@ -265,8 +268,9 @@ class LibraryControllerMixin:
         elif kind == 'game':
             choice = menu.addAction('모음집에 추가 / 제거')
             launch = menu.addAction('플레이 / 설치')
-            edit_name = menu.addAction('게임 이름 수정...')
-            db_lookup = menu.addAction('DLsite 작품 정보 조회·DB 저장...')
+            edit_name = menu.addAction('게임 이름 설정...')
+            db_lookup = menu.addAction('게임 정체 판독 · 공식 이미지 적용...')
+            official_page = menu.addAction('저장된 공식 작품 페이지 열기')
             game = self.current()
             remove = None
             if game is not None and game.installed and not game.external:
@@ -282,9 +286,11 @@ class LibraryControllerMixin:
             elif picked == launch:
                 self.main_action()
             elif picked == edit_name:
-                self.open_title_editor()
+                self.open_selected_name_settings()
             elif picked == db_lookup:
-                self.lookup_work_database()
+                self.identify_selected_game()
+            elif picked == official_page:
+                self.open_saved_official_page()
             elif remove is not None and picked == remove:
                 self.uninstall_game()
             elif disconnect is not None and picked == disconnect:
@@ -342,21 +348,11 @@ class LibraryControllerMixin:
 
 
     def work_db_info_rows(self, game):
-        code = self.library.product_code(game)
-        if not code:
-            return []
+        """Unified official works table: one row per store/code, no duplicate headings."""
         try:
-            record = self.work_db.get_work(code)
-        except Exception:
+            return official_info_rows(self.collected_game_record(game))
+        except (OSError, ValueError):
             return []
-        if not record:
-            return []
-        language = self.library.settings.get('title_language', 'ko')
-        title = record['titles'].get(language) or record['fallback_title']
-        return [('DB 작품명', title),
-                ('제작사', record.get('maker') or '정보 없음'),
-                ('발매일', record.get('release_date') or '정보 없음'),
-                ('장르', ', '.join(record.get('tags', [])[:8]) or '정보 없음')]
 
 
     def present_game(self):
@@ -403,8 +399,11 @@ class LibraryControllerMixin:
         belonging = self.collections.for_game(game.id)
         collection_names = ", ".join(col["name"] for col in belonging) if belonging else "없음"
         from html import escape
+        confirmed = self.collected_game_record(game)
         info_rows = [
             ('모음집', collection_names),
+            ('공식 작품 확인', (confirmed['store'].upper() + ' · ' + confirmed['code'])
+             if confirmed else '정보 수집 필요'),
             *([('작품 코드', self.library.product_code(game))] if self.library.product_code(game) else []),
             *self.work_db_info_rows(game),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),
@@ -421,4 +420,13 @@ class LibraryControllerMixin:
             for label, value in info_rows
         )
         self.game_info.setText('<table cellspacing="0" cellpadding="0">' + rows + '</table>')
+        # Critical: information has been linked, but the previous UI never
+        # re-enabled this button when selection changed/collection completed.
+        self.identity_scan_btn.setEnabled(confirmed is not None)
+        self.identity_scan_btn.setToolTip(
+            "확인된 공식 이미지에서 배너·아이콘을 선택합니다."
+            if confirmed else
+            "먼저 게임 정보 수집으로 이 게임의 공식 작품을 확인하세요."
+        )
+        self.game_name_btn.setEnabled(True)
 

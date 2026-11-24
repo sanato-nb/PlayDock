@@ -79,6 +79,7 @@ def test_error_message_redacts_google_style_api_key():
 def test_gemini_image_generation_not_exposed_in_main_program():
     from pathlib import Path
     source=(Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8') + _ui_main
-    assert '인터넷 이미지 검색·편집' in source
+    assert '게임 정보 수집' in source
+    assert '인터넷 이미지 검색·편집' not in source
     assert 'gemini_limits_button' not in source
     assert 'fetch_art(' not in source

@@ -66,9 +66,15 @@ from ui.dialogs.title import (DarkDialogCaptionFilter, BulkPreviewDialog,
 from controllers.title_editor import TitleEditorActionsMixin
 
 class TitleEditor(TitleEditorActionsMixin, QMainWindow):
-    def __init__(self, initial_game_id: str | None = None):
+    closed = Signal()
+
+    def __init__(self, initial_game_id: str | None = None,
+                 *, library: Library | None = None, single_game_only: bool = False):
         super().__init__()
-        self.library = Library()  # Same settings and metadata as PlayDock.exe
+        self.library = library if library is not None else Library()
+        self.single_game_only = bool(single_game_only)
+        self.single_game_id = initial_game_id if single_game_only else None
+        self.setStyleSheet(STYLE)
         self.games = []
         self.selected_id: str | None = initial_game_id
         self.worker: TitleWorker | None = None
@@ -79,13 +85,20 @@ class TitleEditor(TitleEditorActionsMixin, QMainWindow):
         self._loading_localized = False
         self.suggestion_source = '수동 수정'
         self.suggestion_code = ''
-        self.setWindowTitle('PlayDock · 게임 이름 관리자')
+        self.setWindowTitle('PlayDock · 이 게임 이름 설정' if single_game_only else
+                            'PlayDock · 게임 이름 관리자')
         icon = Path(getattr(sys, '_MEIPASS', Path(__file__).resolve().parent)) / 'assets' / 'playdock.ico'
         if icon.is_file():
             self.setWindowIcon(QIcon(str(icon)))
         self.resize(1080, 690)
         self.setMinimumSize(800, 520)
         self.make_ui()
+        if self.single_game_only:
+            self.bulk_settings_btn.hide()
+            self.bulk_btn.hide()
+            self.search.hide()
+            self.setMinimumSize(760, 510)
+            self.resize(980, 660)
         self.refresh()
         QTimer.singleShot(0, lambda: windows_dark_caption(int(self.winId())))
 

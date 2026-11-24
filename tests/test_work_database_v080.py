@@ -84,7 +84,11 @@ def test_save_retrieve_sync_preserves_user_meta(tmp_path):
     assert db.count_works() == 0
     db.sync_library(lib, lib.scan())
     with db.connect() as con:
-        assert con.execute('SELECT product_code FROM library_links').fetchone()[0] == 'RJ01234567'
+        assert con.execute('SELECT COUNT(*) FROM library_links').fetchone()[0] == 0
+    lib.set_product_code(game, 'RJ01234567')
+    db.sync_library(lib, lib.scan())
+    with db.connect() as con:
+        assert tuple(con.execute('SELECT store, code FROM library_links').fetchone()) == ('dlsite', 'RJ01234567')
     record = fetch_dlsite_work('RJ01234567', opener=mock_opener)
     db.save_work(record)
     assert db.count_works() == 1

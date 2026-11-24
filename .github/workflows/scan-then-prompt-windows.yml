@@ -1,0 +1,186 @@
+name: PlayDock 검사 EXE 폴더 Y 재확인·Windows 실사용 테스트
+
+on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths:
+      - "scripts/scan_then_prompt.py"
+      - "src/playdock/database/work_repository.py"
+      - "src/playdock/services/official_work_service.py"
+      - "tests/test_shared_db_location_v3.py"
+      - "scripts/folder_picker.py"
+      - "tests/test_scan_then_prompt.py"
+      - "tests/test_official_catalog.py"
+      - "tests/test_code_only_auto_rename.py"
+      - "experiments/dlsite_detector/code_only_renamer.py"
+      - "src/playdock/database/official_catalog.py"
+      - ".github/workflows/scan-then-prompt-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 빌드 및 검사 도구
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.11,<7" pytest
+
+      # UTF-8 Windows 테스트 및 실제 조회 실패 문구 개선 후 최종 검사
+      # AI 조사 지시 주체 명확화 후 최종 테스트 재검증
+      # PowerShell 템플릿 Windows 모의 실행 및 최종 배포 아티팩트 재검증
+      # NTFS 파일ID 재사용 사례 보완: 내용 서명 및 복구 실패 차단 재검증
+      - name: Windows 검사 엔진 및 TXT 인계 프롬프트 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q experiments/dlsite_detector/scan_handoff.py experiments/dlsite_detector/rename_template.py experiments/dlsite_detector/rename_validation.py scripts/scan_then_prompt.py src/playdock/database/official_catalog.py experiments/dlsite_detector/code_only_renamer.py
+          python -m pytest -q tests/test_shared_db_location_v3.py tests/test_code_only.py tests/test_dlsite_steam_priority.py tests/test_scan_then_prompt.py tests/test_rename_template.py tests/test_rename_validation.py tests/test_official_catalog.py tests/test_code_only_auto_rename.py
+
+      - name: 실제 DLsite/Steam 공식 작품 조회 진단 (실패 비치명)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          @'
+          from experiments.dlsite_detector.code_only import check,InputItem
+          for filename in ("BUZAMA [RJ01052720].7z", "Cyberpunk [Steam 1091500].zip"):
+              x = check(InputItem(filename, "archive"))
+              print("OFFICIAL_SMOKE", filename, "status", x.status,
+                    "store", x.selected_store, flush=True)
+          '@ | python -
+
+      - name: GUI 없는 Windows 콘솔 EXE 빌드
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --console --name PlayDock-ID-Scan-And-Prompt --paths . --paths src/playdock --exclude-module tkinter --exclude-module PySide6 --exclude-module ddgs scripts/scan_then_prompt.py
+
+      # 영문 로캘에서 UTF-8 한글 출력까지 검증하는 최종 빌드
+      - name: Windows EXE 자체 진단
+        shell: pwsh
+        run: |
+          $exe = (Resolve-Path "dist/PlayDock-ID-Scan-And-Prompt.exe").Path
+          & $exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "EXE 자체 진단 실패: $LASTEXITCODE" }
+          & $exe --self-test-renames
+          if ($LASTEXITCODE -ne 0) { throw "EXE 자동 이름 변경·UNDO 자체 진단 실패: $LASTEXITCODE" }
+
+      - name: EXE 완성 PS1 독립 무결성 검사
+        shell: pwsh
+        run: |
+          python -c "from experiments.dlsite_detector.rename_template import PS1_TEMPLATE; from pathlib import Path; Path('empty_rename.ps1').write_text(PS1_TEMPLATE, encoding='utf-8-sig')"
+          $exe = (Resolve-Path "dist/PlayDock-ID-Scan-And-Prompt.exe").Path
+          & $exe --verify-rename-script "empty_rename.ps1"
+          if ($LASTEXITCODE -ne 0) { throw "배포 EXE 완성 PS1 검증 실패" }
+          (Get-Content "empty_rename.ps1" -Raw -Encoding UTF8).Replace('Undo-Last', 'Undo-Broken') |
+            Set-Content "tampered_rename.ps1" -Encoding UTF8
+          # 검증 실패(종료 코드 1)는 이 시험의 예상 결과이므로 프로세스 결과만 읽습니다.
+          $process = Start-Process -FilePath $exe -ArgumentList @('--verify-rename-script', 'tampered_rename.ps1') -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -eq 0) { throw "코드 변조 PS1을 검증 통과시켜서는 안 됩니다" }
+
+      - name: 실제 Windows EXE 수행 · 결과가 TXT 하나만 생성되는지 검증
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "sample_games" | Out-Null
+          Set-Content "sample_games/Test Unknown.zip" "FAKE ARCHIVE"
+          $exe = (Resolve-Path "dist/PlayDock-ID-Scan-And-Prompt.exe").Path
+          "Y" | & $exe "sample_games" --output "sample_results"
+          if ($LASTEXITCODE -ne 0) { throw "실제 EXE 검사 실행 실패" }
+          $out = Get-ChildItem -Directory "sample_results" | Select-Object -First 1
+          if (-not $out) { throw "출력 디렉터리가 없습니다" }
+          $files = @(Get-ChildItem -File $out.FullName)
+          if ($files.Count -ne 1 -or $files[0].Name -ne "PlayDock_Complete_Scan_And_AI_Prompt.txt") {
+            throw "결과가 TXT 하나가 아닙니다: $($files.Name -join ', ')"
+          }
+          $merged = Get-Content $files[0].FullName -Raw -Encoding UTF8
+          if (-not $merged.Contains("전체 1개 | 공식 확인 0개 | 일부 확인 0개 | 제외 1개") -or
+              -not $merged.Contains("실제 제외 게임 목록 시작") -or
+              -not $merged.Contains("Test Unknown.zip") -or
+              -not $merged.Contains("2부. 품번 확인 완료 목록 (AI 조사 대상 아님)") -or
+              -not $merged.Contains("A. 식별번호 없음: 1개") -or
+              -not $merged.Contains("B. 기존 식별번호 조회 실패: 0개") -or
+              -not $merged.Contains("변경 제안 파일명") -or
+              -not $merged.Contains("BEGIN AI RULES") -or
+              -not $merged.Contains('$renameJson') -or
+              -not $merged.Contains("Undo-Last")) {
+            throw "통합 TXT의 검사 결과·제외 목록·AI 지침 중 일부가 빠졌습니다"
+          }
+          if (([regex]::Matches($merged, [regex]::Escape("Test Unknown.zip"))).Count -ne 1) {
+            throw "제외 게임이 전체 결과 부분에 중복 기록됨"
+          }
+          if ($merged -match "github.com|sanato|experiment-bidirectional-lookup") {
+            throw "통합 TXT에 개발 정보가 포함됐습니다"
+          }
+
+      - name: Windows EXE 대화형 폴더 Y 승인 및 취소 실검증
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import subprocess
+          import tempfile
+
+          exe = Path("dist/PlayDock-ID-Scan-And-Prompt.exe").resolve()
+          with tempfile.TemporaryDirectory() as tmp:
+              folder = Path(tmp) / "my games"
+              folder.mkdir()
+              (folder / "Unknown Demo.zip").write_bytes(b"FAKE-TEST-FILE")
+              result_folder = folder / "PlayDock_Results"
+              def launch(reply):
+                  run = subprocess.run([str(exe)],
+                      input=str(folder) + "\n" + reply + "\n\n",
+                      text=True, encoding="utf-8", errors="replace",
+                      capture_output=True, timeout=80)
+                  assert run.returncode == 0, run.stdout + run.stderr
+                  # Behavioral assertions below are authoritative: no output
+                  # after N, one complete TXT after Y. Do not compare console
+                  # path text: Windows may canonicalize/case-fold the input path.
+                  return run.stdout
+
+              # Verify the same safety gate when a folder is passed as a CLI arg.
+              for answer in ("N", ""):
+                  destination = Path(tmp) / ("cli_cancel_" + (answer or "enter"))
+                  rejected = subprocess.run(
+                      [str(exe), str(folder), "--output", str(destination)],
+                      input=answer + "\n", text=True, encoding="utf-8",
+                      errors="replace", capture_output=True, timeout=80)
+                  assert rejected.returncode == 0, rejected.stdout + rejected.stderr
+                  assert "이 폴더가 맞습니까?" in rejected.stdout
+                  assert "검사를 취소했습니다" in rejected.stdout
+                  assert not destination.exists(), "직접 인자 취소 후 TXT 생성됨"
+
+              launch("N")
+              assert not result_folder.exists(), "N 취소 후 TXT가 생성됨"
+              launch("Y")
+              dirs = list(result_folder.iterdir())
+              assert len(dirs) == 1 and dirs[0].is_dir()
+              assert [p.name for p in dirs[0].iterdir()] == [
+                  "PlayDock_Complete_Scan_And_AI_Prompt.txt"]
+              assert (folder / "Unknown Demo.zip").read_bytes() == b"FAKE-TEST-FILE"
+              print("Windows interactive EXE folder Y/N confirmation PASS")
+          '@ | python -
+
+      - name: 이용자 정보 없는 배포 ZIP 준비
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "release" | Out-Null
+          Copy-Item "dist/PlayDock-ID-Scan-And-Prompt.exe" "release/"
+          Copy-Item "scripts/SCAN_THEN_PROMPT_README_KO.txt" "release/사용법_먼저_읽기.txt"
+          if ((Get-ChildItem "release" -File).Count -ne 2) { throw "배포 파일 수 불일치" }
+          Get-FileHash "release/PlayDock-ID-Scan-And-Prompt.exe" -Algorithm SHA256
+
+      - name: Windows EXE 다운로드 파일 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Verified-Rename-PS1-Windows
+          path: release/
+          if-no-files-found: error
+          retention-days: 30

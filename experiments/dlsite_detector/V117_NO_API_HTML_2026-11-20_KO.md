@@ -1,0 +1,55 @@
+# PlayDock 단독 판독기 v0.11.7 — API 호출 없는 공개 HTML 검색 실험 (2026-11-20)
+
+## 목적
+사용자가 외부 API 및 API 키 없이 게임 파일명만으로 게임 정체를 검색하기를 원함. 기존 v0.11.6 무료 검색의 실측 실패를 확인하여 검색·공식 상품 대조 경로를 분리했다.
+
+## 두 개의 실제 검사 결과 (사용자가 제공한 사적 JSON, 원본은 커밋하지 않음)
+| 지표 | v0.11.6 Serper 사용 | 동일 코드/키 없는 v0.11.61 |
+|---|---:|---:|
+| 파일명 총수 | 129 | 129 |
+| 검색 장애 | 8 | 38 |
+| 웹 이름 후보 | 26 | 1 |
+| 공식 이름 일치 | 12 | 9 |
+| 코드로 공식 상품 등록 확인 | 68 | 68 |
+| 유력 후보 | 12 | 10 |
+| 복수 후보 | 1 | 1 |
+| 미확인 | 2 | 2 |
+
+두 결과에서 작품번호·Steam ID 없이 제목 웹 검색이 필요한 파일은 39개였다. API 키 없이 진행한 기록의 DDGS 공급자 호출 39건 모두 오류, Bing RSS 38건 무관 결과, 1건 관련 결과였다. **이 통계는 v0.11.6 기존 방식에 대한 진단이지 v0.11.7 정확도 향상 증거가 아니다.**
+
+## v0.11.7 독립 GUI의 실행 방식
+- `scripts/filename_identity_tester.py`에서 API 키/Serper 입력란을 제거하고 `identify_filename(..., no_api=True)`로 실행.
+- 신규 `experiments/dlsite_detector/no_api_html.py`: DuckDuckGo 비-JS 검색 HTML, itch.io 검색 HTML, Mojeek 일반 검색 HTML, Steam 검색 HTML의 결과 앵커를 제한적으로 수집. DLsite 상품 HTML 및 Steam `/app/ID/` HTML에서 직접 제품명 추출.
+- `experiments/dlsite_detector/filename_web_search.py`: 격리된 프로세스에서 `no_api` 플래그에 따라 HTML 공급자만 선택. 이전 Serper 환경변수는 검색 자식 프로세스에서 삭제. 기존 워커 제한시간, 공급자 오류·시간 로그 유지.
+- `experiments/dlsite_detector/filename_only.py`: 직접 품번, 검색에서 발견한 품번, Steam ID 모두 `no_api` 모드에서는 일반 상품 HTML을 사용. 기존 API 기반 분류는 레거시 개발·테스트에 남지만 이번 GUI 경로에서는 호출하지 않는다.
+- **기본 결과는 보수적**: 공개 HTML로 번호·작품명은 확인 가능하나 게임 유형을 검증 못 하면 `catalog_found`로 남기며 `official_match`를 자동 부여하지 않는다.
+- JSON 저장 이름은 `PlayDock_Filename_Identity_v0.11.7_no_api.json`. 압축파일 자체/개인 자료 미검사.
+
+## 안전 및 기술상 한계
+- 계정/토큰/유료 API 없음. 브라우저 HTML 조회는 사이트 정책·차단·캡차·연령 게이트·언어 설정에 영향을 받음. 무단 차단 우회/캡차 회피는 구현하지 않음.
+- HTML 파서는 검색 결과와 URL을 보수적으로 검증하나, 공개 검색 사이트가 자동화 요청에 정상 응답한다고 보장할 수 없음. 실제 Windows 검색 성공률·정답률은 아직 사용자 실측 전에는 **미측정**.
+- PDF/아카이브/게임 EXE 내부 데이터는 미분석. 실제 게임 버전·배포 정체를 확인하지 않음.
+- 공개 GitHub에는 개인 129개 전체 파일명, 개인 JSON, API 키를 업로드하지 않음.
+- 연구는 `experiment-dlsite-game-detector-20261117` 실험 브랜치 / Draft PR #2 한정. `main` 병합 금지.
+
+## 추가 안전 수정
+- 단순 Steam 상품 HTML은 게임 본편 유형을 증명하지 못함. 제목이 맞아도 잘못 '다른 작품/유형'이라며 제외하던 오류를 수정하여 `official_html` 후보의 유형 미검증으로 보존.
+- DLsite의 연령 확인 화면을 작품 등록으로 인정하지 않음. 두 가지 모의 회귀 사례 추가.
+
+## Windows 실접속 표본 (실제 온라인 게임 정답률과 별개)
+- 실험: 합성 사용자 자료가 아닌 공개 게임 제목 `Stardew Valley` 1회씩 일반 HTML 검색.
+- `itch_html`: 공개 검색 결과 **12건 수신**.
+- `steam_product_html`: 개별 공식 작품 HTML에서 `Stardew Valley` 이름 확인.
+- `ddg_html`: CAPTCHA/자동화 차단. **차단을 우회하지 않음**.
+- `mojeek_html`: HTTP 오류로 결과 수집 실패.
+- `steam_html`: 이전 600KB 응답 제한 초과. 이후 최대 2.5MB로 보수적 상향해 재빌드.
+- 사이트별 장애는 명시적으로 남기며, 자동 검색 성공률은 사용자 129개 대상 재검사 전까지 **미측정**.
+- 정상 응답한 itch.io·Steam 검색을 DDG/Mojeek보다 먼저 조회하도록 우선순위 수정.
+
+## 회귀 검사
+- 전체 Ubuntu Python 3.12: **741 passed**, [CI #44741105893](https://github.com/sanato-nb/PlayDock/actions/runs/44741105893). 과거 727건 + HTML 모의 응답 14건.
+- **최종 Windows EXE 빌드 성공:** [Actions #44742193821](https://github.com/sanato-nb/PlayDock/actions/runs/44742193821) / [다운로드 Artifact #14631581416](https://github.com/sanato-nb/PlayDock/actions/runs/44742193821/artifacts/14631581416). Windows Python 3.12 **216 passed**, PyInstaller 단일 EXE 생성 및 실행 `--self-test` 성공.
+- EXE SHA-256: `00fbc91e045430d07dc8dd788c2a8712b5b594f8ac9be1c32e178e7332b00afd`. ZIP SHA-256: `778ac879adf516db036b2238589361039f314a39baf39813b970e4d24dd1f5f3`. ZIP에는 EXE 및 한국어 설명서 두 파일만 보관.
+- 최종 Windows **공개 HTML 1회 실접속:** itch.io 검색 12건, Steam HTML 검색 12건, Steam 개별 상품 페이지 제목 `Stardew Valley` 검증 성공. DDG HTML은 자동화 차단, Mojeek HTML은 HTTP 오류. 접근 제한 우회 없음.
+- Windows 빌드용 실험 브랜치 `push` 트리거는 1회 사용 후 `workflow_dispatch` 전용으로 복원. `main` 미수정, PR Draft. GitHub 아티팩트 보존 기한 2026-12-20.
+- 이 결과는 HTML **검색 접근 가능성** 검증이지 사용자의 129개 게임 판독 정답률 측정이 아님.

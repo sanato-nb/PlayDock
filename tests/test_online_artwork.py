@@ -153,10 +153,14 @@ def test_download_invalid_response_fails(monkeypatch):
         download_image('https://example.org/image.png')
 
 
-def test_integration_menu_has_explicit_free_search():
+def test_official_image_service_replaces_web_image_search_ui():
     root = Path(__file__).resolve().parents[1]
     app = (root / 'app.py').read_text(encoding='utf-8') + _ui_main
-    assert '인터넷 이미지 검색·편집' in app
-    assert 'OnlineArtworkDialog' in app
+    official = (root / 'src/playdock/services/official_artwork_service.py').read_text(encoding='utf-8')
+    assert '게임 정보 수집' in app
+    assert '배너·아이콘 설정' in app
+    assert '인터넷 이미지 검색·편집' not in app
+    assert 'OnlineArtworkDialog' not in app
+    assert 'prepare_official_images(' in official
+    assert 'trusted_image_url(' in official
     assert 'PlayDock_Setup' in (root/'scripts/Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
-    assert 'ddgs' in (root/'requirements.txt').read_text(encoding='utf-8')

@@ -112,16 +112,12 @@ Run-PyInstaller 'PlayDock' 'app.py' @('--collect-all','keyring','--collect-all',
                                         '--collect-all','send2trash','--collect-all','ddgs','--hidden-import','rarfile',
                                         '--hidden-import','game_codes',
                                         '--add-data','assets\playdock.ico;assets')
-Run-PyInstaller 'PlayDock_TitleEditor' 'title_editor.py' @('--collect-all','keyring','--collect-all','ddgs',
-                                    '--hidden-import','game_codes', '--hidden-import','bulk_title_edit',
-                                    '--add-data','assets\playdock.ico;assets')
 Run-PyInstaller 'PlayDock_Uninstall' 'uninstall_wizard.py' @(
   '--add-data','assets\playdock.ico;assets'
 )
 Run-PyInstaller 'PlayDock_Setup' 'setup_wizard.py' @(
   '--add-data','assets\playdock.ico;assets',
   '--add-binary','dist\PlayDock.exe;payload',
-  '--add-binary','dist\PlayDock_TitleEditor.exe;payload',
   '--add-binary','dist\PlayDock_Uninstall.exe;payload'
 )
 
@@ -132,7 +128,7 @@ Assert-ExitCode 'Uninstaller self-test'
 Assert-ExitCode 'Installer embedded payload verification'
 
 Step 'Generating checksums and distribution ZIP'
-$names = @('PlayDock_Setup.exe','PlayDock.exe','PlayDock_TitleEditor.exe','PlayDock_Uninstall.exe')
+$names = @('PlayDock_Setup.exe','PlayDock.exe','PlayDock_Uninstall.exe')
 $checksums = foreach ($name in $names) {
   $path = Join-Path $script:Dist $name
   $hash = Get-FileHash -Path $path -Algorithm SHA256

@@ -20,13 +20,12 @@ def test_setup_copies_exes_and_legacy_collection_to_chosen_program_folder(tmp_pa
     (legacy / 'settings.json').write_text(json.dumps({'auto_art': True}), encoding='utf-8')
     (legacy / 'collections.json').write_text(json.dumps({'collections':[{'id':'test','name':'RPG','game_ids':[]}]}), encoding='utf-8')
     originals = []
-    for name in ('PlayDock.exe', 'PlayDock_TitleEditor.exe', 'PlayDock_Uninstall.exe'):
+    for name in ('PlayDock.exe', 'PlayDock_Uninstall.exe'):
         file = tmp_path / name
         file.write_bytes(b'MZ app binary ' + name.encode('utf-8'))
         originals.append(file)
     monkeypatch.setattr(setup_wizard, 'payload_executable', lambda: originals[0])
-    monkeypatch.setattr(setup_wizard, 'payload_title_editor', lambda: originals[1])
-    monkeypatch.setattr(setup_wizard, 'payload_uninstaller', lambda: originals[2])
+    monkeypatch.setattr(setup_wizard, 'payload_uninstaller', lambda: originals[1])
     monkeypatch.setattr(setup_wizard, 'legacy_data_dir', lambda: legacy)
     monkeypatch.setattr(setup_wizard, 'app_install_directory', lambda: old)
     registered = []
@@ -49,6 +48,7 @@ def test_setup_copies_exes_and_legacy_collection_to_chosen_program_folder(tmp_pa
     assert messages[-1][0] == 'done'
     assert registered == [program]
     assert all((program/f.name).read_bytes() == f.read_bytes() for f in originals)
+    assert not (program/'PlayDock_TitleEditor.exe').exists()
     assert local_storage.marker_is_valid(program)
     assert (program/'data'/'collections.json').read_bytes() == (legacy/'collections.json').read_bytes()
     settings = json.loads((program/'data'/'settings.json').read_text(encoding='utf-8'))

@@ -4,9 +4,33 @@ from __future__ import annotations
 
 from PySide6.QtWidgets import QMenu
 
+from ui.dialogs.database_status import DatabaseStatusDialog
+
 
 class WindowActionControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
+
+    def show_settings_menu(self):
+        """One top-right settings popup; refresh remains the only other button."""
+        menu = QMenu(self.settings_menu_btn)
+        menu.addAction("폴더 설정...").triggered.connect(
+            lambda _checked=False: self.folder_wizard())
+        menu.addAction("데이터 관리...").triggered.connect(
+            lambda _checked=False: self.data_manager_dialog())
+        menu.addAction("라이브러리 속성...").triggered.connect(
+            lambda _checked=False: self.library_info_dialog())
+        menu.addAction("AI 설정...").triggered.connect(
+            lambda _checked=False: self.settings_dialog())
+        menu.addSeparator()
+        menu.addAction("DB 상태 확인...").triggered.connect(
+            lambda _checked=False: self.show_database_status())
+        self.settings_menu_btn.present_popup(menu, right_align=True)
+
+
+    def show_database_status(self):
+        """Show actual record counts, paths and SQLite health without writes."""
+        DatabaseStatusDialog(self.library.store, len(self.games), parent=self).exec()
+
 
     def show_image_menu(self):
         """Only manual/local artwork options; no paid image generation path."""
@@ -41,10 +65,16 @@ class WindowActionControllerMixin:
 
     def show_extra_menu(self):
         menu = QMenu(self.extra_menu_btn)
-        menu.addAction('게임 이름 수정 / 이름 관리자 열기...').triggered.connect(
-            lambda _checked=False: self.open_title_editor())
-        menu.addAction('DLsite 작품 정보 조회 · DB 저장...').triggered.connect(
-            lambda _checked=False: self.lookup_work_database())
+        menu.addAction('게임 이름 설정 (선택 게임)...').triggered.connect(
+            lambda _checked=False: self.open_selected_name_settings())
+        menu.addAction('게임 이름 설정 (여러 게임)...').triggered.connect(
+            lambda _checked=False: self.open_bulk_name_settings())
+        art_action = menu.addAction('배너·아이콘 설정...')
+        art_action.setEnabled(self.has_collected_game_info())
+        art_action.triggered.connect(
+            lambda _checked=False: self.identify_selected_game())
+        menu.addAction('저장된 공식 작품 페이지 열기').triggered.connect(
+            lambda _checked=False: self.open_saved_official_page())
         menu.addSeparator()
         menu.addAction('실행 옵션 설정...').triggered.connect(
             lambda _checked=False: self.edit_launch_options())

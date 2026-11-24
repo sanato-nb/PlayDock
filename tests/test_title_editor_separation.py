@@ -29,15 +29,13 @@ def test_title_editing_lives_in_separate_entrypoint():
     assert 'def show_game_menu(' not in APP
 
 
-def test_installer_bundles_two_independent_binaries_and_shortcuts():
+def test_installer_bundles_single_launcher_with_editor_built_in():
     assert 'PlayDock.exe' in BUILD
-    assert 'PlayDock_TitleEditor.exe' in BUILD
-    assert '--add-binary "dist\\PlayDock_TitleEditor.exe;payload"' in BUILD
-    assert 'def installed_title_editor(program: Path | None = None)' in SETUP
-    assert 'def payload_title_editor()' in SETUP
-    assert 'shutil.copy2(payload_title_editor(), tmp)' in SETUP
-    assert 'create_shortcut(editor, start_menu.with_name(' in SETUP
-    assert 'editor = payload_title_editor()' in SETUP  # --self-test validates both
+    assert 'PlayDock_TitleEditor.exe;payload' not in BUILD
+    assert 'payload_title_editor()' not in SETUP
+    assert 'PlayDock_Uninstall.exe;payload' in BUILD
+    assert 'create_shortcut(editor' not in SETUP
+    assert 'TitleEditor' in EDITOR  # source stays modular even within one EXE
 
 
 def test_both_apps_share_existing_metadata_not_archives(tmp_path):

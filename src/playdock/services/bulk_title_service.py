@@ -49,8 +49,11 @@ class BulkTitleActions:
                     continue
                 method = "undo"
             else:
-                proposed = game.name
-                if self.library.base_title(game) == game.name:
+                # First-seen archive filename is immutable once recorded.
+                from pathlib import Path
+                archived_name = self.library.meta(game).get("original_archive_name")
+                proposed = Path(archived_name).stem if archived_name else game.name
+                if self.library.base_title(game) == proposed:
                     continue
                 method = "original"
             records.append(BulkChange(game.id, old, proposed, method,
@@ -68,11 +71,13 @@ class BulkTitleActions:
             title = item.get("title") or ""
             if title:
                 actual = item.get("language") or language
+                is_steam = item.get("store") == "steam"
                 records.append(BulkChange(
                     game.id, self.library.title(game), title,
-                    method="localized" if save_as_localized else "manual",
+                    method="manual" if is_steam else (
+                        "localized" if save_as_localized else "manual"),
                     language=actual, source=item.get("source", ""),
-                    product_code=item.get("code", ""),
+                    product_code="" if is_steam else item.get("code", ""),
                 ))
             else:
                 records.append(BulkChange(

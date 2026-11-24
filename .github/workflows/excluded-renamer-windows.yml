@@ -1,0 +1,63 @@
+name: PlayDock 제외 게임 독립 파일명 변경기 Windows 검증·빌드
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - name: 소스 받기
+        uses: actions/checkout@v4
+
+      - name: Python 3.12 준비
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: 테스트·패키징 의존성
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "pyinstaller>=6.11,<7" pytest
+
+      # DLC·합본 자동변경 차단 추가 후 독립 이름 변경기 최종 검사
+      - name: AI 조사·파일명 변경 검수와 Python 문법 검사
+        shell: pwsh
+        run: |
+          python -m compileall -q experiments/dlsite_detector/rename_companion.py scripts/standalone_renamer_window.py
+          python -m pytest -q tests/test_code_only.py tests/test_dlsite_steam_priority.py tests/test_research_handoff.py tests/test_rename_companion.py
+
+      - name: 독립 실행 프로그램 패키징 (DDGS/AI 클라이언트 없음)
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock-Excluded-Renamer --paths . --exclude-module ddgs --exclude-module PySide6 scripts/standalone_renamer_window.py
+
+      - name: Windows EXE 자체 검사
+        shell: pwsh
+        run: |
+          $path = (Resolve-Path "dist/PlayDock-Excluded-Renamer.exe").Path
+          $p = Start-Process -FilePath $path -ArgumentList "--self-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "독립 이름 변경 EXE 자체 검증 실패: $($p.ExitCode)" }
+
+      - name: 사용자 데이터 없는 배포 ZIP 준비
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "renamer_release" | Out-Null
+          Copy-Item "dist/PlayDock-Excluded-Renamer.exe" "renamer_release/"
+          Copy-Item "scripts/EXCLUDED_RENAMER_README_KO.txt" "renamer_release/사용법_먼저_읽기.txt"
+          if ((Get-ChildItem "renamer_release" -File).Count -ne 2) { throw "파일 수 불일치" }
+          Get-FileHash "renamer_release/PlayDock-Excluded-Renamer.exe" -Algorithm SHA256
+          Get-ChildItem "renamer_release" -File | Select-Object Name,Length
+
+      - name: 사용자 다운로드용 ZIP 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Excluded-Renamer-Windows
+          path: renamer_release/
+          if-no-files-found: error
+          retention-days: 30

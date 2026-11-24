@@ -35,8 +35,9 @@ class TitleEditorActionsMixin:
         advanced = self.panel_stack.currentIndex() == 0
         self.panel_stack.setCurrentIndex(1 if advanced else 0)
         self.mode_btn.setText('간편 수정으로 돌아가기' if advanced else '상세 기능 보기')
-        for widget in (self.language_header, self.language_menu, self.bulk_btn):
+        for widget in (self.language_header, self.language_menu):
             widget.setVisible(advanced)
+        self.bulk_btn.setVisible(advanced and not self.single_game_only)
 
 
     def open_korean_title_search(self):
@@ -181,10 +182,12 @@ class TitleEditorActionsMixin:
 
     def refresh(self):
         keep = self.selected_id
-        self.games = self.library.scan()
+        all_games = self.library.scan()
+        self.games = ([game for game in all_games if game.id == self.single_game_id]
+                      if self.single_game_only else all_games)
         self.selected_id = keep
         self.populate()
-        self.status.setText(f'게임 {len(self.games)}개를 읽었습니다. 이름을 바꾼 뒤 본체에서 새로고침하세요.')
+        self.status.setText(f'게임 {len(self.games)}개를 읽었습니다. 창을 닫으면 PlayDock에 변경사항이 반영됩니다.')
 
 
     def populate(self):
@@ -537,6 +540,8 @@ class TitleEditorActionsMixin:
             event.ignore()
             return
         super().closeEvent(event)
+        if event.isAccepted():
+            self.closed.emit()
 
 
     def save_code(self):

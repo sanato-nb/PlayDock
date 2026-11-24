@@ -35,12 +35,18 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collections_nav.setObjectName("Soft")
     top_layout.addWidget(collections_nav)
     top_layout.addStretch(1)
-    for label, action in (("새로고침", self.reload),
-                          ("폴더 설정", self.folder_wizard), ("데이터 관리", self.data_manager_dialog),
-                          ("속성", self.library_info_dialog), ("AI 설정", self.settings_dialog)):
-        btn = self.action_button(label, action)
-        btn.setObjectName("Soft")
-        top_layout.addWidget(btn)
+    collect_btn = self.action_button("게임 정보 수집", self.collect_library_information)
+    collect_btn.setObjectName("Blue")
+    collect_btn.setToolTip("품번이 있는 게임의 공식 작품정보를 확인하고 PlayDock DB에 저장합니다.")
+    top_layout.addWidget(collect_btn)
+    self.catalog_collection_btn = collect_btn
+    refresh_button = self.action_button("새로고침", self.reload)
+    refresh_button.setObjectName("Soft")
+    top_layout.addWidget(refresh_button)
+    # All administration/configuration actions now live under one popup.
+    self.settings_menu_btn = ChevronMenuButton("설정")
+    self.settings_menu_btn.clicked.connect(self.show_settings_menu)
+    top_layout.addWidget(self.settings_menu_btn)
     outer.addWidget(top)
 
     splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -176,10 +182,17 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collection_button = self.action_button("＋  모음집에 추가 / 제거", self.edit_game_collections)
     tools.addWidget(collection_button)
     tools.addStretch(1)
-    image_search_button = self.action_button("인터넷 이미지 검색·편집", self.open_online_artwork)
-    image_search_button.setObjectName("Blue")
-    tools.addWidget(image_search_button)
-    self.image_search_btn = image_search_button
+    scan_button = self.action_button("배너·아이콘 설정", self.identify_selected_game)
+    scan_button.setObjectName("Blue")
+    scan_button.setEnabled(False)
+    scan_button.setToolTip("먼저 게임 정보 수집으로 해당 게임의 공식 작품을 확인하세요.")
+    tools.addWidget(scan_button)
+    self.identity_scan_btn = scan_button
+    name_button = self.action_button("게임 이름 설정", self.open_selected_name_settings)
+    name_button.setObjectName("Soft")
+    name_button.setToolTip("공식 게임명 적용은 정보 수집 후, 직접 수정·복원은 언제든 가능합니다.")
+    tools.addWidget(name_button)
+    self.game_name_btn = name_button
     image_button = ChevronMenuButton("이미지 직접 지정")
     image_button.clicked.connect(self.show_image_menu)
     tools.addWidget(image_button)
@@ -203,8 +216,8 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     ov.addWidget(self.game_info)
     content.addWidget(overview)
 
-    explain = QLabel("내 컴퓨터의 게임을 관리합니다. 게임 인증 우회 기능은 제공하지 않습니다. "
-                     "인터넷 이미지 검색·편집은 이미지 생성 API를 사용하지 않습니다.")
+    explain = QLabel("① 게임 정보 수집: 공식 작품 확인·DB 연결  →  ② 배너·아이콘 설정 / 게임 이름 설정. "
+                     "미선택 이미지는 그대로 유지합니다.")
     explain.setWordWrap(True)
     explain.setObjectName("Subtle")
     content.addWidget(explain)

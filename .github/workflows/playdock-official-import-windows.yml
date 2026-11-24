@@ -1,0 +1,61 @@
+name: PlayDock 본체 공식 작품정보 DB 연동 Windows 검증
+
+on:
+  push:
+    branches: [experiment-bidirectional-lookup-20261121]
+    paths:
+      - "src/playdock/database/work_repository.py"
+      - "src/playdock/services/official_work_service.py"
+      - "src/playdock/services/data_service.py"
+      - "src/playdock/controllers/library.py"
+      - "src/playdock/controllers/metadata.py"
+      - "src/playdock/controllers/window_actions.py"
+      - "tests/test_playdock_official_import.py"
+      - ".github/workflows/playdock-official-import-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  playdock-windows:
+    runs-on: windows-latest
+    timeout-minutes: 55
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUNBUFFERED: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Windows PlayDock 의존성 설치
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pytest "pyinstaller>=6.11,<7"
+      - name: 전체 구문 검사 및 Python 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py src/playdock tests
+          python -m pytest -q
+      - name: PlayDock 본체 EXE 빌드
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock --icon assets/playdock.ico --paths src/playdock --collect-all keyring --collect-all pyzipper --collect-all send2trash --collect-all ddgs --hidden-import rarfile --hidden-import game_codes --add-data "assets/playdock.ico;assets" app.py
+          if (-not (Test-Path "dist/PlayDock.exe")) { throw "PlayDock EXE 빌드 실패" }
+          Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256
+      - name: 개인정보 포함 없는 EXE 검수
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem "dist" -File)
+          if ($files.Count -ne 1 -or $files[0].Name -ne "PlayDock.exe") {
+            throw "예상하지 못한 배포 파일이 포함됐습니다."
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PlayDock-Official-Catalog-Windows-EXE
+          path: dist/PlayDock.exe
+          if-no-files-found: error
+          retention-days: 30

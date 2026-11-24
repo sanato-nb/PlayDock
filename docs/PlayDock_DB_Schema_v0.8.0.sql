@@ -1,3 +1,5 @@
+-- LEGACY HISTORICAL SCHEMA (v0.8.0/v2). DO NOT APPLY TO NEW PLAYDOCK INSTALLATIONS.
+-- Use docs/PlayDock_DB_Schema_v3.sql for the current 2-table schema.
 -- PlayDock v0.8.0 SQLite database structure (reference only)
 -- Empty DB is automatically created in data/playdock.db on first launch.
 
@@ -42,3 +44,14 @@ CREATE TABLE works (
                 );
 
 CREATE INDEX idx_library_links_code ON library_links(product_code);
+
+-- PlayDock v2: imported DLsite/Steam official metadata from scanner (per-user)
+CREATE TABLE IF NOT EXISTS official_works (
+    store TEXT NOT NULL CHECK(store IN ('dlsite', 'steam')),
+    product_id TEXT NOT NULL,
+    official_title TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT '',
+    page_url TEXT NOT NULL,
+    verified_at_utc TEXT NOT NULL,
+    PRIMARY KEY(store, product_id)
+);
