@@ -7,6 +7,7 @@ Backup's library_snapshot.json is informational; source files are authoritative.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 import json
@@ -126,7 +127,7 @@ def _validate_file(member: str, content: bytes):
             file = Path(temp) / 'test.db'
             file.write_bytes(content)
             try:
-                with sqlite3.connect(f'file:{file}?mode=ro', uri=True) as db:
+                with closing(sqlite3.connect(f'file:{file}?mode=ro', uri=True)) as db:
                     version = db.execute('PRAGMA user_version').fetchone()[0]
                     ok = db.execute('PRAGMA quick_check').fetchone()[0]
                     names = {row[0] for row in db.execute('SELECT name FROM sqlite_master WHERE type="table"')}

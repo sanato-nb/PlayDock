@@ -139,3 +139,13 @@ def test_no_user_database_in_public_distribution(tmp_path):
     with zipfile.ZipFile(release['zip']) as z:
         assert 'data/playdock.db' not in z.namelist()
         assert 'data/' in z.namelist()
+
+
+def test_sqlite_connection_closes_after_context_on_windows(tmp_path):
+    """A context exit must unlock the DB file before restoring/backing up."""
+    lib, _ = _setup(tmp_path)
+    db = WorkDatabase(lib.store)
+    with db.connect() as con:
+        assert con.execute('SELECT COUNT(*) FROM works').fetchone()[0] == 0
+    with pytest.raises(sqlite3.ProgrammingError, match='closed'):
+        con.execute('SELECT 1')

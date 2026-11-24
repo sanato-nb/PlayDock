@@ -7,6 +7,7 @@ No executable, archive, account cookie, API key or image bytes are uploaded.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlencode, urlsplit
 from urllib.request import Request, urlopen
@@ -188,11 +189,21 @@ class WorkDatabase:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.initialize()
 
+    @contextmanager
     def connect(self):
+        """Commit/rollback the transaction and always release the SQLite file handle.
+
+        sqlite3.Connection.__exit__ handles transactions but does NOT close the
+        connection; keeping it open prevents file replacement on Windows.
+        """
         conn = sqlite3.connect(self.path, timeout=5.0)
-        conn.execute('PRAGMA foreign_keys=ON')
-        conn.execute('PRAGMA busy_timeout=5000')
-        return conn
+        try:
+            conn.execute('PRAGMA foreign_keys=ON')
+            conn.execute('PRAGMA busy_timeout=5000')
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def initialize(self):
         with self.connect() as con:
