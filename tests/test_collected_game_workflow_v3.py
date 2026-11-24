@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 from core import Game, Library
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import InputItem, Work, Result
+from integrations.official_lookup.code_only import InputItem, Work, Result
 from services.catalog_collection_service import CatalogEntry, CatalogCollector
 from workers.identity_artwork import IdentityArtworkThread
 from services.bulk_title_service import BulkTitleActions

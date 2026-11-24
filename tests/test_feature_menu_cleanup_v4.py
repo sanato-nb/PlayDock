@@ -9,7 +9,7 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from core import Library
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import Work
+from integrations.official_lookup.code_only import Work
 from workers.identity_artwork import IdentityArtworkThread
 from ui.widgets.launcher import ChevronMenuButton
 from controllers.window_actions import WindowActionControllerMixin

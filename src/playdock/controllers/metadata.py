@@ -16,7 +16,7 @@ from workers.work_lookup import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
 from workers.identity_artwork import IdentityArtworkThread
-from experiments.dlsite_detector.code_only import Work
+from integrations.official_lookup.code_only import Work
 from services.official_artwork_service import apply_checked_images, trusted_image_url
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 

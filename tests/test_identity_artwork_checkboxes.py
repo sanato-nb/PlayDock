@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QApplication, QDialog
 
 from core import Game, Library
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import Work, Result
+from integrations.official_lookup.code_only import Work, Result
 from services.official_artwork_service import (
     OfficialImage, official_image_urls, prepare_official_images,
     trusted_image_url, apply_checked_images, _steam_api_art,

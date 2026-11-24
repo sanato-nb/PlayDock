@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from core import Library, Game
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import Work, Result, codes_in, steam_ids_in
+from integrations.official_lookup.code_only import Work, Result, codes_in, steam_ids_in
 from services.catalog_collection_service import (
     CatalogEntry, CatalogEvent, CatalogCollector, collect_batch,
     game_catalog_entries, entry_input,

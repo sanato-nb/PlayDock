@@ -1,14 +1,5 @@
 name: PlayDock 대화상자 구조 분리 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - scripts/audit_dialog_relocation.py
-      - .github/workflows/source-dialog-relocation.yml
-      - src/playdock/ui/dialogs/**
-      - app.py
-      - title_editor.py
-      - tests/test_dark_dialog_titles.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -25,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: 535cdced1e890562545658d7c3ae4fecee67e47a
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
