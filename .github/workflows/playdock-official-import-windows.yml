@@ -43,7 +43,7 @@ jobs:
       - name: PlayDock 본체 EXE 빌드
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock --icon assets/playdock.ico --paths src/playdock --collect-all keyring --collect-all pyzipper --collect-all send2trash --collect-all ddgs --hidden-import rarfile --hidden-import game_codes --add-data "assets/playdock.ico;assets" app.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name PlayDock --icon assets/playdock.ico --paths src/playdock --collect-all keyring --collect-all pyzipper --collect-all send2trash --collect-all ddgs --hidden-import rarfile --hidden-import models.game_codes --add-data "assets/playdock.ico;assets" app.py
           if (-not (Test-Path "dist/PlayDock.exe")) { throw "PlayDock EXE 빌드 실패" }
           Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256
       - name: 개인정보 포함 없는 EXE 검수

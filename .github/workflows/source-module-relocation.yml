@@ -3,6 +3,7 @@ on:
   push:
     branches: [refactor/source-audit-20261124]
     paths:
+      - .github/workflows/playdock-official-import-windows.yml
       - scripts/audit_module_relocation.py
       - .github/workflows/source-module-relocation.yml
       - src/playdock/storage/**
