@@ -1,12 +1,6 @@
 name: PlayDock 최소 Qt 정식 의존성 및 지연 로딩 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - requirements.txt
-      - src/playdock/controllers/metadata.py
-      - tests/audit/test_minimal_runtime_dependencies.py
-      - .github/workflows/source-minimal-runtime.yml
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
   workflow_dispatch:
 permissions:
   contents: read

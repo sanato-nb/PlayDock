@@ -1,4 +1,6 @@
-# PlayDock 소스코드 정리 — 1단계 감사 시작
+# PlayDock 소스코드 정리 — 감사 기준 및 작업 기록
+
+> 최신 구조: [유지보수 안내](../PlayDock_Architecture_KO.md). 최종 정리: [28 단계 기록](28_maintenance_review_KO.md). 아래는 최초 감사 기준과 당시 계획입니다.
 
 ## 기준
 - 기준 커밋: `af10566aeb5a066ac5ee9beb9565823b73895002`

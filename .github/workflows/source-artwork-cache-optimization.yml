@@ -1,14 +1,6 @@
 name: PlayDock 이미지 로딩 및 메모리 최적화 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - .github/workflows/source-artwork-cache-optimization.yml
-      - tests/audit/test_artwork_cache_optimization.py
-      - src/playdock/ui/widgets/artwork_cache.py
-      - src/playdock/ui/widgets/game_icons.py
-      - src/playdock/ui/widgets/launcher.py
-      - src/playdock/ui/collection_board.py
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
   workflow_dispatch:
 permissions:
   contents: read

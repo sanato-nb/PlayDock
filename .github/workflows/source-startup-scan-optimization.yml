@@ -1,12 +1,6 @@
 name: PlayDock 게임 목록 초기 스캔 최적화 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - .github/workflows/source-startup-scan-optimization.yml
-      - tests/audit/test_startup_scan_optimization.py
-      - src/playdock/services/library_service.py
-      - src/playdock/services/launch_service.py
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
   workflow_dispatch:
 permissions:
   contents: read

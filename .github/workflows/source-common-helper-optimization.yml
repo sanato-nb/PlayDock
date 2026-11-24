@@ -1,14 +1,6 @@
 name: PlayDock 공통 기능 통합 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - .github/workflows/source-common-helper-optimization.yml
-      - tests/audit/test_common_helper_optimization.py
-      - src/playdock/models/game_codes.py
-      - src/playdock/install_management.py
-      - src/playdock/artwork.py
-      - setup_wizard.py
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
   workflow_dispatch:
 permissions:
   contents: read

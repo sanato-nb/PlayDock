@@ -1,14 +1,6 @@
 name: PlayDock 목록 제목 및 메타데이터 중복 처리 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - .github/workflows/source-title-read-optimization.yml
-      - tests/audit/test_title_read_optimization.py
-      - src/playdock/services/library_service.py
-      - src/playdock/models/library_tree.py
-      - src/playdock/controllers/library.py
-      - src/playdock/ui/collection_board.py
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
   workflow_dispatch:
 permissions:
   contents: read
