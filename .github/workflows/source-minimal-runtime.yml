@@ -1,0 +1,48 @@
+name: PlayDock 최소 Qt 정식 의존성 및 지연 로딩 검증
+on:
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 정식 최소 의존성 설치
+        run: python -m pip install -r requirements.txt pytest "pyinstaller>=6.11,<7"
+      - name: Qt 배포판 및 의존성 검사
+        shell: pwsh
+        run: |
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -c "import importlib.metadata as m; from PySide6 import QtCore, QtGui, QtWidgets; names={d.metadata['Name'].lower().replace('_','-') for d in m.distributions()}; assert 'pyside6-essentials' in names; assert not names.intersection({'pyside6','pyside6-addons','pyside6-pdf','pyside6-webengine'}); print('QT_ESSENTIALS_ONLY_VERIFIED',QtCore.qVersion())"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/audit_dependencies.py dependency-audit/current.json
+          exit $LASTEXITCODE
+      - name: 현재 메뉴 및 기존 이름 관리자 검증
+        run: python -m pytest -q -s tests/audit/test_minimal_runtime_dependencies.py tests/audit/test_usage_routes.py tests/test_title_editor_inprocess.py tests/test_feature_menu_cleanup_v4.py
+      - name: 전체 Windows 회귀
+        run: python -m pytest -q
+      - name: 정식 Windows EXE 빌드 및 설치기 자체 검증
+        shell: pwsh
+        run: |
+          ./scripts/Build-Windows-Release.ps1 -NoLaunch -SkipTests -NoWinget
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem dist/*.exe | Select-Object Name,Length
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-minimal-runtime
+          path: |
+            dependency-audit/current.json
+            dist/SHA256SUMS.txt

@@ -9,8 +9,8 @@ import zipfile
 import pytest
 
 from core import Game, Library, load_json
-from simple_title_edit import title_history, undo_display_title, save_display_title
-from bulk_title_edit import (
+from services.simple_title_edit import title_history, undo_display_title, save_display_title
+from services.bulk_title_edit import (
     BulkChange, replace_name, apply_bulk_changes,
     validate_changes, name_was_manually_changed,
 )
@@ -120,7 +120,7 @@ def test_not_mislabel_japanese_as_korean_and_code_must_match(tmp_path):
 
 
 def test_bulk_transaction_rolls_back_when_second_write_fails(tmp_path):
-    import bulk_title_edit
+    from services import bulk_title_edit as bulk_title_edit
     lib, games, a, b = sample(tmp_path)
     lib.update_meta(games[0], custom='keep')
     before = lib.meta(games[0])
@@ -163,7 +163,7 @@ def test_bulk_editor_has_detailed_controls_and_old_screen(tmp_path):
 
 
 def test_bulk_undo_mode_and_preview_name(tmp_path):
-    from bulk_title_edit import preview_undo_name
+    from services.bulk_title_edit import preview_undo_name
     lib, games, *_ = sample(tmp_path)
     assert preview_undo_name(lib, games[0]) is None
     save_display_title(lib, games[0], '게임을 수정')
@@ -178,7 +178,7 @@ def test_bulk_undo_mode_and_preview_name(tmp_path):
 
 
 def test_preview_undo_localized_title_state(tmp_path):
-    from bulk_title_edit import preview_undo_name
+    from services.bulk_title_edit import preview_undo_name
     lib, games, *_ = sample(tmp_path)
     game = games[0]
     lib.update_meta(game, localized_titles={'ko': '이전 한국어 이름'})

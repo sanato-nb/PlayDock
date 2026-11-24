@@ -6,10 +6,9 @@ Event handlers and application state remain owned by title_editor.py.
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QHBoxLayout, QVBoxLayout,
-    QListWidget, QFrame, QSplitter, QDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QProgressBar, QStackedWidget, QScrollArea, QCheckBox,
+    QListWidget, QFrame, QSplitter, QStackedWidget, QScrollArea,
 )
-from localized_titles import LANGUAGES
+from services.localized_titles import LANGUAGES
 from ui.selectors import DarkMenuSelect
 
 

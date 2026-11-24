@@ -32,11 +32,12 @@ def test_editor_entrypoint_delegates_editor_events():
 def test_ui_action_service_boundaries():
     launcher = (ROOT / 'src/playdock/ui/launcher_layout.py').read_text(encoding='utf8')
     controller = _classes('controllers/game_actions.py')['GameActionControllerMixin']
-    workers = _classes('services/workers.py')
+    workers = _classes('workers/game_tasks.py')
     assert 'self.action_button("설치", self.main_action)' in launcher or 'self.main_action' in launcher
     assert {'install_game','uninstall_game','launch_game'} <= _methods(controller)
-    assert {'InstallThread','UninstallThread','SaveBackupThread'} <= workers.keys()
-    assert 'install(self.game,' in (ROOT / 'src/playdock/services/workers.py').read_text(encoding='utf8')
+    assert {'InstallThread','UninstallThread'} <= workers.keys()
+    assert 'SaveBackupThread' not in workers
+    assert 'install(self.game,' in (ROOT / 'src/playdock/workers/game_tasks.py').read_text(encoding='utf8')
 
 
 def test_ui_does_not_import_controllers_or_install_service_directly():

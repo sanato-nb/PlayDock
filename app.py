@@ -1,25 +1,12 @@
 """PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
 from __future__ import annotations
 
-import os
-import subprocess
-import weakref
 from pathlib import Path
-from functools import lru_cache
-from time import monotonic
 import sys
-import traceback
-import webbrowser
 
-from PySide6.QtCore import Qt, QThread, Signal, QSize, QFileInfo, QTimer, QPoint, QRect, QRectF, QPointF, QObject, QEvent
-from PySide6.QtGui import QColor, QFont, QIcon, QPainter, QPixmap, QLinearGradient, QPen, QBrush, QPainterPath, QCursor
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel,
-    QPushButton, QLineEdit, QListWidget, QListWidgetItem, QFileDialog,
-    QSplitter, QScrollArea, QProgressBar, QDialog, QFormLayout, QCheckBox,
-    QDialogButtonBox, QFileIconProvider, QAbstractItemView, QSizePolicy, QMenu,
-    QTreeWidget, QTreeWidgetItem, QHeaderView, QStackedWidget, QComboBox, QTabWidget,
-)
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QDialog
 
 
 # Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.
@@ -30,20 +17,18 @@ if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path
     _playdock_sys.path.insert(0, str(_playdock_source))
 
 from core import Game, Library, load_json, install, uninstall_target, uninstall_to_recycle_bin, executable_candidates, chosen_executable, archive_requires_password, ArchivePasswordRequired, ArchivePasswordInvalid
-from launch_approval import needs_launch_confirmation, launch_approval_changes, executable_selection_changes
-from game_collections import CollectionStore
-from game_icons import game_art_icon
+from services.launch_approval import needs_launch_confirmation, launch_approval_changes, executable_selection_changes
+from storage.collections import CollectionStore
+from ui.widgets.game_icons import game_art_icon
 from cache_management import image_stats, recycle_images
 from data_management import inventory, backup_data, inspect_backup, restore_data
 from ui.collection_board import CollectionBoard
-from library_tree import make_sidebar_groups
+from models.library_tree import make_sidebar_groups
 from artwork import get_secret, set_secret, save_image, discover_local
 from ui.selectors import DarkMenuSelect
-from ai_providers import (PROVIDERS, current_provider, current_models, save_provider_settings)
-from setup_paths import save_folder_settings, proposed_paths
+from storage.setup_paths import save_folder_settings, proposed_paths
 from native_caption import windows_dark_caption
-from launch_options import parse_game_arguments
-from save_backups import create_save_backup, restore_save_backup
+from services.launch_options import parse_game_arguments
 from work_db import WorkDatabase
 from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
 
@@ -111,13 +96,16 @@ from ui.launcher_layout import build_main_ui
 # Public compatibility imports: existing integrations may import these from app.py.
 from ui.widgets.launcher import (collection_chevron, PopupMenuState, LibraryFilterButton,
                                  ChevronMenuButton, friendly_bytes, game_placeholder_icon, Banner)
-from ui.dialogs.common import (apply_windows_dark_titlebar, DarkCaptionEventFilter,
-                               DialogCloseButton, ThemedDialog, TextEntryDialog, ChoiceDialog,
+from ui.dialogs.caption import apply_windows_dark_titlebar, DarkCaptionEventFilter
+from ui.dialogs.common import (DialogCloseButton, ThemedDialog, TextEntryDialog, ChoiceDialog,
                                MessageDialog, ask_text, ask_archive_password, ask_choice,
                                ask_yes_no, show_message)
-from ui.dialogs.library import (SettingsDialog, FirstRunDialog, GameCollectionsDialog,
-                                CacheManagerDialog, DataManagerDialog, LibraryInfoDialog)
-from services.workers import InstallThread, UninstallThread, SaveBackupThread
+from ui.dialogs.folder_settings import FirstRunDialog
+from ui.dialogs.collection_settings import GameCollectionsDialog
+from ui.dialogs.cache_manager import CacheManagerDialog
+from ui.dialogs.data_manager import DataManagerDialog
+from ui.dialogs.library import LibraryInfoDialog
+from workers.game_tasks import InstallThread, UninstallThread
 
 from controllers.library import LibraryControllerMixin
 from controllers.game_actions import GameActionControllerMixin
@@ -144,7 +132,6 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
         self.install_worker: InstallThread | None = None
         self.uninstall_worker: UninstallThread | None = None
         self.removing_game: Game | None = None
-        self.save_worker: SaveBackupThread | None = None
         self.sort_mode = "name"
         # Single-game title editor is an in-process Qt window.
         self.title_editor_window = None
@@ -274,11 +261,6 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
 
 
 
-
-    def settings_dialog(self):
-        dialog = SettingsDialog(self.library, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.present_game()
 
 
 def main():

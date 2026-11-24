@@ -1,0 +1,64 @@
+name: PlayDock 최적화 전후 Windows EXE 비교
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/benchmark_frozen_exe.py
+      - .github/workflows/source-exe-comparison.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 비교 기준 및 최적화 소스 분리
+        shell: pwsh
+        run: |
+          git worktree add --detach ../exe-before af10566aeb5a066ac5ee9beb9565823b73895002
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git worktree add --detach ../exe-after ef899eb9f2d80449f1cbf903383a3d47835bb672
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force exe-comparison | Out-Null
+      - name: 기준 EXE 3종 빌드
+        shell: pwsh
+        run: |
+          & ../exe-before/scripts/Build-Windows-Release.ps1 -NoLaunch -NoWinget -SkipTests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Set-Location -LiteralPath $env:GITHUB_WORKSPACE
+          & ../exe-before/.venv/Scripts/python.exe -m pip freeze | Set-Content -Encoding utf8 exe-comparison/baseline-lock.txt
+      - name: 동일 공통 의존성으로 최적화 EXE 빌드
+        shell: pwsh
+        run: |
+          python -m venv ../exe-after/.venv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content exe-comparison/baseline-lock.txt | Where-Object { $_ -notmatch '^PySide6(?:[-_](?:Addons|Pdf|WebEngine))?==' } | Set-Content -Encoding utf8 exe-comparison/optimized-lock.txt
+          & ../exe-after/.venv/Scripts/python.exe -m pip install -r exe-comparison/optimized-lock.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ../exe-after/scripts/Build-Windows-Release.ps1 -NoLaunch -NoWinget -SkipTests
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Set-Location -LiteralPath $env:GITHUB_WORKSPACE
+          & ../exe-after/.venv/Scripts/python.exe -m pip freeze | Set-Content -Encoding utf8 exe-comparison/optimized-actual-lock.txt
+          $expected = @(Get-Content exe-comparison/optimized-lock.txt | Sort-Object)
+          $actual = @(Get-Content exe-comparison/optimized-actual-lock.txt | Sort-Object)
+          if (Compare-Object $expected $actual) { throw 'Common build dependencies differ' }
+      - name: 실제 EXE 크기 및 창 응답 시간 비교
+        shell: pwsh
+        run: |
+          python scripts/benchmark_frozen_exe.py --baseline ../exe-before/dist --optimized ../exe-after/dist --output exe-comparison/result.json
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-exe-comparison
+          path: exe-comparison/*

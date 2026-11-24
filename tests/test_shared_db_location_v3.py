@@ -12,7 +12,7 @@ from database.official_catalog import (
 from database.work_repository import WorkDatabase
 from experiments.dlsite_detector.code_only import Result, Work
 from experiments.dlsite_detector.scan_handoff import ScanReport
-from local_storage import write_install_marker
+from storage.local import write_install_marker
 from scripts import scan_then_prompt
 
 

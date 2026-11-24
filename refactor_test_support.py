@@ -11,14 +11,17 @@ ROOT = Path(__file__).resolve().parent / "src" / "playdock"
 
 MAIN_MODULES = (
     "ui/launcher_layout.py", "ui/widgets/launcher.py",
-    "ui/dialogs/common.py", "ui/dialogs/library.py",
-    "services/workers.py",
+    "ui/dialogs/common.py", "ui/dialogs/file_dialog.py", "ui/dialogs/caption.py",
+    "ui/dialogs/folder_settings.py", "ui/dialogs/collection_settings.py",
+    "ui/dialogs/cache_manager.py", "ui/dialogs/data_manager.py", "ui/dialogs/library.py",
+    "workers/game_tasks.py",
     "controllers/library.py", "controllers/game_actions.py",
     "controllers/metadata.py", "controllers/window_actions.py",
 )
 EDITOR_MODULES = (
-    "ui/editor_layout.py", "ui/dialogs/title.py",
-    "services/title_workers.py", "controllers/title_editor.py",
+    "ui/editor_layout.py", "ui/dialogs/title_preview.py", "ui/dialogs/title.py",
+    "ui/dialogs/caption.py",
+    "workers/title.py", "controllers/title_editor.py",
 )
 
 def declared_source(filename: str) -> str:

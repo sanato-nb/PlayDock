@@ -5,11 +5,11 @@ from pathlib import Path
 import json
 from models.game import Game, game_key, safe_folder_name
 from services.archive_service import ARCHIVE_EXT
-from services.launch_service import executable_candidates
+from services.launch_service import has_executable_candidate
 
 
 def data_dir() -> Path:
-    from local_storage import data_dir as app_data_dir
+    from storage.local import data_dir as app_data_dir
     return app_data_dir()
 
 def default_library() -> Path:
@@ -54,11 +54,13 @@ class Library:
     @property
     def root(self) -> Path:
         """Installation directory; used to keep pre-v0.1.2 game cache IDs stable."""
-        return Path(str(self.settings.get("library", default_library()))).expanduser()
+        value = self.settings["library"] if "library" in self.settings else default_library()
+        return Path(str(value)).expanduser()
 
     @property
     def archive_root(self) -> Path:
-        return Path(str(self.settings.get("archives", self.root))).expanduser()
+        value = self.settings["archives"] if "archives" in self.settings else self.root
+        return Path(str(value)).expanduser()
 
     def change_root(self, path: Path) -> None:
         if not path.is_dir():
@@ -97,7 +99,7 @@ class Library:
                     continue
                 # Ignore unrelated folders such as `file`, `saves`, or `screenshots`.
                 # Folders with at least one plausible game EXE are registered.
-                if not executable_candidates(child, child.name):
+                if not has_executable_candidate(child):
                     continue
                 key = game_key(child.name)
                 game = games.setdefault(key, Game(key, child.name, root))
@@ -188,10 +190,13 @@ class Library:
 
     def base_title(self, game: Game) -> str:
         """Raw user-visible name, without the optional product-code overlay."""
-        from localized_titles import localized_title_for
         meta = self.meta(game)
+        return self._base_title_from_meta(game, meta, self._product_code_from_meta(game, meta))
+
+    def _base_title_from_meta(self, game: Game, meta: dict, code: str) -> str:
+        from services.localized_titles import localized_title_for
         translated = localized_title_for(meta, self.settings, original_name=game.name,
-                                          product_code=self.product_code(game))
+                                          product_code=code)
         # A title explicitly saved in the simple editor wins over cached
         # localized suggestions, without deleting those language variants.
         if meta.get("prefer_manual_title") is True and meta.get("title"):
@@ -200,18 +205,25 @@ class Library:
             return translated
         return str(meta.get("title") or game.name)
 
-    def product_code(self, game: Game) -> str:
-        from game_codes import effective_product_code
-        meta = self.meta(game)
+    def product_code(self, game: Game, *, meta: dict | None = None) -> str:
+        if meta is None:
+            meta = self.meta(game)
+        return self._product_code_from_meta(game, meta)
+
+    @staticmethod
+    def _product_code_from_meta(game: Game, meta: dict) -> str:
+        from models.game_codes import effective_product_code
         return effective_product_code(meta, game.name,
                                       game.archive.name if game.archive else '')
 
     def set_product_code(self, game: Game, code: str | None) -> None:
-        from game_codes import normalize_code
+        from models.game_codes import normalize_code
         # An explicit blank overrides any guessed/file-name code, but does not
         # delete the game or affect archive names, installs, or collections.
         self.update_meta(game, product_code=normalize_code(code))
 
     def title(self, game: Game) -> str:
-        from game_codes import title_with_code
-        return title_with_code(self.base_title(game), self.product_code(game))
+        from models.game_codes import title_with_code
+        meta = self.meta(game)
+        code = self._product_code_from_meta(game, meta)
+        return title_with_code(self._base_title_from_meta(game, meta, code), code)

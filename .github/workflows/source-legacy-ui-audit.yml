@@ -1,0 +1,37 @@
+name: PlayDock 이전 UI 제거 검증
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: 49d7de255ded0b8937513f4abaec11d8b83d2387
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 삭제 범위와 남은 참조 확인
+        run: python scripts/audit_legacy_ui_cleanup.py
+      - name: Qt 및 테스트 의존성 설치
+        run: python -m pip install -r requirements.txt pytest
+      - name: 전체 Windows 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-Legacy-UI-Cleanup
+          path: audit_output/

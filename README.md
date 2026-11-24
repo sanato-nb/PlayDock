@@ -15,11 +15,11 @@ ZIP·7z·RAR로 보관한 게임을 관리·설치·실행하는 Windows용 Pyth
 
 ## 다운로드 및 검증
 
-[Windows Actions 실행 목록](https://github.com/sanato-nb/PlayDock/actions/workflows/playdock-inprocess-title-windows.yml)에서 **현재 커밋에 해당하는 성공한 실행**을 선택합니다.
+[통합 Windows Actions 실행 목록](https://github.com/sanato-nb/PlayDock/actions/workflows/source-final-feature-review.yml)에서 **현재 커밋에 해당하는 성공한 실행**을 선택합니다.
 
 | 아티팩트 | 용도 |
 |---|---|
-| PlayDock-Update-EXE-Windows | 기존 설치의 PlayDock.exe 교체 |
+| PlayDock-Update-EXE-Windows | 기존 설치의 PlayDock.exe 교체 및 검증 JSON |
 | PlayDock-Installer-Only-Windows | 새 설치 |
 | PlayDock-Full-Package-Windows | 전체 배포 패키지 |
 
@@ -52,13 +52,15 @@ ZIP·7z·RAR로 보관한 게임을 관리·설치·실행하는 Windows용 Pyth
 
 - `src/playdock/ui/` — 화면, 공통 대화상자, 스타일
 - `src/playdock/controllers/` — 사용자 동작 및 화면과 기능 연결
-- `src/playdock/services/` — 압축 해제·설치·실행 파일 탐색·라이브러리 관리·작업 스레드
+- `src/playdock/services/` — 압축 해제·설치·실행 파일 탐색·라이브러리 관리
+- `src/playdock/workers/` — Qt 백그라운드 작업 스레드
+- `src/playdock/storage/` — 설치 경로, 설정 및 모음집 저장
 - `src/playdock/models/` — 게임 데이터 모델과 식별자
 - `src/playdock/database/` — SQLite 작품 저장·조회
-- `src/playdock/integrations/` — DLsite 외부 조회
+- `src/playdock/integrations/` — DLsite·Steam 공식 조회 및 독립 검색 엔진
 - `src/playdock/core.py`, `src/playdock/work_db.py` — 이전 import 경로를 유지하는 호환 모듈
 - `src/playdock/*.py` — 아직 분리되지 않은 이미지·이름 등 기능 모듈
-- `app.py`, `title_editor.py`, `setup_wizard.py`, `uninstall_wizard.py` — 각 EXE 진입점
+- `app.py`, `title_editor.py`, `setup_wizard.py`, `uninstall_wizard.py` — 메인·이름 편집 창·설치기·제거기 진입점(배포 EXE는 3종)
 - `scripts/` — Windows 실행·빌드·공개 배포 스크립트
 - `tests/` — 자동 테스트
 - `docs/` — 한국어 문서 및 사용자 설명서
@@ -77,4 +79,4 @@ Windows 빌드는 `scripts\00_BUILD_WINDOWS_EXE.bat`, 기존 EXE 재포장은 `s
 
 개인 게임 목록, 압축파일, API 키, 이미지 캐시, 사용자 DB는 저장소에 업로드하지 않습니다.
 
-자세한 파일별 역할은 [`docs/소스코드_구조_v0.8.4.md`](docs/소스코드_구조_v0.8.4.md)를 참고하세요.
+최신 파일별 역할은 [소스 구조 및 유지보수 안내](docs/PlayDock_Architecture_KO.md)를 참고하세요. [UI 보존 기준](docs/ui_reference/README_KO.md) 및 [최적화 검증 기록](docs/source_audit/README_KO.md)도 함께 확인합니다. 자동 Windows 회귀·EXE 검증은 `source-final-feature-review.yml`로 통합하며, 별도 UI 비교 및 배포 검증은 유지합니다.

@@ -9,8 +9,8 @@ from PySide6.QtWidgets import QApplication, QWidget
 
 from core import Library
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import Work
-from services.identity_artwork_worker import IdentityArtworkThread
+from integrations.official_lookup.code_only import Work
+from workers.identity_artwork import IdentityArtworkThread
 from ui.widgets.launcher import ChevronMenuButton
 from controllers.window_actions import WindowActionControllerMixin
 
@@ -130,7 +130,7 @@ def test_exact_four_manual_game_management_functions_and_only_four_settings(
 
 def test_image_worker_uses_verified_game_link_even_if_filename_has_no_code(
         app, tmp_path, monkeypatch):
-    from services import identity_artwork_worker as module
+    from workers import identity_artwork as module
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "dlsite", "code": "RJ123456",
@@ -208,7 +208,7 @@ def test_top_navigation_follows_visible_screen(app, tmp_path, monkeypatch):
 
 def test_shared_file_dialog_style_keeps_filters_and_disables_grip(app, tmp_path):
     from PySide6.QtWidgets import QFileDialog, QToolButton
-    from ui.dialogs.common import style_file_dialog
+    from ui.dialogs.file_dialog import style_file_dialog
     dialog = QFileDialog(None, "이미지 선택", str(tmp_path), "이미지 (*.png *.jpg)")
     dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
     dialog.setFileMode(QFileDialog.FileMode.ExistingFile)

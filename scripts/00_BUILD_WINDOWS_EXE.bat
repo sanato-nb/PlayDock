@@ -8,7 +8,7 @@ echo ==========================================================
 echo  PlayDock - Build EXE and clean public distribution
 echo ==========================================================
 echo  The installed PlayDock folder is NEVER used for packaging.
-echo  Build: PlayDock.exe and PlayDock_TitleEditor.exe
+echo  Build: PlayDock.exe (includes name editor)
 echo  Bundle: PlayDock_Setup.exe and PlayDock_Uninstall.exe
 echo.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Build-Windows-Release.ps1" -NoLaunch

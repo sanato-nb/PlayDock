@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from bulk_title_edit import (
+from services.bulk_title_edit import (
     BulkChange, replace_name, name_was_manually_changed,
     preview_undo_name, apply_bulk_changes,
 )

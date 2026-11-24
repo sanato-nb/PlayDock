@@ -8,12 +8,12 @@ from PIL import Image
 
 from core import Game, Library
 from game_identity import GameIdentity
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 from online_artwork import Candidate
 from services.artwork_service import ArtworkActions
 from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from services.collection_service import CollectionMembershipActions
-from collection_board_model import unassigned_games
+from models.collection_board import unassigned_games
 
 
 ROOT = Path(__file__).resolve().parents[1] / "src" / "playdock"
@@ -159,11 +159,15 @@ def test_business_writes_do_not_live_in_ui_files():
             if isinstance(node, ast.ImportFrom):
                 assert not (node.module or "").startswith("controllers."), path
 
-    artwork = (ui / "artwork_dialog.py").read_text(encoding="utf-8")
+    artwork = (ui / "dialogs" / "identity_artwork.py").read_text(encoding="utf-8")
+    official = (ROOT / "services" / "official_artwork_service.py").read_text(encoding="utf-8")
+    controller = (ROOT / "controllers" / "metadata.py").read_text(encoding="utf-8")
     titles = (ui / "dialogs" / "title.py").read_text(encoding="utf-8")
-    library_dialog = (ui / "dialogs" / "library.py").read_text(encoding="utf-8")
-    assert "self.artwork_actions.apply_selection(" in artwork
-    assert "self.artwork_actions.save_product_code(" in artwork
+    library_dialog = "\n".join((ui / "dialogs" / name).read_text(encoding="utf-8") for name in ("library.py", "folder_settings.py", "collection_settings.py", "cache_manager.py", "data_manager.py"))
+    assert "actions.apply_selection(" in official
+    assert "apply_checked_images(" in controller
+    assert "selected_kinds(" in artwork
+    assert "apply_checked_images(" not in artwork
     for forbidden in ("shutil.copy2(", "save_selected_art(", "self.library.update_meta(",
                       "self.library.set_product_code("):
         assert forbidden not in artwork

@@ -6,7 +6,6 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QFileInfo
 from PySide6.QtGui import QColor, QFont, QBrush
 from PySide6.QtWidgets import (
-    QFileDialog,
     QDialog,
     QFileIconProvider,
     QAbstractItemView,
@@ -15,16 +14,17 @@ from PySide6.QtWidgets import (
 )
 
 from core import Game, Library, load_json, chosen_executable
-from game_collections import CollectionStore
-from game_icons import game_art_icon
-from library_tree import make_sidebar_groups
+from storage.collections import CollectionStore
+from ui.widgets.game_icons import game_art_icon
+from models.library_tree import make_sidebar_groups
 from artwork import discover_local
 
 
 from ui.widgets.launcher import collection_chevron, friendly_bytes, game_placeholder_icon
+from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import ask_text, ask_yes_no, show_message
-from ui.dialogs.library import GameCollectionsDialog
-from services.official_work_service import official_metadata_for_game, official_info_rows
+from ui.dialogs.collection_settings import GameCollectionsDialog
+from services.official_work_service import official_info_rows
 
 
 class LibraryControllerMixin:
@@ -90,7 +90,15 @@ class LibraryControllerMixin:
         desired_id = prefer_id or self.selected_id
         query = self.search.text()
         filter_mode = self.mode_filter.currentData()
-        rows = make_sidebar_groups(self.games, self.collections.list(), self.library.title,
+        # Share one title snapshot within this rebuild only. A later rebuild
+        # always reads current metadata, including edits from another window.
+        titles = {}
+        def title_of(game):
+            key = id(game)
+            if key not in titles:
+                titles[key] = self.library.title(game)
+            return titles[key]
+        rows = make_sidebar_groups(self.games, self.collections.list(), title_of,
                                   filter_mode or 'all', query, self.sort_mode)
         self.tree.blockSignals(True)
         self.tree.clear()
@@ -108,7 +116,7 @@ class LibraryControllerMixin:
             else:
                 expanded = group.id in self.expanded_groups
             for game in group.games:
-                item = QTreeWidgetItem(header, [self.library.title(game)])
+                item = QTreeWidgetItem(header, [title_of(game)])
                 item.setData(0, Qt.ItemDataRole.UserRole, ("game", game.id))
                 item.setToolTip(0, "")
                 art = self.library.art_dir(game) / 'icon.png'
@@ -399,12 +407,13 @@ class LibraryControllerMixin:
         collection_names = ", ".join(col["name"] for col in belonging) if belonging else "없음"
         from html import escape
         confirmed = self.collected_game_record(game)
+        product_code = self.library.product_code(game)
         info_rows = [
             ('모음집', collection_names),
             ('공식 작품 확인', (confirmed['store'].upper() + ' · ' + confirmed['code'])
              if confirmed else '정보 수집 필요'),
-            *([('작품 코드', self.library.product_code(game))] if self.library.product_code(game) else []),
-            *self.work_db_info_rows(game),
+            *([('작품 코드', product_code)] if product_code else []),
+            *official_info_rows(confirmed),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),
             ('상태', game.status),
             ('압축 파일', archive + size),

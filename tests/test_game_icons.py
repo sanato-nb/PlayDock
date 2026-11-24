@@ -6,7 +6,7 @@ from io import BytesIO
 
 from PIL import Image
 
-from game_icons import normalized_icon_png, game_art_icon
+from ui.widgets.game_icons import normalized_icon_png, game_art_icon
 
 
 def _image_from_png(blob: bytes):

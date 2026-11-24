@@ -65,7 +65,7 @@ if ([Environment]::OSVersion.Platform -ne [PlatformID]::Win32NT) {
   throw 'This build must run on Windows. Use GitHub Actions for a cloud Windows build.'
 }
 foreach ($required in @('app.py','title_editor.py','setup_wizard.py','requirements.txt',
-                       'src\playdock\setup_paths.py','src\playdock\native_caption.py','uninstall_wizard.py','src\playdock\install_management.py','src\playdock\ai_providers.py','src\playdock\game_codes.py','assets\playdock.ico')) {
+                       'src\playdock\storage\setup_paths.py','src\playdock\native_caption.py','uninstall_wizard.py','src\playdock\install_management.py','src\playdock\ai_providers.py','src\playdock\models\game_codes.py','assets\playdock.ico')) {
   if (!(Test-Path -LiteralPath $required)) { throw "Missing source file: $required" }
 }
 
@@ -99,6 +99,8 @@ Step 'Installing Windows dependencies'
 Assert-ExitCode 'pip upgrade'
 & $script:VenvPython -m pip install -r requirements.txt 'pyinstaller>=6.10,<7' pytest
 Assert-ExitCode 'pip dependencies'
+& $script:VenvPython -m pip check
+Assert-ExitCode 'pip dependency consistency'
 
 if (!$SkipTests) {
   Step 'Running application tests before release'
@@ -109,8 +111,11 @@ if (!$SkipTests) {
 $script:Dist = Join-Path $RepoRoot 'dist'
 New-Item -ItemType Directory -Path $script:Dist -Force | Out-Null
 Run-PyInstaller 'PlayDock' 'app.py' @('--collect-all','keyring','--collect-all','pyzipper',
-                                        '--collect-all','send2trash','--collect-all','ddgs','--hidden-import','rarfile',
-                                        '--hidden-import','game_codes',
+                                        '--collect-submodules','send2trash.win','--copy-metadata','send2trash',
+                                        '--exclude-module','send2trash.mac','--exclude-module','send2trash.plat_gio',
+                                        '--exclude-module','send2trash.plat_other',
+                                        '--collect-all','ddgs','--hidden-import','rarfile',
+                                        '--hidden-import','models.game_codes',
                                         '--add-data','assets\playdock.ico;assets')
 Run-PyInstaller 'PlayDock_Uninstall' 'uninstall_wizard.py' @(
   '--add-data','assets\playdock.ico;assets'

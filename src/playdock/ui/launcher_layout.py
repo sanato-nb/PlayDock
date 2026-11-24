@@ -5,7 +5,7 @@ Event handlers and application state remain owned by app.py.
 
 from PySide6.QtCore import Qt, QTimer, QSize
 from PySide6.QtWidgets import (
-    QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QPushButton, QLineEdit,
+    QWidget, QHBoxLayout, QVBoxLayout, QFrame, QLabel, QLineEdit,
     QSplitter, QScrollArea, QProgressBar, QSizePolicy, QTreeWidget,
     QAbstractItemView, QStackedWidget,
 )

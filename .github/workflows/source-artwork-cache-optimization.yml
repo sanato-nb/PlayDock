@@ -1,0 +1,38 @@
+name: PlayDock 이미지 로딩 및 메모리 최적화 검증
+on:
+  # Historical focused benchmark: manual only. Full suite is in source-final-feature-review.yml.
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Qt 및 빌드 의존성
+        run: python -m pip install -r requirements.txt pytest "pyinstaller>=6.11,<7"
+      - name: 이미지 캐시 및 기존 UI 기능 검증
+        run: python -m pytest -q -s tests/audit/test_artwork_cache_optimization.py tests/test_game_icons.py tests/test_collection_board.py tests/test_identity_artwork_checkboxes.py tests/test_online_artwork.py
+      - name: 전체 Windows 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q
+          exit $LASTEXITCODE
+      - name: Windows EXE 빌드 검증
+        shell: pwsh
+        run: |
+          ./scripts/Build-Windows-Release.ps1 -NoLaunch -SkipTests -NoWinget
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "dist/PlayDock.exe")) { throw "PlayDock.exe missing" }
+          Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256

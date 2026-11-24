@@ -1,0 +1,60 @@
+name: PlayDock UI 기준 보존 검증
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - app.py
+      - title_editor.py
+      - setup_wizard.py
+      - uninstall_wizard.py
+      - src/playdock/**
+      - assets/**
+      - requirements.txt
+      - scripts/capture_ui_reference.py
+      - scripts/compare_ui_reference.py
+      - docs/ui_reference/**
+      - .github/workflows/source-ui-reference.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_SCALE_FACTOR: "1"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: UI 검증 환경
+        run: python -m pip install -r requirements.txt pytest
+      - name: UI 기준 및 최신 화면 캡처
+        shell: pwsh
+        run: |
+          git worktree add --detach ../ui-baseline 84bbde02630e6c0b10a05662a24cb44354722dfb
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $fixture = Join-Path $env:RUNNER_TEMP "playdock-ui-fixture-${{ github.run_id }}-${{ github.run_attempt }}"
+          if (Test-Path -LiteralPath $fixture) { throw "Fixture already exists" }
+          python scripts/capture_ui_reference.py --source ../ui-baseline --out ui-evidence/baseline --fixture-root "$fixture"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item -LiteralPath $fixture -Recurse -Force
+          python scripts/capture_ui_reference.py --source . --out ui-evidence/current --fixture-root "$fixture"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Remove-Item -LiteralPath $fixture -Recurse -Force
+          python scripts/compare_ui_reference.py ui-evidence/baseline ui-evidence/current
+          exit $LASTEXITCODE
+      - name: 기존 UI 기능 회귀
+        run: python -m pytest -q tests/audit/test_usage_routes.py tests/test_feature_menu_cleanup_v4.py tests/test_dark_dialog_titles.py tests/test_popup_menus.py tests/test_collection_board.py tests/test_game_icons.py tests/test_title_editor_inprocess.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-UI-reference-and-current
+          path: ui-evidence/**

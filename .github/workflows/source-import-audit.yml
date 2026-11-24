@@ -1,0 +1,40 @@
+name: PlayDock 미사용 import 정리 검증
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: 3814e2360f2638f5a56b318f444f50fb47a6dc52
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: import 전용 수정과 호환 참조 감사
+        shell: pwsh
+        run: |
+          python scripts/audit_source.py --ref af10566aeb5a066ac5ee9beb9565823b73895002 --out audit_output
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/audit_import_cleanup.py --ref a0e538e2b175b17030db86120878331166e6d4c5 --inventory audit_output/inventory.json --out audit_output
+      - name: Qt 및 테스트 의존성 설치
+        run: python -m pip install -r requirements.txt pytest
+      - name: 전체 Windows 회귀 테스트
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-Import-Cleanup-Audit
+          path: audit_output/

@@ -15,12 +15,10 @@ BAD_EXE_WORDS = (
 )
 
 
-def executable_candidates(folder: Path, title: str = "") -> list[Path]:
-    """Find plausible game EXEs; never automatically launch an installer."""
+def _iter_executable_paths(folder: Path):
+    """Yield candidates using the same depth and exclusion rules for all callers."""
     if not folder.is_dir():
-        return []
-    result: list[tuple[float, Path]] = []
-    norm_title = re.sub(r"[^a-z0-9]", "", title.casefold())
+        return
     for base, dirs, files in os.walk(folder):
         basepath = Path(base)
         depth = len(basepath.relative_to(folder).parts)
@@ -35,20 +33,32 @@ def executable_candidates(folder: Path, title: str = "") -> list[Path]:
             low = filename.casefold()
             if any(word in low for word in BAD_EXE_WORDS):
                 continue
-            path = basepath / filename
-            name = re.sub(r"[^a-z0-9]", "", path.stem.casefold())
-            score = 100.0 - depth * 12
-            if norm_title and name and (name in norm_title or norm_title in name):
-                score += 130
-            if name in {"game", "game64", "win64", "launcher", "start", "play"}:
-                score += 25
-            if "shipping" in low:
-                score += 20
-            try:
-                score += min(32, path.stat().st_size / (15 * 1024**2))
-            except OSError:
-                pass
-            result.append((score, path))
+            yield depth, low, basepath / filename
+
+
+def has_executable_candidate(folder: Path) -> bool:
+    """Only test existence; do not rank, stat every EXE or walk past a match."""
+    return next(_iter_executable_paths(folder), None) is not None
+
+
+def executable_candidates(folder: Path, title: str = "") -> list[Path]:
+    """Find plausible game EXEs; never automatically launch an installer."""
+    result: list[tuple[float, Path]] = []
+    norm_title = re.sub(r"[^a-z0-9]", "", title.casefold())
+    for depth, low, path in _iter_executable_paths(folder):
+        name = re.sub(r"[^a-z0-9]", "", path.stem.casefold())
+        score = 100.0 - depth * 12
+        if norm_title and name and (name in norm_title or norm_title in name):
+            score += 130
+        if name in {"game", "game64", "win64", "launcher", "start", "play"}:
+            score += 25
+        if "shipping" in low:
+            score += 20
+        try:
+            score += min(32, path.stat().st_size / (15 * 1024**2))
+        except OSError:
+            pass
+        result.append((score, path))
     result.sort(key=lambda pair: (-pair[0], str(pair[1]).casefold()))
     return [path for _, path in result]
 

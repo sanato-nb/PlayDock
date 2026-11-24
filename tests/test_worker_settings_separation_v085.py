@@ -15,15 +15,14 @@ def _classes(relative):
     return {node.name for node in ast.parse(src).body if isinstance(node, ast.ClassDef)}
 
 
-def test_network_workers_live_in_services_without_ui_widget_logic():
-    assert {"SearchJob", "DownloadJob", "IdentityJob"} <= _classes("services/artwork_workers.py")
-    assert not {"SearchJob", "DownloadJob", "IdentityJob"} & _classes("ui/artwork_dialog.py")
-    assert "WorkLookupThread" in _classes("services/work_lookup_worker.py")
+def test_network_workers_live_in_workers_without_ui_widget_logic():
+    assert "IdentityArtworkThread" in _classes("workers/identity_artwork.py")
+    assert "IdentityArtworkThread" not in _classes("ui/dialogs/identity_artwork.py")
+    assert "WorkLookupThread" in _classes("workers/work_lookup.py")
     assert "WorkLookupThread" not in _classes("ui/work_info_dialog.py")
-    assert "from services.artwork_workers import SearchJob, DownloadJob, IdentityJob" in (
-        ROOT / "ui/artwork_dialog.py").read_text(encoding="utf-8")
-    assert "from services.work_lookup_worker import WorkLookupThread" in (
+    assert "from workers.work_lookup import WorkLookupThread" in (
         ROOT / "ui/work_info_dialog.py").read_text(encoding="utf-8")
+    assert not (ROOT / "services/artwork_workers.py").exists()
 
 
 class FakeLibrary:

@@ -1,0 +1,49 @@
+name: PlayDock 최적화 전후 동일 환경 성능 비교
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - .github/workflows/source-performance-comparison.yml
+      - scripts/benchmark_source_performance.py
+      - scripts/compare_source_performance.py
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 동일 버전 의존성 설치
+        run: python -m pip install -r requirements.txt pytest
+      - name: 최적화 전후 소스 분리
+        shell: pwsh
+        run: |
+          git worktree add --detach ../baseline af10566aeb5a066ac5ee9beb9565823b73895002
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git worktree add --detach ../optimized 7943b2ea6449d4eedacfe720379108138deec05f
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: 동일 데이터 성능 측정
+        shell: pwsh
+        run: |
+          python scripts/benchmark_source_performance.py --source ../baseline --output benchmark/baseline.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/benchmark_source_performance.py --source ../optimized --output benchmark/optimized.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/compare_source_performance.py benchmark/baseline.json benchmark/optimized.json benchmark/comparison.json
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-source-performance-comparison
+          path: benchmark/*.json

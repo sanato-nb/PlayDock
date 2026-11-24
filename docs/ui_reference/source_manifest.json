@@ -1,0 +1,197 @@
+{
+  "baseline": "84bbde02630e6c0b10a05662a24cb44354722dfb",
+  "tree": "89c1946ae19786a0631b020abae3a23d111ef05f",
+  "scope": "UI sources and related controllers; blob SHA1 reference, not screenshot approval",
+  "files": [
+    {
+      "path": "app.py",
+      "sha": "e5a593a460046b29eed0d590f12675f78d9f00a4",
+      "bytes": 8363
+    },
+    {
+      "path": "assets/playdock.ico",
+      "sha": "22cd61581863d152da159f99c6c449d08bd6b470",
+      "bytes": 33527
+    },
+    {
+      "path": "setup_wizard.py",
+      "sha": "a7619bdea57ba380d33d6ad5025ca381c813fc89",
+      "bytes": 22786
+    },
+    {
+      "path": "src/playdock/controllers/catalog_collection.py",
+      "sha": "a77579bb6f25f6b71d03e782dfc79a537d62c990",
+      "bytes": 3734
+    },
+    {
+      "path": "src/playdock/controllers/data_manager.py",
+      "sha": "54766a4c6b96670e142928891cc028c97570e83a",
+      "bytes": 1919
+    },
+    {
+      "path": "src/playdock/controllers/game_actions.py",
+      "sha": "d0ea63266cba29edae43de1baac5097de96adb2d",
+      "bytes": 11706
+    },
+    {
+      "path": "src/playdock/controllers/library.py",
+      "sha": "5916ddf3ab257165c2bc227b6599cda610fd64cb",
+      "bytes": 18632
+    },
+    {
+      "path": "src/playdock/controllers/metadata.py",
+      "sha": "7053ac9fdbfea007f1dae46bf5bbc1e86db7d852",
+      "bytes": 16681
+    },
+    {
+      "path": "src/playdock/controllers/title_editor.py",
+      "sha": "6e79dd3ff70a988cbfb2043e9dcb5d10b02c14bd",
+      "bytes": 29316
+    },
+    {
+      "path": "src/playdock/controllers/window_actions.py",
+      "sha": "652461c91c59afe124e7002e3bde71492cb84a84",
+      "bytes": 4839
+    },
+    {
+      "path": "src/playdock/native_caption.py",
+      "sha": "50590da7b2f75b2d93d800020fba0f33a8c215bc",
+      "bytes": 2788
+    },
+    {
+      "path": "src/playdock/ui/__init__.py",
+      "sha": "7fe5a667d47193cb1e8e65d3d9d0bd8ad587eccb",
+      "bytes": 187
+    },
+    {
+      "path": "src/playdock/ui/collection_board.py",
+      "sha": "ca2efedba536d8ede15068a4eb362ab0f4fa7657",
+      "bytes": 12465
+    },
+    {
+      "path": "src/playdock/ui/dialogs/__init__.py",
+      "sha": "52b0fe19e43397acb6cc4639896a3fa341148418",
+      "bytes": 35
+    },
+    {
+      "path": "src/playdock/ui/dialogs/cache_manager.py",
+      "sha": "7a7361527150145733f34638dd7dfc07b1525c12",
+      "bytes": 6550
+    },
+    {
+      "path": "src/playdock/ui/dialogs/caption.py",
+      "sha": "e299e036fdb603bb813601dc4213ef8558b1c3d9",
+      "bytes": 2918
+    },
+    {
+      "path": "src/playdock/ui/dialogs/catalog_collection.py",
+      "sha": "5d3586f4ee8c74fa59a3168282bda1d7d249e711",
+      "bytes": 7651
+    },
+    {
+      "path": "src/playdock/ui/dialogs/collection_settings.py",
+      "sha": "d6ccc39bebe910f464830f6da7abe04e018962a7",
+      "bytes": 3586
+    },
+    {
+      "path": "src/playdock/ui/dialogs/common.py",
+      "sha": "6f4f3155f3f3a1a38ac734bce1352009c0619744",
+      "bytes": 7827
+    },
+    {
+      "path": "src/playdock/ui/dialogs/data_manager.py",
+      "sha": "4c05302939f8c5623bf93a7284fcf872c5572ffd",
+      "bytes": 12542
+    },
+    {
+      "path": "src/playdock/ui/dialogs/database_status.py",
+      "sha": "9836f742af91c7c0edf72c02e7bd2766063654a2",
+      "bytes": 2340
+    },
+    {
+      "path": "src/playdock/ui/dialogs/file_dialog.py",
+      "sha": "684b174fedfb3627e73964eb803e88132b571e1e",
+      "bytes": 14312
+    },
+    {
+      "path": "src/playdock/ui/dialogs/folder_settings.py",
+      "sha": "0926cb422db31c2fc792ea86fd213c7b9018f360",
+      "bytes": 3640
+    },
+    {
+      "path": "src/playdock/ui/dialogs/identity_artwork.py",
+      "sha": "5b67fa527a35d953b41e1bbeff9ad4ce60999615",
+      "bytes": 5247
+    },
+    {
+      "path": "src/playdock/ui/dialogs/library.py",
+      "sha": "fef902c6436e494662ce0544927352c6b8eed89d",
+      "bytes": 3191
+    },
+    {
+      "path": "src/playdock/ui/dialogs/title.py",
+      "sha": "76c78412ebceb86da505112e7d2ef4a495899da0",
+      "bytes": 20451
+    },
+    {
+      "path": "src/playdock/ui/dialogs/title_preview.py",
+      "sha": "ae3ad0127dd44aebc830dd7a76b348fd44deb5f1",
+      "bytes": 7664
+    },
+    {
+      "path": "src/playdock/ui/editor_layout.py",
+      "sha": "525fd6355f5efcee888d22a51d2220674e24f3b2",
+      "bytes": 13106
+    },
+    {
+      "path": "src/playdock/ui/launcher_layout.py",
+      "sha": "aa7ac2a34c8dff4db4a7eb59b25a696e50c99fb6",
+      "bytes": 10337
+    },
+    {
+      "path": "src/playdock/ui/selectors.py",
+      "sha": "8d529488829eb4953ec334042e33e832ea40e803",
+      "bytes": 5207
+    },
+    {
+      "path": "src/playdock/ui/styles.py",
+      "sha": "ee015b044b9959af9842e072e8150e571c843762",
+      "bytes": 10439
+    },
+    {
+      "path": "src/playdock/ui/widgets/__init__.py",
+      "sha": "8cb6795ca448e31156eadbd226ab3aca958ce075",
+      "bytes": 35
+    },
+    {
+      "path": "src/playdock/ui/widgets/artwork_cache.py",
+      "sha": "ce00cb33df4e0d9acfab1c8d9e468611b4c3a3c8",
+      "bytes": 2024
+    },
+    {
+      "path": "src/playdock/ui/widgets/game_icons.py",
+      "sha": "2986f756cd82e267ef14d2888d4a90e822be2022",
+      "bytes": 3067
+    },
+    {
+      "path": "src/playdock/ui/widgets/launcher.py",
+      "sha": "034334c84bef6a5c1a1fb88f25d6a72e28247308",
+      "bytes": 11972
+    },
+    {
+      "path": "src/playdock/ui/work_info_dialog.py",
+      "sha": "31719b10baad4d00d1ef61114325dc47b6bc5c9c",
+      "bytes": 3405
+    },
+    {
+      "path": "title_editor.py",
+      "sha": "0c103f4a4338c99d4f2ed19b55f4b5ddf687698a",
+      "bytes": 4425
+    },
+    {
+      "path": "uninstall_wizard.py",
+      "sha": "92380d7800a101fd0e2020dadd4be2f266acdea3",
+      "bytes": 7143
+    }
+  ]
+}

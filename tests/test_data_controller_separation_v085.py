@@ -9,7 +9,7 @@ from data_management import backup_data as old_backup, _data_paths
 from services.cache_service import CacheService, image_stats, recycle_images
 from services.data_service import backup_data, inspect_backup
 from controllers.data_manager import DataManagementController
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -91,7 +91,7 @@ def test_backup_controller_preserves_files_and_calls_reload_only_after_restore(t
 
 
 def test_data_dialog_uses_injected_actions_not_direct_file_service_calls():
-    source = (ROOT / "src/playdock/ui/dialogs/library.py").read_text(encoding="utf-8")
+    source = "\n".join((ROOT / "src/playdock/ui/dialogs" / name).read_text(encoding="utf-8") for name in ("data_manager.py", "cache_manager.py"))
     ast.parse(source)
     assert "self.actions = parent.data_actions" in source
     assert "self.actions.export_backup(target)" in source

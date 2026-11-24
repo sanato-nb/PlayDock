@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from ui.widgets.artwork_cache import artwork_pixmap
 from functools import lru_cache
 from time import monotonic
 
@@ -256,7 +257,7 @@ class Banner(QWidget):
 
     def set_game(self, title: str, subtitle: str, image: Path | None):
         self.title, self.subtitle = title, subtitle
-        self.image = QPixmap(str(image)) if image and image.is_file() else QPixmap()
+        self.image = artwork_pixmap(image)
         self.update()
 
     def paintEvent(self, event):

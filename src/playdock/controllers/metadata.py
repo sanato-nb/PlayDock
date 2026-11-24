@@ -3,21 +3,19 @@ from __future__ import annotations
 
 import os
 from sqlite3 import Error as SQLiteError
-import subprocess
 import sys
 import webbrowser
 
 from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
-from simple_title_edit import save_display_title
-from title_editor import TitleEditor
+from services.simple_title_edit import save_display_title
 from ui.dialogs.title import BulkTitleSettingsDialog
-from services.work_lookup_worker import WorkLookupThread
+from workers.work_lookup import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
-from services.identity_artwork_worker import IdentityArtworkThread
-from experiments.dlsite_detector.code_only import Work
+from workers.identity_artwork import IdentityArtworkThread
+from integrations.official_lookup.code_only import Work
 from services.official_artwork_service import apply_checked_images, trusted_image_url
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 
@@ -134,8 +132,7 @@ class MetadataControllerMixin:
         if "product_code" in meta and not meta.get("product_code"):
             return None
         try:
-            linked = self.work_db.get_link(game.id)
-            return self.work_db.get_official_work(*linked) if linked else None
+            return self.work_db.get_linked_official_work(game.id)
         except (OSError, ValueError):
             return None
 
@@ -147,7 +144,10 @@ class MetadataControllerMixin:
 
         No website calls are made during UI selection or menu opening.
         """
-        record = self.collected_game_record(game)
+        return self._record_has_official_images(self.collected_game_record(game))
+
+    @staticmethod
+    def _record_has_official_images(record) -> bool:
         if not record:
             return False
         return any(
@@ -163,7 +163,7 @@ class MetadataControllerMixin:
         if game is None:
             return
         record = self.collected_game_record(game)
-        if not record or not self.has_official_image_candidates(game):
+        if not self._record_has_official_images(record):
             # Normally unreachable: official-image action is disabled in menu.
             return
         if (self.identity_lookup_worker is not None
@@ -263,6 +263,8 @@ class MetadataControllerMixin:
             current.raise_()
             current.activateWindow()
             return
+        # The legacy detailed editor is not needed by the normal launcher.
+        from title_editor import TitleEditor
         editor = TitleEditor(game.id, library=self.library, single_game_only=True)
         editor.closed.connect(self.title_editor_closed)
         self.title_editor_window = editor

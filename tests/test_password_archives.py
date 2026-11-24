@@ -1,7 +1,7 @@
 """Regression coverage for protected ZIPs, including WinZip AES method 99."""
 from pathlib import Path
-import shutil
-import subprocess
+import base64
+import hashlib
 import sys
 import zipfile
 
@@ -33,15 +33,28 @@ def test_unencrypted_zip_still_works(tmp_path):
 
 
 def test_zipcrypto_requires_password_and_extracts(tmp_path):
-    if shutil.which('zip') is None:
-        pytest.skip('zip CLI is not available for creating a ZipCrypto test file')
     lib, root, source = make_library(tmp_path)
-    folder = tmp_path / 'original'
-    folder.mkdir()
-    (folder / 'Game.exe').write_bytes(b'MZtest')
-    subprocess.run(['zip', '-q', '-j', '-P', 'my-test-secret', str(source / 'Secret.zip'),
-                    str(folder / 'Game.exe')], check=True)
+    # Actual Info-ZIP traditional encrypted ZIP; only a synthetic six-byte
+    # Game.exe member, not a real executable or user data. Generated with:
+    # zip -q -X -j -P my-test-secret Secret.zip Game.exe
+    # Freeze the bytes so Windows CI does not depend on a zip CLI.
+    fixture = base64.b64decode(
+        "UEsDBAoACQAAAKNOeF1rzpyJEgAAAAYAAAAIAAAAR2FtZS5leGXq0V5X652Eeyw5"
+        "GulM4TdsCGVQSwcIa86ciRIAAAAGAAAAUEsBAh4DCgAJAAAAo054XWvOnIkSAAAAB"
+        "gAAAAgAAAAAAAAAAQAAAKSBAAAAAEdhbWUuZXhlUEsFBgAAAAABAAEANgAAAEgAAAAAAA==",
+        validate=True,
+    )
+    assert hashlib.sha256(fixture).hexdigest() == (
+        "d06263980e6875153c0b8ca904dc8e84e280c88629c19676dfa3515c8c65a0d4"
+    )
     archive = source / 'Secret.zip'
+    archive.write_bytes(fixture)
+    with zipfile.ZipFile(archive) as zf:
+        info = zf.getinfo('Game.exe')
+        assert info.flag_bits & 1
+        assert info.compress_type == zipfile.ZIP_STORED
+        assert zf.read(info, pwd=b'my-test-secret') == b'MZtest'
+    before = archive.read_bytes()
     assert archive_requires_password(archive)
     game = lib.scan()[0]
     with pytest.raises(ArchivePasswordRequired):
@@ -54,6 +67,7 @@ def test_zipcrypto_requires_password_and_extracts(tmp_path):
     result = install(game, password='my-test-secret')
     assert (result / 'Game.exe').read_bytes() == b'MZtest'
     assert archive.is_file()
+    assert archive.read_bytes() == before
 
 
 def test_aes_zip_password_roundtrip(tmp_path):

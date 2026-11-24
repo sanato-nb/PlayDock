@@ -10,7 +10,7 @@ import pytest
 from korean_title_search import (
     KoreanTitleHit, suggest_korean_heading, find_korean_titles,
 )
-from localized_titles import lookup_localized_title
+from services.localized_titles import lookup_localized_title
 
 
 def test_korean_web_candidates_require_exact_work_code_and_hangul():

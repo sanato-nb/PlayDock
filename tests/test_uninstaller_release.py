@@ -14,7 +14,7 @@ import setup_wizard
 def test_uninstall_only_known_binary_files_preserves_user_files(tmp_path, monkeypatch):
     installed = tmp_path / 'Programs' / 'LocalGameShelf'
     installed.mkdir(parents=True)
-    from local_storage import write_install_marker
+    from storage.local import write_install_marker
     write_install_marker(installed)
     for name in mgr.INSTALLED_FILES:
         (installed / name).write_bytes(b'MZplaceholder')
@@ -47,7 +47,7 @@ def test_uninstall_only_known_binary_files_preserves_user_files(tmp_path, monkey
 def test_uninstall_removes_empty_program_folder(tmp_path, monkeypatch):
     folder = tmp_path / 'Programs' / 'LocalGameShelf'
     folder.mkdir(parents=True)
-    from local_storage import write_install_marker
+    from storage.local import write_install_marker
     write_install_marker(folder)
     (folder / mgr.MAIN_EXE).write_bytes(b'MZ')
     monkeypatch.setattr(mgr, 'app_install_directory', lambda: folder)
@@ -72,7 +72,7 @@ def test_uninstall_never_uses_arbitrary_path(tmp_path, monkeypatch):
 def test_uninstall_fails_if_unexpected_directory_has_exe_name(tmp_path, monkeypatch):
     folder = tmp_path / 'Programs' / 'LocalGameShelf'
     folder.mkdir(parents=True)
-    from local_storage import write_install_marker
+    from storage.local import write_install_marker
     write_install_marker(folder)
     (folder / mgr.MAIN_EXE).mkdir()
     monkeypatch.setattr(mgr, 'app_install_directory', lambda: folder)
@@ -107,7 +107,8 @@ def test_build_script_includes_uninstaller_exe():
     cmd = (root / 'scripts/build_setup_windows.bat').read_text(encoding='utf-8')
     assert "Run-PyInstaller 'PlayDock_Uninstall'" in ps
     assert "'--add-binary','dist\\PlayDock_Uninstall.exe;payload'" in ps
-    assert '--add-binary "dist\\PlayDock_Uninstall.exe;payload"' in cmd
+    assert 'Build-Windows-Release.ps1' in cmd
+    assert '-m PyInstaller' not in cmd
 
 
 def test_registry_registration_targets_app_uninstaller_in_hkcu(tmp_path, monkeypatch):

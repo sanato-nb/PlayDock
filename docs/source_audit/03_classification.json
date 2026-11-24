@@ -1,0 +1,687 @@
+{
+  "baseline": "af10566aeb5a066ac5ee9beb9565823b73895002",
+  "scope": "src/playdock tracked Python files",
+  "usage_run": 45338260678,
+  "counts": {
+    "keep": 32,
+    "hold": 10,
+    "split": 13,
+    "move": 18,
+    "remove_candidate": 6,
+    "optimize": 5
+  },
+  "files": [
+    {
+      "path": "src/playdock/__init__.py",
+      "sha": "5000f63f0490a001b039024783a85ea43cd7a36e",
+      "bytes": 55,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "현 위치 유지"
+    },
+    {
+      "path": "src/playdock/ai_providers.py",
+      "sha": "a2924631b124a52295cbf68408b1f6269ab277d1",
+      "bytes": 16636,
+      "status": "hold",
+      "role": "AI 제공업체·자격증명 및 이전 이름 편집기 연결",
+      "next": "기존 편집기 정책 결정 후 분리; 설정값·키 삭제 금지"
+    },
+    {
+      "path": "src/playdock/artwork.py",
+      "sha": "46e6b00877854f3495d817e868c7d188c3d08467",
+      "bytes": 12427,
+      "status": "split",
+      "role": "수동 이미지 저장·로컬 이미지 탐색과 AI 기능 혼재",
+      "next": "이미지 서비스와 이전 AI 기능 분리; save_image/discover_local 유지"
+    },
+    {
+      "path": "src/playdock/bulk_title_edit.py",
+      "sha": "8273e48d49da6403ebbe8298a1720487d0c0e7aa",
+      "bytes": 7988,
+      "status": "move",
+      "role": "일괄 이름 변경 및 복원·백업",
+      "next": "services/title_edit_service.py 또는 기존 bulk_title_service 통합 검토"
+    },
+    {
+      "path": "src/playdock/cache_management.py",
+      "sha": "6fd3e0b7b1d4ccad27cfb107a6558e4401d4b240",
+      "bytes": 250,
+      "status": "hold",
+      "role": "캐시 호환 재수출",
+      "next": "호환 테스트·호출 변경 전 유지"
+    },
+    {
+      "path": "src/playdock/collection_board.py",
+      "sha": "c2f237760a975227c25785768f0d9096b255f60d",
+      "bytes": 198,
+      "status": "remove_candidate",
+      "role": "현재 UI 구현의 이전 import 경로",
+      "next": "ui/collection_board.py 유지; 호환 계약 변경과 테스트 검증 후 제거"
+    },
+    {
+      "path": "src/playdock/collection_board_model.py",
+      "sha": "8dce44a4b3782fb918c6852ff54524a5db20607a",
+      "bytes": 881,
+      "status": "move",
+      "role": "모음집 카드 데이터 계산",
+      "next": "models/collection_board.py"
+    },
+    {
+      "path": "src/playdock/controllers/__init__.py",
+      "sha": "25da279f9f73cf3b0d4a263e2a2d6eda18506406",
+      "bytes": 36,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/controllers/catalog_collection.py",
+      "sha": "ed1307a8b7898cd52ce61b00366e2a51c9d1452b",
+      "bytes": 3781,
+      "status": "keep",
+      "role": "수집 버튼·진행·완료 연결",
+      "next": "유지; 워커 import 갱신만"
+    },
+    {
+      "path": "src/playdock/controllers/data_manager.py",
+      "sha": "54766a4c6b96670e142928891cc028c97570e83a",
+      "bytes": 1919,
+      "status": "keep",
+      "role": "데이터 관리 요청 연결",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/controllers/game_actions.py",
+      "sha": "0a7dea435f1ecf2ba24098aa30190f53cd2cb6ca",
+      "bytes": 14559,
+      "status": "split",
+      "role": "설치·실행·세이브·이미지 UI 동작",
+      "next": "세이브 및 실행/이미지 처리 경계 검토; 안전 승인 유지"
+    },
+    {
+      "path": "src/playdock/controllers/library.py",
+      "sha": "d58d50c35c1f8568606bcf8b7ddbced3a2bf81e3",
+      "bytes": 18274,
+      "status": "optimize",
+      "role": "목록·선택·모음집·화면 갱신",
+      "next": "합성 목록에서 검색/정렬/선택/DB 접근 측정; 동작 유지"
+    },
+    {
+      "path": "src/playdock/controllers/metadata.py",
+      "sha": "ee5e5a54b43c13b8d1b14728d2da5a5875ea4ddd",
+      "bytes": 16597,
+      "status": "split",
+      "role": "작품정보·이름·공식 이미지·이전 편집기 혼재",
+      "next": "현재 이름/공식 이미지/작품 조회의 책임 분리; 이전 진입점은 보류"
+    },
+    {
+      "path": "src/playdock/controllers/title_editor.py",
+      "sha": "d76b8edda64344ea3beeacc72034f3e81d3b4f62",
+      "bytes": 29210,
+      "status": "hold",
+      "role": "이전 이름 편집기 직접 실행 및 AI 연결",
+      "next": "27개 검증에서 버튼 연결 확인; 별도 제거 정책 없으면 유지"
+    },
+    {
+      "path": "src/playdock/controllers/window_actions.py",
+      "sha": "652461c91c59afe124e7002e3bde71492cb84a84",
+      "bytes": 4839,
+      "status": "optimize",
+      "role": "상단 메뉴 상태 및 선택 동기화",
+      "next": "function_availability의 반복 DB 조회 측정; 상태 판정 동일"
+    },
+    {
+      "path": "src/playdock/core.py",
+      "sha": "5099b57d6583d29a8fe9f8276251a4e3550b62b4",
+      "bytes": 846,
+      "status": "hold",
+      "role": "게임/서비스 호환 import",
+      "next": "호출부 이전 및 테스트 계약 확인 전 유지"
+    },
+    {
+      "path": "src/playdock/dark_selector.py",
+      "sha": "2bb4d846a6f763e56d715a45493cb01700d2d284",
+      "bytes": 192,
+      "status": "remove_candidate",
+      "role": "선택 UI 호환 모듈",
+      "next": "ui/selectors.py 유지; 호환 검사 변경 후 제거 검토"
+    },
+    {
+      "path": "src/playdock/data_management.py",
+      "sha": "7250f8d4c98e8e1698d85554e283c0ca972caa4b",
+      "bytes": 409,
+      "status": "hold",
+      "role": "데이터 관리 이전 import",
+      "next": "백업·복원 호환 계약 확인 전 유지"
+    },
+    {
+      "path": "src/playdock/database/__init__.py",
+      "sha": "c3608e7fab7608611e6fd66464ee9efea4a79405",
+      "bytes": 33,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/database/official_catalog.py",
+      "sha": "80d5d9960ca0c47c219b7372ef66cd6b3d045fbb",
+      "bytes": 5535,
+      "status": "split",
+      "role": "DB 위치·이전 경로·공식 식별 검증",
+      "next": "공식 코드 검증과 저장 경로 경계 정리; 기존 DB 위치 유지"
+    },
+    {
+      "path": "src/playdock/database/work_repository.py",
+      "sha": "1972b1ff59d8adf478c2c1ee363b1826309c0941",
+      "bytes": 24522,
+      "status": "optimize",
+      "role": "스키마·마이그레이션·저장·조회",
+      "next": "연결 수/조회시간 측정; 스키마 및 데이터 마이그레이션 유지"
+    },
+    {
+      "path": "src/playdock/game_codes.py",
+      "sha": "2e13d13b7a0b5b203bfe93e3ddc613f7c6c55c02",
+      "bytes": 1703,
+      "status": "move",
+      "role": "품번 정규화",
+      "next": "models 또는 공통 코드 모듈; 빌드 hidden-import 및 실험 참조 갱신"
+    },
+    {
+      "path": "src/playdock/game_collections.py",
+      "sha": "8c0928e345120454de4e8f9c3186da73fba86096",
+      "bytes": 3629,
+      "status": "move",
+      "role": "모음집 저장 및 조회",
+      "next": "storage/collections.py; 기존 JSON 스키마 유지"
+    },
+    {
+      "path": "src/playdock/game_icons.py",
+      "sha": "c2715cbd79290954d4d15d3f36431408d56f0b50",
+      "bytes": 2798,
+      "status": "move",
+      "role": "게임 아이콘 처리",
+      "next": "ui/widgets 또는 이미지 서비스로 책임 기준 재배치"
+    },
+    {
+      "path": "src/playdock/game_identity.py",
+      "sha": "54678a5edb53f14803cebeac4431208427a261e4",
+      "bytes": 6518,
+      "status": "hold",
+      "role": "이전 식별 및 AI/검색 연계",
+      "next": "이전 검색 UI와 실험·테스트 참조 구분 후 처리"
+    },
+    {
+      "path": "src/playdock/install_management.py",
+      "sha": "fc2fb0e54ee00ccb82992366b72cf17b0daf07b0",
+      "bytes": 13215,
+      "status": "split",
+      "role": "Windows 프로그램 설치·레지스트리·제거",
+      "next": "설치 계층 이동 및 desktop_directory 통합; 기존 삭제 방어 유지"
+    },
+    {
+      "path": "src/playdock/integrations/__init__.py",
+      "sha": "271c487be3e1e11bf7bee0311b33b35bffbddc3e",
+      "bytes": 37,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/integrations/dlsite_client.py",
+      "sha": "cbeac3da703c83d0e5a953262a41481527857357",
+      "bytes": 7089,
+      "status": "keep",
+      "role": "공식 DLsite 요청·응답 검증",
+      "next": "유지; 공통 정식 조회 엔진과 경계 확정"
+    },
+    {
+      "path": "src/playdock/korean_title_search.py",
+      "sha": "7ed14a8c26c4a2121bf367bec98850a58dbee8d2",
+      "bytes": 7020,
+      "status": "hold",
+      "role": "이전 이름 편집기의 한국어 검색",
+      "next": "편집기 및 테스트 계약 유지"
+    },
+    {
+      "path": "src/playdock/launch_approval.py",
+      "sha": "bc5595b6155da88416a115773f9591e5cadc5fde",
+      "bytes": 2131,
+      "status": "move",
+      "role": "실행 승인·변경 판정",
+      "next": "services/launch_approval.py; 승인 동작 유지"
+    },
+    {
+      "path": "src/playdock/launch_options.py",
+      "sha": "7741f1caa76f080070df5403dec93b1917a7ba82",
+      "bytes": 1076,
+      "status": "move",
+      "role": "실행 인수 검증",
+      "next": "services/launch_options.py; 명령어 검증 유지"
+    },
+    {
+      "path": "src/playdock/library_tree.py",
+      "sha": "d8ed72961abaec091076103edefdabaf8d35d74a",
+      "bytes": 2195,
+      "status": "move",
+      "role": "라이브러리 그룹 구성",
+      "next": "models/library_tree.py"
+    },
+    {
+      "path": "src/playdock/local_storage.py",
+      "sha": "7ee81cf5fac9313a6c55124635019087890118f8",
+      "bytes": 6198,
+      "status": "move",
+      "role": "프로그램 데이터 위치·기존 데이터 이전",
+      "next": "storage/local.py; 마이그레이션 경로 그대로"
+    },
+    {
+      "path": "src/playdock/localized_titles.py",
+      "sha": "ac641c4c032cbc79d3a1d7d2a0a69271609dfe30",
+      "bytes": 6771,
+      "status": "move",
+      "role": "언어별 제목 처리·조회",
+      "next": "services/localized_titles.py 또는 integration 경계; 기존 언어 데이터 유지"
+    },
+    {
+      "path": "src/playdock/models/__init__.py",
+      "sha": "3f7e18063ae3e65b3a0d532cf7ee6c06d1031725",
+      "bytes": 31,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/models/game.py",
+      "sha": "7478717636b0e5d67383f9fded2ef6782e3b662c",
+      "bytes": 1428,
+      "status": "keep",
+      "role": "Game 모델·ID·안전한 이름",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/native_caption.py",
+      "sha": "50590da7b2f75b2d93d800020fba0f33a8c215bc",
+      "bytes": 2788,
+      "status": "keep",
+      "role": "Windows 및 설치기 제목 표시줄",
+      "next": "최신 검증된 동작 유지"
+    },
+    {
+      "path": "src/playdock/online_art_dialog.py",
+      "sha": "c0ba2fcafd3948ec3b4f303bc32e04ff343592f6",
+      "bytes": 316,
+      "status": "remove_candidate",
+      "role": "이전 인터넷 이미지 검색 UI 호환 모듈",
+      "next": "이전 검색 UI 세 파일 묶음으로 검토; 외부 import 계약 검증"
+    },
+    {
+      "path": "src/playdock/online_artwork.py",
+      "sha": "928baf9c4eb6acc5e31b47987842ac424f8436f5",
+      "bytes": 21413,
+      "status": "split",
+      "role": "안전한 다운로드·검증·자르기와 웹 검색 혼재",
+      "next": "이미지 핵심 기능 유지; 검색부 별도 분리 후 사용 여부 검증"
+    },
+    {
+      "path": "src/playdock/product_titles.py",
+      "sha": "863ca9757653de249ad868ae9257faf8626681c2",
+      "bytes": 7637,
+      "status": "split",
+      "role": "품번·표시명 처리 및 공식 제목 조회",
+      "next": "순수 제목 처리와 외부 요청 분리; DB의 clean_title 유지"
+    },
+    {
+      "path": "src/playdock/save_backups.py",
+      "sha": "2ede36cead2087d7525cae5cc79feec9add1635e",
+      "bytes": 6970,
+      "status": "move",
+      "role": "세이브 백업·복원",
+      "next": "services/save_backup_service.py; 경로/ZIP 안전 유지"
+    },
+    {
+      "path": "src/playdock/services/__init__.py",
+      "sha": "0f9129f412b46f810699df609e3183f802376948",
+      "bytes": 33,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/services/archive_service.py",
+      "sha": "e2023d0fa72a0bffd4ba21d2d42a08e1442f257c",
+      "bytes": 11951,
+      "status": "keep",
+      "role": "압축 처리 및 안전 검사",
+      "next": "유지; 성능은 별도 벤치마크"
+    },
+    {
+      "path": "src/playdock/services/artwork_service.py",
+      "sha": "34b71efc622d27dec80f6f0cb48fe8a7e3ad8711",
+      "bytes": 4654,
+      "status": "keep",
+      "role": "이미지 저장·백업",
+      "next": "유지; 이미지 공통부 import 변경만"
+    },
+    {
+      "path": "src/playdock/services/artwork_workers.py",
+      "sha": "256472d39de49737e6c5839fbc69e178bfc8c65f",
+      "bytes": 3112,
+      "status": "remove_candidate",
+      "role": "이전 인터넷 이미지 검색 UI 전용 스레드",
+      "next": "ui/artwork_dialog.py와 함께 검토; 기존 공식 worker 유지"
+    },
+    {
+      "path": "src/playdock/services/bulk_title_service.py",
+      "sha": "d7e21f2b04cff53813c50491ae245ad368499597",
+      "bytes": 5117,
+      "status": "split",
+      "role": "일괄 제목 변경 동작 및 검증",
+      "next": "bulk_title_edit 순수 함수와 책임 통합 검토"
+    },
+    {
+      "path": "src/playdock/services/cache_service.py",
+      "sha": "66965030f6c509c8821bfd48a1f7f2a5ab18880b",
+      "bytes": 3385,
+      "status": "keep",
+      "role": "이미지 캐시 관리",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/services/catalog_collection_service.py",
+      "sha": "96f36ff96e9d03bc5867c13ef1dce4c0413cec1b",
+      "bytes": 13430,
+      "status": "split",
+      "role": "품번 사전 필터·DB 수집·AI 인계·실험 의존",
+      "next": "정식 공식 조회 엔진 독립; 프롬프트 및 검증 데이터 유지"
+    },
+    {
+      "path": "src/playdock/services/catalog_collection_worker.py",
+      "sha": "fe89bdc7b238aa64c3cc0ba01650b5c620445056",
+      "bytes": 1168,
+      "status": "move",
+      "role": "수집 Qt 작업 스레드",
+      "next": "workers/catalog_collection.py"
+    },
+    {
+      "path": "src/playdock/services/collection_service.py",
+      "sha": "56ceef9054c763bba7cb29c20b70005559ae95c2",
+      "bytes": 739,
+      "status": "keep",
+      "role": "모음집 변경 처리",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/services/data_service.py",
+      "sha": "d61f9c959cbfd14600dd1e9299b2e0a56d7b9147",
+      "bytes": 12737,
+      "status": "keep",
+      "role": "데이터 백업/복원 및 무결성",
+      "next": "유지; 백업 포맷 보존"
+    },
+    {
+      "path": "src/playdock/services/database_status_service.py",
+      "sha": "141b60bc35e314c34744832e0e226dad79b724b3",
+      "bytes": 3339,
+      "status": "keep",
+      "role": "읽기 전용 DB 상태 확인",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/services/identity_artwork_worker.py",
+      "sha": "fcb5b7b0b005e852b3b911a1a7b5fa3029716e0b",
+      "bytes": 4654,
+      "status": "move",
+      "role": "공식 이미지 작업 스레드",
+      "next": "workers/identity_artwork.py; 실험 의존은 별도 독립화"
+    },
+    {
+      "path": "src/playdock/services/install_service.py",
+      "sha": "116647b7881939aab248ccae5f1f540c30e3753b",
+      "bytes": 6232,
+      "status": "keep",
+      "role": "게임 설치 및 제거",
+      "next": "경로 안전 및 휴지통 처리 유지"
+    },
+    {
+      "path": "src/playdock/services/launch_service.py",
+      "sha": "e58e522c5ebcbdb5235552109702046fa95e4435",
+      "bytes": 2670,
+      "status": "keep",
+      "role": "실행 파일 탐색 및 선택",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/services/library_service.py",
+      "sha": "655656e727a00cf4b7777e97f0332e100c820af0",
+      "bytes": 10392,
+      "status": "optimize",
+      "role": "스캔·메타데이터·설정 읽기",
+      "next": "스캔 및 JSON 읽기 측정; 캐시 무효화 검증 후 최적화"
+    },
+    {
+      "path": "src/playdock/services/official_artwork_service.py",
+      "sha": "51508f8e87dcda6a5129b7f8e19b4a33aa945959",
+      "bytes": 7708,
+      "status": "keep",
+      "role": "공식 이미지 후보·다운로드·검증",
+      "next": "유지; 안전 URL 및 사용자 선택 유지"
+    },
+    {
+      "path": "src/playdock/services/official_work_service.py",
+      "sha": "9398e47a906b8dc8b6e208d058ae38ace31be16d",
+      "bytes": 3390,
+      "status": "optimize",
+      "role": "확인된 작품 연결 및 화면 정보",
+      "next": "반복 조회·배치 조회 측정; 확인 연결 정책 유지"
+    },
+    {
+      "path": "src/playdock/services/settings_service.py",
+      "sha": "a82e1d66b9a6bd8b283911f7de4ab4883d1a6f9f",
+      "bytes": 1725,
+      "status": "split",
+      "role": "폴더 설정과 AI 제공업체 저장 혼재",
+      "next": "폴더 설정 유지; 이전 AI 설정 분리"
+    },
+    {
+      "path": "src/playdock/services/title_workers.py",
+      "sha": "b11819126d131c5f7f5870b34d8d06415a66f2d8",
+      "bytes": 7747,
+      "status": "move",
+      "role": "단일/일괄 제목 조회 Qt 스레드",
+      "next": "workers/title.py; BulkTitleWorker db_only 유지; 이전 AI 모드 보류"
+    },
+    {
+      "path": "src/playdock/services/work_lookup_worker.py",
+      "sha": "ad19d045dd921c8a8532b20c1ae7e2b7ebc4018a",
+      "bytes": 573,
+      "status": "move",
+      "role": "작품 조회 Qt 스레드",
+      "next": "workers/work_lookup.py; 기존 경로 확인"
+    },
+    {
+      "path": "src/playdock/services/workers.py",
+      "sha": "50ae60f9cad0d511208f05f9ed76b37a7ca91b8a",
+      "bytes": 2161,
+      "status": "move",
+      "role": "설치·제거·세이브 Qt 스레드",
+      "next": "workers/game_tasks.py"
+    },
+    {
+      "path": "src/playdock/setup_paths.py",
+      "sha": "9edbd88a9801f066f6f8dc3e4f216b80fe7cbd3b",
+      "bytes": 2686,
+      "status": "move",
+      "role": "초기 폴더 제안 및 저장",
+      "next": "storage/setup_paths.py; 설치 마법사 빌드 참조 유지"
+    },
+    {
+      "path": "src/playdock/simple_title_edit.py",
+      "sha": "594fabeac53943ba0d7360e5f32f623600bcaa66",
+      "bytes": 2924,
+      "status": "move",
+      "role": "수동 표시 이름 저장/복원",
+      "next": "services/simple_title_service.py; 원본명/히스토리 보존"
+    },
+    {
+      "path": "src/playdock/title_translation.py",
+      "sha": "ba4f861dd2a669eb384143fe2522052dc6274742",
+      "bytes": 1914,
+      "status": "hold",
+      "role": "이전 AI 텍스트 번역",
+      "next": "이전 이름 편집기 정책 결정 전 보존"
+    },
+    {
+      "path": "src/playdock/ui/__init__.py",
+      "sha": "7fe5a667d47193cb1e8e65d3d9d0bd8ad587eccb",
+      "bytes": 187,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/artwork_dialog.py",
+      "sha": "b9685ff4adf2bf01c81ba2063964d36a4013255e",
+      "bytes": 24461,
+      "status": "remove_candidate",
+      "role": "현재 메뉴에서 제거된 인터넷 이미지 검색 창",
+      "next": "관련 호환 모듈/스레드와 함께 검토; 현재 공식 이미지 창 유지"
+    },
+    {
+      "path": "src/playdock/ui/collection_board.py",
+      "sha": "92764ef6a1e14e3b8fae39916bf3472b255ef772",
+      "bytes": 11998,
+      "status": "keep",
+      "role": "내 모음집 실제 UI",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/__init__.py",
+      "sha": "52b0fe19e43397acb6cc4639896a3fa341148418",
+      "bytes": 35,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/catalog_collection.py",
+      "sha": "c3a02e74cd0a9b106666fdbf4e60618440bee071",
+      "bytes": 7646,
+      "status": "keep",
+      "role": "정보 수집 진행 및 TXT 내보내기",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/common.py",
+      "sha": "de0ab17190d0e8d8be02143ca332b516b9045960",
+      "bytes": 23249,
+      "status": "split",
+      "role": "공통 창·파일 선택·네이티브 캡션 혼재",
+      "next": "file_dialog.py와 공통 창 분리; 검수된 캡션 동작 유지"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/database_status.py",
+      "sha": "9836f742af91c7c0edf72c02e7bd2766063654a2",
+      "bytes": 2340,
+      "status": "keep",
+      "role": "DB 상태 창",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/identity_artwork.py",
+      "sha": "4ae74f91a30bf047cff0c1300653c6300a6279f4",
+      "bytes": 5256,
+      "status": "keep",
+      "role": "공식 이미지 체크박스 미리보기",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/library.py",
+      "sha": "d946c19304f57b8d17dccf400234a5ba4e6da59e",
+      "bytes": 29865,
+      "status": "split",
+      "role": "폴더·모음집·캐시·데이터·이전 AI 설정 창",
+      "next": "기능별 창 분리; 이전 AI 설정 제거는 별도 계약 확인"
+    },
+    {
+      "path": "src/playdock/ui/dialogs/title.py",
+      "sha": "e27fe9b4b3f04e8b489427edc0c836adbcbcb896",
+      "bytes": 27592,
+      "status": "split",
+      "role": "제목 미리보기·선택·저장 UI 혼재",
+      "next": "미리보기/선택 UI 유지; 서비스 책임 정리"
+    },
+    {
+      "path": "src/playdock/ui/editor_layout.py",
+      "sha": "892132893ec83d17e2e24703a36e164b1cda42eb",
+      "bytes": 13180,
+      "status": "hold",
+      "role": "이전 이름 편집기 UI",
+      "next": "직접 실행 경로 및 AI 버튼 유지 여부 결정 전 보존"
+    },
+    {
+      "path": "src/playdock/ui/launcher_layout.py",
+      "sha": "9e919c33125c04a5aaaa7b9b52e395dc482dd41d",
+      "bytes": 10350,
+      "status": "keep",
+      "role": "검수된 메인 UI 배치",
+      "next": "디자인·버튼 연결 유지"
+    },
+    {
+      "path": "src/playdock/ui/selectors.py",
+      "sha": "8d529488829eb4953ec334042e33e832ea40e803",
+      "bytes": 5207,
+      "status": "keep",
+      "role": "공통 선택 메뉴 구현",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/styles.py",
+      "sha": "ee015b044b9959af9842e072e8150e571c843762",
+      "bytes": 10439,
+      "status": "keep",
+      "role": "QSS 스타일",
+      "next": "디자인 유지; 불필요한 스타일은 사용 추적 후 정리"
+    },
+    {
+      "path": "src/playdock/ui/widgets/__init__.py",
+      "sha": "8cb6795ca448e31156eadbd226ab3aca958ce075",
+      "bytes": 35,
+      "status": "keep",
+      "role": "패키지 초기화",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/widgets/launcher.py",
+      "sha": "870eab25e81f9047df3b9a078a8d60e9c0b3415b",
+      "bytes": 11962,
+      "status": "keep",
+      "role": "메인 UI 공통 위젯",
+      "next": "유지"
+    },
+    {
+      "path": "src/playdock/ui/work_info_dialog.py",
+      "sha": "401b0cb9fb31aa74cfa0f31405ef3d3a4988ecd6",
+      "bytes": 3424,
+      "status": "keep",
+      "role": "작품정보 미리보기 및 호환 재수출",
+      "next": "현재 코드 참조 유지"
+    },
+    {
+      "path": "src/playdock/work_db.py",
+      "sha": "016c1aca9bc82fd3d1e5f559204e5a010aa72125",
+      "bytes": 449,
+      "status": "hold",
+      "role": "이전 DB API 호환 재수출",
+      "next": "DB 호출부 전환 후 호환 검사"
+    },
+    {
+      "path": "src/playdock/work_db_dialog.py",
+      "sha": "296cfe943729b925a74d83e55cf5d82d83ab03e2",
+      "bytes": 212,
+      "status": "remove_candidate",
+      "role": "이전 DB 창 import 호환 모듈",
+      "next": "ui/work_info_dialog.py 유지; 호환 계약 검토"
+    }
+  ]
+}

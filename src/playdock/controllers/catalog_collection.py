@@ -1,12 +1,10 @@
 """PlayDock controller for batch official game-information DB collection."""
 from __future__ import annotations
 
-from PySide6.QtWidgets import QDialog
-
 from services.catalog_collection_service import (
     game_catalog_entries, partition_catalog_entries, make_missing_code_prompt,
 )
-from services.catalog_collection_worker import CatalogCollectionThread
+from workers.catalog_collection import CatalogCollectionThread
 from ui.dialogs.catalog_collection import CatalogCollectionDialog
 from ui.dialogs.common import ask_yes_no, show_message
 

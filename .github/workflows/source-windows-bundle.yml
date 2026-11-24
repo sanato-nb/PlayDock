@@ -1,0 +1,46 @@
+name: PlayDock Windows 전용 빌드 구성 검증
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/Build-Windows-Release.ps1
+      - scripts/build_setup_windows.bat
+      - scripts/audit_windows_bundle.py
+      - scripts/smoke_frozen_launcher.py
+      - .github/workflows/source-windows-bundle.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 정식 빌드 및 전체 회귀 테스트
+        shell: pwsh
+        run: ./scripts/Build-Windows-Release.ps1 -NoLaunch -NoWinget
+      - name: 실제 EXE 내부 모듈 및 격리 실행 검증
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe scripts/audit_windows_bundle.py dist/PlayDock.exe --output build-evidence/bundle.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.venv/Scripts/python.exe scripts/smoke_frozen_launcher.py dist/PlayDock.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-ChildItem dist/*.exe | Select-Object Name,Length
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-Windows-bundle-evidence
+          path: |
+            build-evidence/
+            dist/SHA256SUMS.txt
+            build/PlayDock/warn-PlayDock.txt

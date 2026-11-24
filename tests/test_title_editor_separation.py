@@ -33,7 +33,9 @@ def test_installer_bundles_single_launcher_with_editor_built_in():
     assert 'PlayDock.exe' in BUILD
     assert 'PlayDock_TitleEditor.exe;payload' not in BUILD
     assert 'payload_title_editor()' not in SETUP
-    assert 'PlayDock_Uninstall.exe;payload' in BUILD
+    assert 'Build-Windows-Release.ps1' in BUILD
+    canonical = (ROOT / 'scripts/Build-Windows-Release.ps1').read_text(encoding='utf-8-sig')
+    assert 'PlayDock_Uninstall.exe;payload' in canonical
     assert 'create_shortcut(editor' not in SETUP
     assert 'TitleEditor' in EDITOR  # source stays modular even within one EXE
 

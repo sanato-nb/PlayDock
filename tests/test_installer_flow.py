@@ -6,9 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import setup_wizard
-import local_storage
-
-
+from storage import local as local_storage
 def test_setup_copies_exes_and_legacy_collection_to_chosen_program_folder(tmp_path, monkeypatch):
     old = tmp_path / 'old' / 'LocalGameShelf'
     old.mkdir(parents=True)

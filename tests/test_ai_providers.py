@@ -5,19 +5,14 @@ _ui_main = launcher_source()
 _ui_editor = editor_source()
 
 
-import base64
-import json
-from io import BytesIO
-
 import pytest
-from PIL import Image
 
 import ai_providers as ai
 import artwork
-from core import Library, Game
+from core import Library
 
 
-def test_provider_catalog_and_image_capabilities():
+def test_provider_catalog_and_legacy_image_settings_metadata():
     assert set(ai.PROVIDERS) == {'openai', 'gemini', 'anthropic', 'openrouter', 'ollama'}
     assert ai.PROVIDERS['openai']['image'] and ai.PROVIDERS['gemini']['image']
     assert ai.PROVIDERS['openrouter']['image']
@@ -89,43 +84,6 @@ def test_unconfident_title_kept(monkeypatch):
     assert ai.recommend_title('RJ123456', 'gemini', 'model', 'key') == 'RJ123456'
 
 
-def image_png_b64():
-    img = Image.new('RGB', (80, 45), (40, 150, 210))
-    memory = BytesIO()
-    img.save(memory, format='PNG')
-    return base64.b64encode(memory.getvalue()).decode('ascii')
-
-
-def test_gemini_image_response_is_cached(monkeypatch, tmp_path):
-    b64 = image_png_b64()
-    seen = []
-    def mocked(url, body, headers, **kwargs):
-        seen.append((url, body, headers))
-        return {'candidates': [{'content': {'parts': [{'inlineData': {'mimeType': 'image/png', 'data': b64}}]}}]}
-    monkeypatch.setattr(ai, 'http_json', mocked)
-    lib = Library(store=tmp_path / 'store')
-    game = Game('game', 'Game', tmp_path / 'games')
-    message = artwork.generate_ai_art(lib, game, 'fake-key', provider='gemini', model='gemini-2.5-flash-image')
-    assert len(seen) == 2
-    assert all(':generateContent' in url for url, _, _ in seen)
-    assert (lib.art_dir(game) / 'hero.png').is_file()
-    assert (lib.art_dir(game) / 'icon.png').is_file()
-    assert 'Gemini' in lib.meta(game)['artwork_source']
-    assert 'AI' in message
-
-
-def test_openai_new_image_path(monkeypatch):
-    monkeypatch.setattr(ai, 'http_json', lambda *args, **kwargs: {'data': [{'b64_json': image_png_b64()}]})
-    image = ai.image_bytes('openai', 'gpt-image-1-mini', 'test', 'fake', 'icon')
-    assert image.startswith(b'\x89PNG')
-
-
-def test_text_only_services_reject_image_generation():
-    for p in ('anthropic', 'ollama'):
-        with pytest.raises(ValueError, match='이미지 생성'):
-            ai.image_bytes(p, 'model', 'prompt', '', 'icon')
-
-
 def test_http_errors_do_not_include_credentials(monkeypatch):
     # This is a source-level guard: keys only flow in the Authorization headers.
     source = (ai.__file__)
@@ -135,25 +93,22 @@ def test_http_errors_do_not_include_credentials(monkeypatch):
     assert 'api_key' not in text.split('def http_json(', 1)[1].split('def _extract_json(', 1)[0]
 
 
-def test_main_and_editor_share_provider_settings():
-    from pathlib import Path
+def test_editor_retains_existing_provider_settings_without_main_settings_window():
     root = Path(__file__).resolve().parents[1]
     app = (root / 'app.py').read_text(encoding='utf-8') + _ui_main
     title_editor = (root / 'title_editor.py').read_text(encoding='utf-8') + _ui_editor
-    assert 'save_provider_settings' in app
+    assert 'class SettingsDialog(' not in app
     assert 'current_provider(self.library)' in title_editor
     assert 'ai_game_title(' in title_editor
     assert 'get_secret("openai")' not in app
 
 
-def test_openrouter_image_endpoint(monkeypatch):
-    calls = []
-    def mock_http(url, body, headers, **kwargs):
-        calls.append((url, body, headers))
-        return {'data': [{'b64_json': image_png_b64()}]}
-    monkeypatch.setattr(ai, 'http_json', mock_http)
-    png = ai.image_bytes('openrouter', 'bytedance-seed/seedream-4.5', 'Banner prompt', 'fake-key', 'hero')
-    assert png.startswith(b'\x89PNG')
-    assert calls[0][0] == 'https://openrouter.ai/api/v1/images'
-    assert calls[0][1]['model'] == 'bytedance-seed/seedream-4.5'
-    assert calls[0][2]['Authorization'] == 'Bearer fake-key'
+def test_image_generation_entrypoints_and_endpoints_are_removed():
+    assert not hasattr(ai, 'image_bytes')
+    assert not hasattr(artwork, 'generate_ai_art')
+    assert not hasattr(artwork, 'IMAGE_URL')
+    for module in (ai, artwork):
+        source = Path(module.__file__).read_text(encoding='utf-8')
+        assert '/v1/images/generations' not in source
+        assert 'openrouter.ai/api/v1/images' not in source
+        assert 'responseModalities' not in source

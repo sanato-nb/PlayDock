@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from core import Library
-from game_collections import CollectionStore
+from storage.collections import CollectionStore
 from data_management import inventory, backup_data, inspect_backup, restore_data
 
 

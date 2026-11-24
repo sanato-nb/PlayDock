@@ -7,19 +7,11 @@ from __future__ import annotations
 
 import sys
 import argparse
-import weakref
-from urllib.parse import urlencode
-from time import sleep
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QUrl, QThread, Signal, QTimer, QObject, QEvent
-from PySide6.QtGui import QIcon, QDesktopServices
-from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QLabel, QLineEdit, QPushButton,
-    QHBoxLayout, QVBoxLayout, QListWidget, QListWidgetItem, QFrame,
-    QMessageBox, QSplitter, QDialog, QTableWidget, QTableWidgetItem,
-    QHeaderView, QProgressBar, QStackedWidget, QScrollArea, QCheckBox,
-)
+from PySide6.QtCore import Signal, QTimer
+from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow
 
 
 # Source checkout: internal modules live under src/playdock; frozen builds use PyInstaller --paths.
@@ -30,14 +22,14 @@ if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path
     _playdock_sys.path.insert(0, str(_playdock_source))
 
 from core import Library
-from simple_title_edit import save_display_title, undo_display_title, restore_filename_title, title_history
-from bulk_title_edit import BulkChange, replace_name, name_was_manually_changed, apply_bulk_changes, preview_undo_name
+from services.simple_title_edit import save_display_title, undo_display_title, restore_filename_title, title_history
+from services.bulk_title_edit import BulkChange, replace_name, name_was_manually_changed, apply_bulk_changes, preview_undo_name
 from product_titles import extract_code, display_title, lookup_title
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from artwork import ai_game_title, get_secret
 from ai_providers import PROVIDERS, current_provider, current_models
 from native_caption import windows_dark_caption
-from localized_titles import (
+from services.localized_titles import (
     LANGUAGES, is_code_only_title, lookup_localized_title,
     display_language_for, language_is_plausible,
 )
@@ -60,9 +52,10 @@ from ui.editor_layout import build_title_editor_ui
 
 
 
-from services.title_workers import TitleWorker, BulkTitleWorker
-from ui.dialogs.title import (DarkDialogCaptionFilter, BulkPreviewDialog,
-                              KoreanWebCandidatesDialog, BulkTitleSettingsDialog)
+from workers.title import TitleWorker, BulkTitleWorker
+from ui.dialogs.caption import DarkDialogCaptionFilter
+from ui.dialogs.title_preview import BulkPreviewDialog, KoreanWebCandidatesDialog
+from ui.dialogs.title import BulkTitleSettingsDialog
 from controllers.title_editor import TitleEditorActionsMixin
 
 class TitleEditor(TitleEditorActionsMixin, QMainWindow):

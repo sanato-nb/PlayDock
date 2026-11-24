@@ -7,13 +7,12 @@ import zipfile
 
 import pytest
 
-from local_storage import (LEGACY_INSTALL_MARKER, LEGACY_MARKER_ID, INSTALL_MARKER,
+from storage.local import (LEGACY_INSTALL_MARKER, LEGACY_MARKER_ID, INSTALL_MARKER,
                            marker_is_valid, data_dir_for_executable, write_install_marker)
 import install_management as mgr
 import ai_providers as ai
 from data_management import backup_data, inspect_backup, restore_data
 from core import Library
-from save_backups import create_save_backup, restore_save_backup
 
 
 def test_release_names_and_build_payload():
@@ -73,22 +72,6 @@ def test_legacy_app_backup_can_still_be_restored(tmp_path):
     assert restored == 1
     assert json.loads((store/'collections.json').read_text('utf-8'))['collections']==[]
     assert safety.exists()
-
-
-def test_legacy_save_backups_still_restore(tmp_path):
-    saves=tmp_path/'saves';saves.mkdir();(saves/'slot1.dat').write_text('ok')
-    output=tmp_path/'backups';output.mkdir()
-    archive=create_save_backup(saves, output,'Test','abc')
-    legacy=tmp_path/'old-save.zip'
-    with zipfile.ZipFile(archive) as src, zipfile.ZipFile(legacy,'w') as dst:
-        for entry in src.infolist():
-            b=src.read(entry.filename)
-            if entry.filename=='manifest.json':
-                manifest=json.loads(b);manifest['format']='LocalGameShelfSaveBackup'
-                b=json.dumps(manifest).encode('utf-8')
-            dst.writestr(entry,b)
-    restored=restore_save_backup(legacy, tmp_path)
-    assert (restored/'slot1.dat').read_text()=='ok'
 
 
 def test_api_credential_compatibility_and_deletion(monkeypatch):

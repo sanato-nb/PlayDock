@@ -10,7 +10,7 @@ from ai_providers import (
     PROVIDERS, current_provider, current_models, get_secret, set_secret,
     provider_details, save_provider_settings,
 )
-from setup_paths import proposed_paths, save_folder_settings
+from storage.setup_paths import proposed_paths, save_folder_settings
 
 
 @dataclass(frozen=True)

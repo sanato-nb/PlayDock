@@ -5,7 +5,7 @@ This is *not* a product-code identity verification and never generates artwork.
 from __future__ import annotations
 
 from product_titles import clean_title
-from localized_titles import LANGUAGES, language_is_plausible
+from services.localized_titles import LANGUAGES, language_is_plausible
 
 
 def translate_work_title(source_title: str, target_language: str, provider: str,

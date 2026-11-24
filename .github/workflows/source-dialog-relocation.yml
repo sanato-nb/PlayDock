@@ -1,0 +1,44 @@
+name: PlayDock 대화상자 구조 분리 검증
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: 535cdced1e890562545658d7c3ae4fecee67e47a
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: UI 함수와 클래스 원본 비교
+        run: python scripts/audit_dialog_relocation.py
+      - name: Qt 및 빌드 의존성 설치
+        run: python -m pip install -r requirements.txt pytest "pyinstaller>=6.11,<7"
+      - name: 전체 Windows 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m compileall -q app.py title_editor.py src/playdock
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -m pytest -q
+      - name: Windows EXE 빌드 검증
+        shell: pwsh
+        run: |
+          ./scripts/Build-Windows-Release.ps1 -NoLaunch -SkipTests -NoWinget
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "dist/PlayDock.exe")) { throw "PlayDock.exe missing" }
+          Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-Dialog-Relocation-Audit
+          path: audit_output/

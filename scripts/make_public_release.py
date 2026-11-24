@@ -102,37 +102,36 @@ def build_public_release(dist: Path, out: Path, manual: Path, *, source: Path | 
             json.dumps({"id": "playdock-installed-v1", "data_directory": "data", "version": VERSION},
                        ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (stage / DB_GUIDE_FILENAME).write_text(
-            'PlayDock 작품 정보 DB (v0.8.3)\n\n'
-            '1. 게임 선택 -> 게임 관리 -> DLsite 작품 정보 조회 · DB 저장\n'
-            '2. 품번(RJ/VJ/BJ/EJ)이 있어야 하며, 작품을 한 건씩 조회합니다.\n'
-            '3. 이름·제작사·발매일·장르·표지/샘플 이미지 URL을 확인한 뒤 저장합니다.\n'
-            '4. 표시 이름은 체크박스를 선택했을 때만 바뀝니다.\n'
-            '5. 정보는 data/playdock.db(SQLite)에 저장되고 데이터 백업에 포함됩니다.\n'
-            '6. DLsite 사이트 내부 JSON을 이용한 비공식 연동입니다.\n'
-            '   차단되거나 응답 형식이 변경되면 조회할 수 없습니다.\n'
-            '7. 이미지 파일은 자동 다운로드하지 않고 URL만 저장합니다.\n'
-            '8. 공개 배포용 data 폴더는 비어 있고 개인 작품 DB는 포함되지 않습니다.\n',
+            'PlayDock 공식 작품정보 DB\n\n'
+            '1. 상단 게임 정보 수집으로 압축파일명에 있는 DLsite 품번과 Steam App ID를 공식 정보와 대조합니다.\n'
+            '2. 품번이 없거나 확인하지 못한 게임은 제외 목록에 표시됩니다. 수집 후 AI 조사용 TXT를 저장할 수 있습니다.\n'
+            '3. 공식 작품정보와 게임 연결은 data/playdock.db에 저장됩니다.\n'
+            '4. 상단 기능 메뉴의 공식 게임명 설정에서 저장된 DB를 기반으로 미리보기 후 선택 적용합니다.\n'
+            '5. 공식 배너·아이콘 적용은 검증된 이미지 후보가 있을 때 활성화되며 선택한 이미지만 변경합니다.\n'
+            '6. 공식 사이트의 차단이나 응답 변경으로 조회에 실패할 수 있습니다.\n'
+            '7. 공개 배포용 data 폴더는 비어 있으며 개인 작품 DB는 포함되지 않습니다.\n',
             encoding='utf-8')
         (stage / GUIDE_FILENAME).write_text(
-            "PlayDock v" + VERSION + " - 처음 사용법\n\n"
+            "PlayDock - 처음 사용법\n\n"
             "[권장: 일반 설치]\n"
-            "1. 압축파일의 내용을 전부 새 폴더에 풀어주세요.\n"
-            "2. PlayDock_Setup.exe를 실행하세요.\n"
-            "3. 프로그램/게임 압축파일/게임 설치 위치를 지정하세요.\n"
-            "4. 이름 설정은 PlayDock.exe 오른쪽 상단에서 여러 게임을, 목록 우클릭에서 하나를 수정합니다.\n\n"
+            "1. PlayDock_Setup.exe를 실행합니다.\n"
+            "2. 프로그램 위치, 압축파일 보관 폴더, 게임 설치 폴더를 지정합니다.\n"
+            "3. 상단 게임 정보 수집으로 공식 작품정보를 가져옵니다.\n"
+            "4. 상단 기능에서 공식 이름 및 이미지를 선택 적용합니다.\n"
+            "5. 게임 상세 화면의 게임 관리에서 수동 이름, 배너·아이콘, 실행 옵션, 공식 페이지를 관리합니다.\n\n"
+            "[기존 사용자 업데이트]\n"
+            "PlayDock을 종료하고 앱 데이터 백업 후 기존 PlayDock.exe만 교체합니다. data/와 게임 폴더는 유지합니다.\n\n"
             "[설치하지 않고 직접 실행]\n"
-            "PlayDock.exe를 실행하세요. 현재 폴더의 data/에 설정이 저장됩니다.\n"
-            "직접 실행본에는 Windows 제거 등록이 없습니다. 폴더 삭제로 제거할 수 있습니다.\n"
-            "(기존 데이터가 있으면 수동으로 백업한 후 정리하세요.)\n\n"
+            "전체 ZIP을 새 폴더에 풀고 PlayDock.exe를 실행합니다. 현재 폴더의 data/에 설정이 저장됩니다.\n"
+            "직접 실행본에는 Windows 제거 등록이 없습니다. 개인 데이터를 백업한 후 프로그램 파일만 정리합니다.\n\n"
             "[데이터와 API 키]\n"
-            "이 ZIP의 data/는 완전히 비어 있습니다. API 키, 모음집, 게임 목록, 개인 경로가 포함되지 않습니다.\n"
-            "단, 이미 PlayDock를 쓴 Windows 사용자 계정에서는 Windows 자격 증명 저장소의\n"
-            "기존 키가 인식되거나 Setup 설치 시 기존 AppData가 복원될 수 있습니다.\n"
-            "정말 신규 사용자 환경을 검사하려면 새 Windows 계정 또는 Windows Sandbox를 이용하세요.\n"
-            "API 키는 본인이 별도로 등록하며, 이미지 검색과 편집에는 필요하지 않습니다.\n\n"
-            "[중요]\n"
-            "PlayDock_Uninstall.exe는 설치형 프로그램의 제거에만 사용합니다.\n"
-            "설치하지 않고 사용하는 ZIP 직접 실행본은 제거 EXE가 필요하지 않습니다.\n",
+            "배포 ZIP의 data/는 비어 있습니다. 개인 설정, 게임 목록, 모음집, 캐시, API 키는 포함되지 않습니다.\n"
+            "기존 Windows 계정의 자격 증명이나 이전 AppData는 호환 처리로 인식될 수 있습니다.\n"
+            "신규 상태 확인은 새 Windows 계정 또는 Windows Sandbox를 이용하세요.\n"
+            "현재 공식 정보 수집과 공식 이름·이미지 적용에는 AI API 키가 필요하지 않습니다.\n\n"
+            "[참고]\n"
+            "동봉 PDF는 v0.7.7 당시의 과거 설명서입니다. 최신 메뉴는 이 TXT 안내를 우선 참고하세요.\n"
+            "PlayDock_Uninstall.exe는 설치형 프로그램 제거용이며 게임 폴더는 보존합니다.\n",
             encoding='utf-8')
         lines = [f"{sha256(stage / filename)}  {filename}" for filename in EXECUTABLES]
         lines.append(f"{sha256(stage / MANUAL_FILENAME)}  {MANUAL_FILENAME}")

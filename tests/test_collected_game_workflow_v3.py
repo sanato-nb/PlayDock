@@ -11,12 +11,12 @@ from PySide6.QtWidgets import QApplication
 
 from core import Game, Library
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import InputItem, Work, Result
+from integrations.official_lookup.code_only import InputItem, Work, Result
 from services.catalog_collection_service import CatalogEntry, CatalogCollector
-from services.identity_artwork_worker import IdentityArtworkThread
+from workers.identity_artwork import IdentityArtworkThread
 from services.bulk_title_service import BulkTitleActions
-from services.title_workers import BulkTitleWorker
-from simple_title_edit import save_display_title, restore_filename_title
+from workers.title import BulkTitleWorker
+from services.simple_title_edit import save_display_title, restore_filename_title
 from controllers.metadata import MetadataControllerMixin
 
 
@@ -100,7 +100,7 @@ def test_works_row_alone_does_not_unlock_uncollected_game(tmp_path):
 
 
 def test_image_only_mode_never_runs_identity_search(tmp_path, monkeypatch):
-    from services import identity_artwork_worker as module
+    from workers import identity_artwork as module
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "dlsite", "code": "RJ123456",
@@ -129,7 +129,7 @@ def test_image_only_mode_never_runs_identity_search(tmp_path, monkeypatch):
 
 
 def test_official_title_uses_collected_db_not_web(tmp_path, monkeypatch):
-    from services import title_workers
+    from workers import title as title_workers
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
         "store": "dlsite", "code": "RJ123456",
@@ -181,3 +181,45 @@ def test_new_main_screen_names_and_db_only_title_option():
     assert "공식 게임명 적용 (수집한 DB)" in title
     assert "db_only=True" in title
     assert "인터넷 이미지 검색·편집" not in ui
+
+
+def test_explicit_links_refresh_from_one_metadata_read(tmp_path, monkeypatch):
+    from contextlib import contextmanager
+
+    library = Library(tmp_path / "data")
+    game = Game("game", "Game [RJ123456]", tmp_path)
+    db = WorkDatabase(library.store)
+    library.update_meta(game, product_code="RJ123456")
+
+    read_meta = library.meta
+    connect = db.connect
+    reads = []
+    changes = []
+
+    def counted_meta(item):
+        reads.append(item.id)
+        return read_meta(item)
+
+    @contextmanager
+    def counted_connection():
+        with connect() as con:
+            yield con
+            changes.append(con.total_changes)
+
+    monkeypatch.setattr(library, "meta", counted_meta)
+    monkeypatch.setattr(db, "connect", counted_connection)
+
+    db.sync_library(library, [game])
+    db.sync_library(library, [game])
+    assert reads == [game.id, game.id]
+    assert changes == [1, 0]
+    assert db.get_link(game.id) == ("dlsite", "RJ123456")
+
+    # Read fresh metadata on a later refresh, including changes by the editor.
+    other = Library(library.store)
+    other.update_meta(game, product_store="steam", product_code="1091500")
+    db.sync_library(library, [game])
+    assert db.get_link(game.id) == ("steam", "1091500")
+    other.set_product_code(game, "")
+    db.sync_library(library, [game])
+    assert db.get_link(game.id) is None

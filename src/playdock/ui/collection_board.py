@@ -6,15 +6,17 @@ moves archives, alters installations, or requires network / API calls.
 from __future__ import annotations
 
 from pathlib import Path
+from ui.widgets.artwork_cache import artwork_pixmap, TILE_MAX_EDGE
 
 from PySide6.QtCore import Qt, QRectF, QRect, QEvent, Signal
-from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPixmap, QLinearGradient, QPen, QBrush
+from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QLinearGradient, QPen, QBrush
 from PySide6.QtWidgets import (
     QWidget, QFrame, QScrollArea, QVBoxLayout, QHBoxLayout, QGridLayout,
-    QLabel, QPushButton, QMenu, QSizePolicy,
+    QLabel, QPushButton, QMenu,
 )
 
-from collection_board_model import list_collection_cards, member_games, unassigned_games
+from models.collection_board import (list_collection_cards, member_games, unassigned_games,
+                                     partition_collection_games)
 
 PALETTES = [
     ("#294a67", "#47677e"), ("#35445c", "#665069"),
@@ -33,8 +35,15 @@ class ArtworkTile(QPushButton):
         self.title = title
         self.count = count
         self.is_create = is_create
-        self.artwork = [QPixmap(str(p)) for p in artwork[:5] if p.is_file()]
-        self.artwork = [img for img in self.artwork if not img.isNull()]
+        self.artwork = []
+        # Only four images can be painted. Retain the fifth as a fallback
+        # when an earlier file is missing or invalid.
+        for path in artwork[:5]:
+            image = artwork_pixmap(path, max_edge=TILE_MAX_EDGE)
+            if not image.isNull():
+                self.artwork.append(image)
+                if len(self.artwork) == 4:
+                    break
         self.palette = PALETTES[index % len(PALETTES)]
         self.setFixedSize(186, 220)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -217,8 +226,8 @@ class CollectionBoard(QScrollArea):
             create = ArtworkTile('새 모음집 만들기', '', [], is_create=True)
             create.clicked.connect(lambda _checked=False: self.createRequested.emit())
             self._cards.append(create)
-            for idx, record in enumerate(records):
-                members = member_games(self.games, record['game_ids'])
+            buckets, _unassigned = partition_collection_games(self.games, records)
+            for idx, (record, members) in enumerate(zip(records, buckets)):
                 tile = ArtworkTile(record['name'], f"{len(members)}개 게임", self._tile_art(members), idx)
                 tile.clicked.connect(lambda checked=False, cid=record['id']: self.collectionOpened.emit(cid))
                 tile.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -242,8 +251,10 @@ class CollectionBoard(QScrollArea):
                 hint.setFixedHeight(64)
                 hint.setMinimumWidth(400)
                 self._cards.append(hint)
-            for idx, game in enumerate(sorted(members, key=lambda g: self.library.title(g).casefold())):
-                tile = ArtworkTile(self.library.title(game), '설치됨' if game.installed else '미설치',
+            titled = [(self.library.title(game), game) for game in members]
+            titled.sort(key=lambda row: row[0].casefold())
+            for idx, (title, game) in enumerate(titled):
+                tile = ArtworkTile(title, '설치됨' if game.installed else '미설치',
                                    self._tile_art([game]), idx)
                 tile.clicked.connect(lambda checked=False, gid=game.id: self.gameOpened.emit(gid))
                 self._cards.append(tile)

@@ -8,7 +8,7 @@ _ui_editor = editor_source()
 import pytest
 
 from core import Game, Library, load_json
-from simple_title_edit import (
+from services.simple_title_edit import (
     MAX_TITLE_HISTORY, save_display_title, undo_display_title,
     restore_filename_title, title_history,
 )

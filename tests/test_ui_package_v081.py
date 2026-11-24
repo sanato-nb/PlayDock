@@ -18,14 +18,15 @@ def test_gui_layouts_are_outside_launcher_and_editor():
         assert any(isinstance(item, ast.FunctionDef) and item.name == name for item in mod.body)
 
 
-def test_ui_package_keeps_legacy_imports_working():
-    for old, new in (("online_art_dialog.py", "artwork_dialog"),
-                     ("collection_board.py", "collection_board"),
-                     ("work_db_dialog.py", "work_info_dialog"),
-                     ("dark_selector.py", "selectors")):
-        source = (ROOT / "src" / "playdock" / old).read_text(encoding="utf-8")
-        assert f"from ui.{new} import " in source
-        assert (ROOT / "src/playdock/ui" / f"{new}.py").is_file()
+def test_canonical_ui_imports_and_retired_compatibility_paths():
+    from ui.collection_board import ArtworkTile, CollectionBoard
+    from ui.selectors import DarkMenuSelect
+    from ui.work_info_dialog import WorkPreviewDialog
+    assert all((ArtworkTile, CollectionBoard, DarkMenuSelect, WorkPreviewDialog))
+    for old in ("online_art_dialog.py", "collection_board.py",
+                "work_db_dialog.py", "dark_selector.py", "ui/artwork_dialog.py",
+                "services/artwork_workers.py"):
+        assert not (ROOT / "src/playdock" / old).exists(), old
 
 
 def test_qss_is_separate_and_ui_package_has_no_user_data():

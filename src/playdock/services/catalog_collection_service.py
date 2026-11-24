@@ -12,9 +12,8 @@ from pathlib import Path
 import json
 import re
 
-from database.official_catalog import _valid_identity
 from database.work_repository import WorkDatabase
-from experiments.dlsite_detector.code_only import (
+from integrations.official_lookup.code_only import (
     InputItem, Work, Result, check, codes_in, steam_ids_in,
 )
 from integrations.dlsite_client import fetch_dlsite_work

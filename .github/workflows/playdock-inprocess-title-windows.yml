@@ -2,19 +2,20 @@ name: PlayDock 기능·게임 관리 메뉴 정리 Windows 검증
 
 on:
   push:
-    branches: [main, experiment-bidirectional-lookup-20261121, feature/game-management-menu-20261124]
+    # main uses source-final-feature-review.yml; retain historical branch verification.
+    branches: [experiment-bidirectional-lookup-20261121, feature/game-management-menu-20261124, fix/file-dialog-caption-20261124]
     paths:
       - "app.py"
       - "src/playdock/database/work_repository.py"
       - "src/playdock/database/official_catalog.py"
       - "src/playdock/services/official_work_service.py"
       - "src/playdock/services/official_artwork_service.py"
-      - "src/playdock/services/identity_artwork_worker.py"
+      - "src/playdock/workers/identity_artwork.py"
       - "src/playdock/services/catalog_collection_service.py"
-      - "src/playdock/services/catalog_collection_worker.py"
+      - "src/playdock/workers/catalog_collection.py"
       - "src/playdock/controllers/catalog_collection.py"
       - "src/playdock/ui/dialogs/catalog_collection.py"
-      - "src/playdock/services/title_workers.py"
+      - "src/playdock/workers/title.py"
       - "src/playdock/services/bulk_title_service.py"
       - "src/playdock/ui/dialogs/title.py"
       - "tests/test_catalog_collection_v3.py"
@@ -25,7 +26,7 @@ on:
       - "tests/test_popup_menus.py"
       - "tests/test_ui_polish.py"
       - "tests/test_collected_game_workflow_v3.py"
-      - "src/playdock/simple_title_edit.py"
+      - "src/playdock/services/simple_title_edit.py"
       - "src/playdock/ui/dialogs/identity_artwork.py"
       - "tests/test_identity_artwork_checkboxes.py"
       - "src/playdock/services/data_service.py"
@@ -43,6 +44,9 @@ on:
       - "src/playdock/ui/launcher_layout.py"
       - "src/playdock/ui/styles.py"
       - "src/playdock/ui/dialogs/common.py"
+      - "src/playdock/controllers/game_actions.py"
+      - "src/playdock/ui/dialogs/library.py"
+      - "tests/test_dark_dialog_titles.py"
       - "src/playdock/ui/dialogs/database_status.py"
       - "src/playdock/services/database_status_service.py"
       - "tests/test_top_settings_and_db_status.py"

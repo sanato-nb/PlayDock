@@ -7,7 +7,6 @@ _ui_main = launcher_source()
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'app.py').read_text(encoding='utf-8') + _ui_main
-DIALOG = (ROOT / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
 
 
 def test_official_image_and_catalog_actions_are_direct_and_not_generated():
@@ -22,11 +21,12 @@ def test_official_image_and_catalog_actions_are_direct_and_not_generated():
     assert 'AI로 새 배너·아이콘 생성' not in APP
     assert 'Gemini 무료 등급은 이미지 생성' not in APP
 
-def test_settings_name_only_and_no_image_generation_model_field():
-    settings = APP.split('class SettingsDialog(', 1)[1].split('class FirstRunDialog(', 1)[0]
-    assert 'form.addRow("게임 이름 모델", self.text_model)' in settings
-    assert 'form.addRow("이미지 모델",' not in settings
-    assert 'AI 키 없이 무료로' in settings or 'API 키 없이 무료로' in settings
+def test_retired_ai_settings_window_is_absent():
+    assert 'class SettingsDialog(' not in APP
+    assert 'def settings_dialog(' not in APP
+    assert 'form.addRow("AI 서비스", self.provider)' not in APP
+    assert 'form.addRow("이미지 모델",' not in APP
+
 
 def test_official_image_checkboxes_retain_crop_and_safe_file_backup():
     dialog = (ROOT / 'src/playdock/ui/dialogs/identity_artwork.py').read_text(encoding='utf-8')

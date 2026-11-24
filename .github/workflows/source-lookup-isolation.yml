@@ -1,0 +1,50 @@
+name: PlayDock 정식 작품 조회 엔진 독립 검증
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: c8fd2bf0998a3b3b8859267cc07b7677a25218f8
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 정식 엔진 원본 SHA 및 독립성 확인
+        run: python scripts/audit_official_lookup_isolation.py
+      - name: Qt 및 빌드 의존성 설치
+        run: python -m pip install -r requirements.txt pytest "pyinstaller>=6.11,<7"
+      - name: 정식 엔진 및 전체 Windows 회귀 테스트
+        shell: pwsh
+        run: |
+          python -m pytest -q
+      - name: 실험 폴더 없는 상태에서 Windows EXE 빌드
+        shell: pwsh
+        run: |
+          $saved = Join-Path $env:RUNNER_TEMP ("PlayDock-experiments-" + [guid]::NewGuid().ToString())
+          Move-Item -LiteralPath experiments -Destination $saved
+          try {
+            python -m pytest -q tests/audit/test_official_lookup_isolation.py tests/audit/test_dlsite_steam_priority_production.py
+            if ($LASTEXITCODE -ne 0) { throw "독립 조회 검증 실패" }
+            ./scripts/Build-Windows-Release.ps1 -NoLaunch -SkipTests -NoWinget
+            if ($LASTEXITCODE -ne 0) { throw "빌드 실패" }
+            if (-not (Test-Path "dist/PlayDock.exe")) { throw "PlayDock.exe missing" }
+            Get-FileHash "dist/PlayDock.exe" -Algorithm SHA256
+          } finally {
+            Move-Item -LiteralPath $saved -Destination experiments
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-Official-Lookup-Isolation
+          path: audit_output/

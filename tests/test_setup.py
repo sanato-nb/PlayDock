@@ -1,4 +1,3 @@
-import base64
 from io import BytesIO
 from pathlib import Path
 import sys
@@ -6,7 +5,7 @@ import pytest
 from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from setup_paths import normalize_paths, save_folder_settings
+from storage.setup_paths import normalize_paths, save_folder_settings
 from core import Library
 import artwork
 
@@ -50,33 +49,19 @@ def test_no_steam_api_key_supported():
         artwork.get_secret("steamgrid")
 
 
-def test_ai_image_result_cached_without_steam_api(tmp_path, monkeypatch):
+def test_manual_images_cached_without_ai_or_steam_api(tmp_path, monkeypatch):
     root = tmp_path / "games"
     root.mkdir()
-    archives = tmp_path / "archives"
-    archives.mkdir()
     lib = Library(tmp_path / "data")
-    lib.change_root(root)
-    lib.change_archive_root(archives)
     from core import Game
     game = Game("sample", "Some Game", root)
     img = Image.new("RGB", (192, 128), (60, 120, 200))
     buf = BytesIO()
     img.save(buf, format="PNG")
-    image_text = base64.b64encode(buf.getvalue()).decode("ascii")
-    calls = []
-
-    def mock_api(url, key, payload, max_bytes=None):
-        calls.append((url, payload))
-        assert key == "test_key"
-        return {"data": [{"b64_json": image_text}]}
-
-    monkeypatch.setattr(artwork, "request_json", mock_api)
-    message = artwork.generate_ai_art(lib, game, "test_key")
-    assert len(calls) == 2
-    assert all("openai.com" in url for url, _ in calls)
-    assert (lib.art_dir(game) / "hero.png").is_file()
-    assert (lib.art_dir(game) / "icon.png").is_file()
-    with Image.open(lib.art_dir(game) / "hero.png") as hero:
-        assert hero.size == (1600, 520)
-    assert "AI" in message
+    monkeypatch.setattr(artwork, "request_json", lambda *a, **kw: pytest.fail("No AI requests"))
+    for kind, size in (("hero", (1600, 520)), ("icon", (256, 256))):
+        target = lib.art_dir(game) / f"{kind}.png"
+        artwork.save_image(BytesIO(buf.getvalue()), target, kind)
+        with Image.open(target) as image:
+            assert image.size == size
+    assert "artwork_source" not in lib.meta(game)

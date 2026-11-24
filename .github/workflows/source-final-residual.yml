@@ -1,0 +1,47 @@
+name: PlayDock 최종 잔존 코드 및 의존성 감사
+on:
+  push:
+    branches: [refactor/source-audit-20261124]
+    paths:
+      - scripts/audit_final_residual.py
+      - .github/workflows/source-final-residual.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 원본과 최종 소스 전체 AST 및 SHA 비교
+        run: python scripts/audit_final_residual.py --out residual-evidence
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-final-residual-audit
+          path: residual-evidence/
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 최소 런타임 설치
+        run: python -m pip install -r requirements.txt pytest
+      - name: 폐기 기능·정식 엔진 독립성·호환 경로 검사
+        run: python -m pytest -q tests/audit/test_retired_save_cleanup.py tests/audit/test_official_lookup_isolation.py tests/audit/test_usage_routes.py tests/audit/test_minimal_runtime_dependencies.py tests/audit/test_common_helper_optimization.py tests/test_ai_providers.py tests/test_feature_menu_cleanup_v4.py
+      - name: 전체 Windows 회귀 검증
+        run: python -m pytest -q

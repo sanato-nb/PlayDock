@@ -11,20 +11,21 @@ from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QDialog
 
-from simple_title_edit import (
+from services.simple_title_edit import (
     save_display_title,
     undo_display_title,
     restore_filename_title,
     title_history,
 )
-from game_codes import normalize_code
+from models.game_codes import normalize_code
 from artwork import get_secret
 from ai_providers import PROVIDERS, current_provider, current_models
-from localized_titles import LANGUAGES, is_code_only_title
+from services.localized_titles import LANGUAGES, is_code_only_title
 
 
-from services.title_workers import TitleWorker, BulkTitleWorker
-from ui.dialogs.title import BulkPreviewDialog, KoreanWebCandidatesDialog, BulkTitleSettingsDialog
+from workers.title import TitleWorker, BulkTitleWorker
+from ui.dialogs.title_preview import BulkPreviewDialog, KoreanWebCandidatesDialog
+from ui.dialogs.title import BulkTitleSettingsDialog
 
 
 class TitleEditorActionsMixin:
@@ -64,7 +65,7 @@ class TitleEditorActionsMixin:
         if not game:
             self.simple_preview.clear()
             return
-        from game_codes import title_with_code
+        from models.game_codes import title_with_code
         preview = title_with_code(text.strip() or game.name, self.library.product_code(game))
         self.simple_preview.setText('저장 후 표시: ' + preview)
         changed = text.strip() != self.library.base_title(game)
@@ -86,7 +87,7 @@ class TitleEditorActionsMixin:
             label = previous.get('title') or game.name
         else:
             meta = self.library.meta(game)
-            from localized_titles import localized_title_for
+            from services.localized_titles import localized_title_for
             previous_meta = dict(meta, **previous)
             label = localized_title_for(previous_meta, self.library.settings,
                 original_name=game.name, product_code=self.library.product_code(game)) or previous.get('title') or game.name
@@ -292,7 +293,7 @@ class TitleEditorActionsMixin:
                 model, _image_model = current_models(self.library, provider)
             if provider != 'ollama' and not get_secret(provider):
                 QMessageBox.information(self, 'API 키 필요',
-                    f"PlayDock의 AI 설정에서 {PROVIDERS[provider]['name']} 키를 등록하세요.")
+                    f"{PROVIDERS[provider]['name']} 키를 환경 변수 또는 기존 Windows 자격 증명 저장소에서 확인하세요.")
                 return
             if QMessageBox.question(self, 'AI 서비스 사용 안내',
                 f"{PROVIDERS[provider]['name']}의 {model} 모델을 사용합니다. API 비용이 발생할 수 있습니다. 계속할까요?") != QMessageBox.StandardButton.Yes:
