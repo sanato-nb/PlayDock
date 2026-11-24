@@ -14,7 +14,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'app.py').read_text(encoding='utf-8') + _ui_main
-SEARCH = (ROOT / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
+TITLE = (ROOT / 'src/playdock/ui/dialogs/title.py').read_text(encoding='utf-8')
 SELECTOR = (ROOT / 'src/playdock/ui/selectors.py').read_text(encoding='utf-8')
 
 
@@ -25,9 +25,9 @@ def test_ai_provider_and_game_exe_selector_do_not_use_native_combo():
     assert 'form.addRow("AI 서비스", self.provider)' in APP
 
 
-def test_image_search_kind_selector_is_dark():
-    assert 'self.kind = DarkMenuSelect()' in SEARCH
-    assert 'self.kind.currentData()' in SEARCH
+def test_current_title_selectors_are_dark():
+    for name in ('mode', 'language', 'scope'):
+        assert f'self.{name} = DarkMenuSelect()' in TITLE
 
 
 def test_menu_popup_has_explicit_dark_background_and_light_text():
@@ -55,7 +55,7 @@ def test_select_widget_can_be_used_in_offscreen_qt_when_available():
         pytest.skip('PySide6 not installed in this test environment')
     script = r'''
 from PySide6.QtWidgets import QApplication
-from dark_selector import DarkMenuSelect
+from ui.selectors import DarkMenuSelect
 app = QApplication([])
 s = DarkMenuSelect()
 events = []

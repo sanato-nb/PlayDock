@@ -1,13 +1,5 @@
 name: PlayDock 미사용 import 정리 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - app.py
-      - title_editor.py
-      - src/playdock/**
-      - scripts/audit_import_cleanup.py
-      - .github/workflows/source-import-audit.yml
   workflow_dispatch:
 permissions:
   contents: read
@@ -24,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: 3814e2360f2638f5a56b318f444f50fb47a6dc52
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

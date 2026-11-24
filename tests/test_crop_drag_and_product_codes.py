@@ -88,15 +88,14 @@ def test_zoomed_crop_moves_pixel_content():
     assert left.getpixel((128,128))[0] < right.getpixel((128,128))[0]
 
 
-def test_dialog_and_editor_have_separate_code_input_and_drag_preview():
+def test_official_image_dialog_and_editor_keep_code_and_selection_separate():
     root = Path(__file__).resolve().parents[1]
-    dialog = (root / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
+    dialog = (root / 'src/playdock/ui/dialogs/identity_artwork.py').read_text(encoding='utf-8')
     editor = (root / 'title_editor.py').read_text(encoding='utf-8') + _ui_editor
-    assert 'class DragCropPreview(QLabel):' in dialog
-    assert 'self.preview.dragged.connect(self.drag_image)' in dialog
     service = (root / 'src/playdock/services/artwork_service.py').read_text(encoding='utf-8')
-    assert 'self.artwork_actions.save_product_code(' in dialog
     assert 'self.library.set_product_code(self.game, code)' in service
-    assert "self.search()" in dialog
+    assert 'self.apply_banner' in dialog and 'self.apply_icon' in dialog
+    assert 'checkbox.setChecked(False)' in dialog
+    assert 'set_product_code(' not in dialog
     assert "self.code_save_btn.clicked.connect(self.save_code)" in editor
     assert 'product_code=code' in editor

@@ -69,11 +69,10 @@ def test_search_takes_only_related_candidates(monkeypatch):
     assert [x.title for x in result] == [related['title']]
 
 
-def test_dialog_gives_name_review_and_manual_web_search():
-    src = (Path(__file__).resolve().parents[1] / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
-    assert 'IdentityJob' in src
-    assert 'AI로 게임명 추천 (선택)' in src
-    assert 'RJ 품번으로 작품명 확인' in src
-    assert 'open_web_search' in src
-    assert 'CropEditor(' in src
-    assert 'image_bytes(' not in src
+def test_official_dialog_uses_confirmed_work_and_no_search_or_generation():
+    src = (Path(__file__).resolve().parents[1] / 'src/playdock/ui/dialogs/identity_artwork.py').read_text(encoding='utf-8')
+    assert 'work.title' in src and 'work.code' in src
+    assert 'webbrowser.open(work.url)' in src
+    assert 'selected_kinds' in src
+    assert 'AI로 게임명 추천' not in src
+    assert 'search_images(' not in src

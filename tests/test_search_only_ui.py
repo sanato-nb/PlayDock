@@ -7,7 +7,6 @@ _ui_main = launcher_source()
 
 ROOT = Path(__file__).resolve().parents[1]
 APP = (ROOT / 'app.py').read_text(encoding='utf-8') + _ui_main
-DIALOG = (ROOT / 'src/playdock/ui/artwork_dialog.py').read_text(encoding='utf-8')
 
 
 def test_official_image_and_catalog_actions_are_direct_and_not_generated():

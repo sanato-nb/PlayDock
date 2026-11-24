@@ -159,11 +159,15 @@ def test_business_writes_do_not_live_in_ui_files():
             if isinstance(node, ast.ImportFrom):
                 assert not (node.module or "").startswith("controllers."), path
 
-    artwork = (ui / "artwork_dialog.py").read_text(encoding="utf-8")
+    artwork = (ui / "dialogs" / "identity_artwork.py").read_text(encoding="utf-8")
+    official = (ROOT / "services" / "official_artwork_service.py").read_text(encoding="utf-8")
+    controller = (ROOT / "controllers" / "metadata.py").read_text(encoding="utf-8")
     titles = (ui / "dialogs" / "title.py").read_text(encoding="utf-8")
     library_dialog = (ui / "dialogs" / "library.py").read_text(encoding="utf-8")
-    assert "self.artwork_actions.apply_selection(" in artwork
-    assert "self.artwork_actions.save_product_code(" in artwork
+    assert "actions.apply_selection(" in official
+    assert "apply_checked_images(" in controller
+    assert "selected_kinds(" in artwork
+    assert "apply_checked_images(" not in artwork
     for forbidden in ("shutil.copy2(", "save_selected_art(", "self.library.update_meta(",
                       "self.library.set_product_code("):
         assert forbidden not in artwork
