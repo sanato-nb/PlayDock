@@ -91,7 +91,6 @@ def test_popup_preserves_all_actions_and_database_status(app):
         "folder_wizard": "folders",
         "data_manager_dialog": "data",
         "library_info_dialog": "properties",
-        "settings_dialog": "ai",
         "show_database_status": "db",
     }
     for method, tag in paths.items():
@@ -104,11 +103,11 @@ def test_popup_preserves_all_actions_and_database_status(app):
     actions = [x for x in shown[0][0].actions() if not x.isSeparator()]
     assert [x.text() for x in actions] == [
         "폴더 설정...", "데이터 관리...", "라이브러리 속성...",
-        "AI 설정...", "DB 상태 확인...",
+        "DB 상태 확인...",
     ]
     for action in actions:
         action.trigger()
-    assert invoked == ["folders", "data", "properties", "ai", "db"]
+    assert invoked == ["folders", "data", "properties", "db"]
     owner.close()
 
 

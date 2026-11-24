@@ -153,8 +153,10 @@ def test_public_installer_does_not_require_editor_companion_exe():
     assert "Run-PyInstaller 'PlayDock' 'app.py'" in build
     layout = (ROOT / "src/playdock/ui/launcher_layout.py").read_text(encoding="utf-8")
     assert 'self.settings_menu_btn = ChevronMenuButton("설정")' in layout
-    assert '이름 설정 (여러 게임)...' in (
-        ROOT / "src/playdock/controllers/window_actions.py").read_text(encoding="utf-8")
+    actions = (ROOT / "src/playdock/controllers/window_actions.py").read_text(encoding="utf-8")
+    assert '공식 게임명 설정 (여러 게임)...' in actions
+    assert 'self.open_official_name_settings' in actions
+    assert 'AI 설정...' not in actions
     ctrl = (ROOT / "src/playdock/controllers/metadata.py").read_text(encoding="utf-8")
     assert "editor = TitleEditor(game.id, library=self.library, single_game_only=True)" in ctrl
     assert "dialog = BulkTitleSettingsDialog(self.library, self.games, None, self)" in ctrl

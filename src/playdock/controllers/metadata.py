@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from sqlite3 import Error as SQLiteError
 import subprocess
 import sys
 import webbrowser
@@ -9,6 +10,7 @@ import webbrowser
 from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
+from simple_title_edit import save_display_title
 from title_editor import TitleEditor
 from ui.dialogs.title import BulkTitleSettingsDialog
 from services.work_lookup_worker import WorkLookupThread
@@ -16,15 +18,34 @@ from ui.work_info_dialog import WorkPreviewDialog
 from services.official_work_service import official_metadata_for_game
 from services.identity_artwork_worker import IdentityArtworkThread
 from experiments.dlsite_detector.code_only import Work
-from services.official_artwork_service import apply_checked_images
+from services.official_artwork_service import apply_checked_images, trusted_image_url
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 
 
-from ui.dialogs.common import ask_yes_no, show_message
+from ui.dialogs.common import ask_text, ask_yes_no, show_message
 
 
 class MetadataControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
+
+    def rename_selected_game(self):
+        game = self.current()
+        if game is None:
+            return
+        current_title = self.library.base_title(game)
+        title, accepted = ask_text(
+            self, '게임 이름 변경', '새 표시 이름을 입력하세요.', current_title,
+        )
+        if not accepted or title.strip() == current_title:
+            return
+        try:
+            changed = save_display_title(self.library, game, title)
+        except (OSError, ValueError) as exc:
+            show_message(self, '게임 이름 변경 실패', str(exc))
+            return
+        if changed:
+            self.reload(prefer_id=game.id)
+            self.set_message('게임 표시 이름을 변경했습니다.')
 
     def open_saved_official_page(self):
         """Open only a verified official store page from PlayDock's local DB."""
@@ -32,15 +53,17 @@ class MetadataControllerMixin:
         if game is None:
             return
         try:
-            record = official_metadata_for_game(self.library, game, self.work_db)
-        except (OSError, ValueError):
+            record = (self.collected_game_record(game)
+                      or official_metadata_for_game(self.library, game, self.work_db))
+        except (OSError, ValueError, SQLiteError):
             record = None
         if not record:
             show_message(self, '공식 작품정보 없음',
                          '해당 게임의 품번 / Steam App ID와 일치하는 저장된 정보가 없습니다.\n'
-                         '정체 판독기를 실행했다면 PlayDock에서 새로고침을 눌러주세요.')
+                         '상단의 게임 정보 수집에서 공식 작품을 확인해 주세요.')
             return
-        webbrowser.open(record['page_url'])
+        if not webbrowser.open(record['page_url']):
+            show_message(self, '브라우저 실행 실패', record['page_url'])
 
     def lookup_work_database(self):
         """Retrieve one user-selected work; no automatic site crawling."""
@@ -119,15 +142,29 @@ class MetadataControllerMixin:
     def has_collected_game_info(self, game=None) -> bool:
         return self.collected_game_record(game) is not None
 
+    def has_official_image_candidates(self, game=None) -> bool:
+        """Enable official image action only when DB contains trusted candidates.
+
+        No website calls are made during UI selection or menu opening.
+        """
+        record = self.collected_game_record(game)
+        if not record:
+            return False
+        return any(
+            isinstance(row, dict)
+            and row.get("kind") in ("hero", "icon")
+            and trusted_image_url(record["store"], record["code"], row.get("url", ""))
+            for row in record.get("images", ())
+        )
+
     def identify_selected_game(self):
         """Image settings only; collected DB identity must exist first."""
         game = self.current()
         if game is None:
             return
         record = self.collected_game_record(game)
-        if not record:
-            show_message(self, "게임 정보 수집 필요",
-                         "먼저 게임 정보 수집으로 해당 게임의 공식 작품을 확인해 주세요.")
+        if not record or not self.has_official_image_candidates(game):
+            # Normally unreachable: official-image action is disabled in menu.
             return
         if (self.identity_lookup_worker is not None
                 and self.identity_lookup_worker.isRunning()):
@@ -260,6 +297,21 @@ class MetadataControllerMixin:
             self.set_message(
                 "게임 표시 이름을 변경했습니다. 실제 압축파일명은 변경하지 않았습니다."
             )
+
+    def open_official_name_settings(self):
+        """Use only verified work links in the existing bulk title dialog."""
+        if self.title_editor_window is not None and self.title_editor_window.isVisible():
+            show_message(self, "이름 설정 진행 중", "열려 있는 이름 설정 창을 닫아 주세요.")
+            return
+        if not self.games:
+            return
+        dialog = BulkTitleSettingsDialog(self.library, self.games, None, self)
+        index = dialog.mode.findData("lookup")
+        if index >= 0:
+            dialog.mode.setCurrentIndex(index)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.reload(prefer_id=self.selected_id)
+            self.set_message("선택한 게임의 공식 이름을 적용했습니다. 원본 압축파일명은 유지됩니다.")
 
     def open_bulk_name_settings(self):
         """User selects game checkboxes, previews, and confirms each bulk edit."""

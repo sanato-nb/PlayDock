@@ -43,7 +43,9 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     refresh_button = self.action_button("새로고침", self.reload)
     refresh_button.setObjectName("Soft")
     top_layout.addWidget(refresh_button)
-    # All administration/configuration actions now live under one popup.
+    self.function_menu_btn = ChevronMenuButton('기능')
+    self.function_menu_btn.clicked.connect(self.show_function_menu)
+    top_layout.addWidget(self.function_menu_btn)
     self.settings_menu_btn = ChevronMenuButton("설정")
     self.settings_menu_btn.clicked.connect(self.show_settings_menu)
     top_layout.addWidget(self.settings_menu_btn)
@@ -182,21 +184,6 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     collection_button = self.action_button("＋  모음집에 추가 / 제거", self.edit_game_collections)
     tools.addWidget(collection_button)
     tools.addStretch(1)
-    scan_button = self.action_button("배너·아이콘 설정", self.identify_selected_game)
-    scan_button.setObjectName("Blue")
-    scan_button.setEnabled(False)
-    scan_button.setToolTip("먼저 게임 정보 수집으로 해당 게임의 공식 작품을 확인하세요.")
-    tools.addWidget(scan_button)
-    self.identity_scan_btn = scan_button
-    name_button = self.action_button("게임 이름 설정", self.open_selected_name_settings)
-    name_button.setObjectName("Soft")
-    name_button.setToolTip("공식 게임명 적용은 정보 수집 후, 직접 수정·복원은 언제든 가능합니다.")
-    tools.addWidget(name_button)
-    self.game_name_btn = name_button
-    image_button = ChevronMenuButton("이미지 직접 지정")
-    image_button.clicked.connect(self.show_image_menu)
-    tools.addWidget(image_button)
-    self.image_menu_btn = image_button
     self.extra_menu_btn = ChevronMenuButton('게임 관리')
     self.extra_menu_btn.clicked.connect(self.show_extra_menu)
     tools.addWidget(self.extra_menu_btn)
@@ -216,11 +203,6 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     ov.addWidget(self.game_info)
     content.addWidget(overview)
 
-    explain = QLabel("① 게임 정보 수집: 공식 작품 확인·DB 연결  →  ② 배너·아이콘 설정 / 게임 이름 설정. "
-                     "미선택 이미지는 그대로 유지합니다.")
-    explain.setWordWrap(True)
-    explain.setObjectName("Subtle")
-    content.addWidget(explain)
     content.addStretch()
     self.collections_board = CollectionBoard()
     self.collections_board.collectionOpened.connect(self.show_collection)

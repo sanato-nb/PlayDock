@@ -146,8 +146,6 @@ class LibraryControllerMixin:
             self.folder_btn.setEnabled(False)
             self.uninstall_btn.setVisible(False)
             self.select_exe_btn.setEnabled(False)
-            self.identity_scan_btn.setEnabled(False)
-            self.game_name_btn.setEnabled(False)
 
 
     def on_tree_select(self):
@@ -268,9 +266,8 @@ class LibraryControllerMixin:
         elif kind == 'game':
             choice = menu.addAction('모음집에 추가 / 제거')
             launch = menu.addAction('플레이 / 설치')
-            edit_name = menu.addAction('게임 이름 설정...')
-            db_lookup = menu.addAction('게임 정체 판독 · 공식 이미지 적용...')
-            official_page = menu.addAction('저장된 공식 작품 페이지 열기')
+            # Context menu handles only library/list operations.
+            # Official name/art -> top '기능'; manual edits -> game '게임 관리'.
             game = self.current()
             remove = None
             if game is not None and game.installed and not game.external:
@@ -285,12 +282,6 @@ class LibraryControllerMixin:
                 self.edit_game_collections()
             elif picked == launch:
                 self.main_action()
-            elif picked == edit_name:
-                self.open_selected_name_settings()
-            elif picked == db_lookup:
-                self.identify_selected_game()
-            elif picked == official_page:
-                self.open_saved_official_page()
             elif remove is not None and picked == remove:
                 self.uninstall_game()
             elif disconnect is not None and picked == disconnect:
@@ -420,13 +411,4 @@ class LibraryControllerMixin:
             for label, value in info_rows
         )
         self.game_info.setText('<table cellspacing="0" cellpadding="0">' + rows + '</table>')
-        # Critical: information has been linked, but the previous UI never
-        # re-enabled this button when selection changed/collection completed.
-        self.identity_scan_btn.setEnabled(confirmed is not None)
-        self.identity_scan_btn.setToolTip(
-            "확인된 공식 이미지에서 배너·아이콘을 선택합니다."
-            if confirmed else
-            "먼저 게임 정보 수집으로 이 게임의 공식 작품을 확인하세요."
-        )
-        self.game_name_btn.setEnabled(True)
 

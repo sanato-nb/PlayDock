@@ -33,16 +33,17 @@ def test_title_editor_initial_game_is_filtered_to_one():
     assert "self.bulk_settings_btn.hide()" in code
 
 
-def test_settings_menu_opens_bulk_selection_dialog():
+def test_function_menu_opens_official_bulk_selection_dialog():
     layout = read("src/playdock/ui/launcher_layout.py")
     metadata = read("src/playdock/controllers/metadata.py")
     menus = read("src/playdock/controllers/window_actions.py")
     context = read("src/playdock/controllers/library.py")
     assert 'self.settings_menu_btn = ChevronMenuButton("설정")' in layout
-    assert "게임 이름 설정 (선택 게임)..." in menus
+    assert "self.rename_selected_game" in menus
     assert "BulkTitleSettingsDialog(self.library, self.games, None, self)" in metadata
-    assert "게임 이름 설정 (여러 게임)..." in menus
-    assert "게임 이름 설정..." in context
+    assert "공식 게임명 설정 (여러 게임)..." in menus
+    assert "self.open_official_name_settings" in menus
+    assert "menu.addAction('모음집에 추가 / 제거')" in context
 
 
 def test_setup_has_no_second_name_editor_binary_requirement():
