@@ -6,7 +6,6 @@ This module intentionally uses only the standard library + keyring (on demand).
 """
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
@@ -15,6 +14,8 @@ from urllib import request, error
 
 SERVICE = "PlayDock"
 LEGACY_SERVICE = "LocalGameShelf"
+# image/image_model are legacy settings metadata only, not supported generation capabilities.
+# Preserve stored model values and existing settings-service round trips.
 PROVIDERS = {
     "openai": {
         "name": "OpenAI", "text_model": "gpt-4.1-mini", "image_model": "gpt-image-1-mini",
@@ -125,7 +126,7 @@ def require_access(provider: str) -> str:
         return ""
     key = get_secret(provider)
     if not key:
-        raise RuntimeError(f"{PROVIDERS[provider]['name']} API 키를 AI 설정에서 등록해 주세요.")
+        raise RuntimeError(f"{PROVIDERS[provider]['name']} API 키를 환경 변수 또는 기존 Windows 자격 증명 저장소에서 확인해 주세요.")
     return key
 
 
@@ -285,45 +286,3 @@ def recommend_title(raw: str, provider: str, model: str, api_key: str) -> str:
         pass
     return raw
 
-
-def image_bytes(provider: str, model: str, prompt: str, api_key: str, kind: str) -> bytes:
-    if not provider_details(provider)["image"]:
-        raise ValueError(f"{PROVIDERS[provider]['name']}는 이 버전에서 이미지 생성 기능을 제공하지 않습니다. OpenAI 또는 Gemini를 선택하세요.")
-    if provider == "openai":
-        size = "1536x1024" if kind == "hero" else "1024x1024"
-        result = http_json("https://api.openai.com/v1/images/generations", {
-            "model": model, "prompt": prompt, "size": size, "quality": "low", "n": 1,
-        }, {"Authorization": f"Bearer {api_key}"}, max_bytes=28 * 1024**2, timeout=240)
-        data = result.get("data") or []
-        encoded = data[0].get("b64_json") if data else None
-    elif provider == "gemini":
-        try:
-            result = http_json("https://generativelanguage.googleapis.com/v1beta/models/"
-                               + quote(model, safe="") + ":generateContent", {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]},
-            }, {"x-goog-api-key": api_key}, max_bytes=28 * 1024**2, timeout=240)
-        except RuntimeError as exc:
-            raise RuntimeError(f"Gemini 이미지 모델: {model}\n{exc}") from exc
-        encoded = next((p.get("inlineData", {}).get("data")
-                        for c in result.get("candidates", [])
-                        for p in c.get("content", {}).get("parts", [])
-                        if p.get("inlineData", {}).get("data")), None)
-    elif provider == "openrouter":
-        result = http_json("https://openrouter.ai/api/v1/images", {
-            "model": model, "prompt": prompt,
-        }, {"Authorization": f"Bearer {api_key}", "X-Title": "PlayDock"},
-            max_bytes=28 * 1024**2, timeout=240)
-        images = result.get("data") or []
-        encoded = images[0].get("b64_json") if images else None
-    else:
-        raise ValueError("이미지 생성 미지원 서비스입니다.")
-    if not encoded:
-        raise RuntimeError("AI가 이미지 데이터를 반환하지 않았습니다. 이미지 생성용 모델을 확인하세요.")
-    try:
-        blob = base64.b64decode(encoded, validate=True)
-    except (ValueError, base64.binascii.Error) as exc:
-        raise RuntimeError("AI 이미지 데이터가 손상되었습니다.") from exc
-    if len(blob) > 20 * 1024**2:
-        raise ValueError("생성된 이미지 크기가 20MB를 초과했습니다.")
-    return blob

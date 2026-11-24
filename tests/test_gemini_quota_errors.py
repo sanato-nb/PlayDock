@@ -60,11 +60,10 @@ def test_long_api_error_json_is_not_truncated_to_generic(monkeypatch):
     assert '요청에 실패했습니다' not in str(exc.value)
 
 
-def test_image_error_includes_model_name(monkeypatch):
+def test_text_request_error_propagates_without_credentials(monkeypatch):
     monkeypatch.setattr(ai, 'http_json', lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError('429 사용량 초과')))
     with pytest.raises(RuntimeError) as exc:
-        ai.image_bytes('gemini', 'gemini-2.5-flash-image', 'hello', 'FAKEKEY', 'hero')
-    assert 'gemini-2.5-flash-image' in str(exc.value)
+        ai.recommend_title('hello', 'gemini', 'gemini-3.8-flash', 'FAKEKEY')
     assert '429' in str(exc.value)
     assert 'FAKEKEY' not in str(exc.value)
 

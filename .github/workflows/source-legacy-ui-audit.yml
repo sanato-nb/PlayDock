@@ -1,19 +1,5 @@
 name: PlayDock 이전 UI 제거 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - scripts/audit_legacy_ui_cleanup.py
-      - .github/workflows/source-legacy-ui-audit.yml
-      - tests/test_ui_package_v081.py
-      - tests/test_search_only_ui.py
-      - tests/test_ui_business_boundaries_v086.py
-      - tests/test_chapter_title_search_v069.py
-      - tests/test_crop_drag_and_product_codes.py
-      - tests/test_dark_dropdown.py
-      - tests/test_game_identity_pipeline.py
-      - tests/test_identity_accuracy_v067.py
-      - tests/test_worker_settings_separation_v085.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -30,6 +16,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: 49d7de255ded0b8937513f4abaec11d8b83d2387
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

@@ -34,12 +34,13 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
               "library_info_dialog", "show_database_status", "rename_selected_game",
               "change_image", "edit_launch_options", "open_saved_official_page",
               "identify_selected_game", "open_official_name_settings",
-              "settings_dialog", "open_title_editor", "open_selected_name_settings",
+              "open_title_editor", "open_selected_name_settings",
               "open_bulk_name_settings"]
     for name in routes:
         monkeypatch.setattr(launcher.MainWindow, name, spy(name))
     window = launcher.MainWindow()
     try:
+        assert not hasattr(window, 'settings_dialog')
         game = next(g for g in window.games if g.archive)
         window.populate_games(game.id)
         def menu(button):

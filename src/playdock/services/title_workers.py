@@ -102,7 +102,7 @@ class TitleWorker(QThread):
             elif self.mode == 'gpt':
                 key = get_secret(self.provider) if self.provider != 'ollama' else ''
                 if self.provider != 'ollama' and not key:
-                    raise ValueError(f"{PROVIDERS[self.provider]['name']} 키가 없습니다. PlayDock의 AI 설정에서 등록해 주세요.")
+                    raise ValueError(f"{PROVIDERS[self.provider]['name']} 키가 없습니다. 환경 변수 또는 기존 Windows 자격 증명 저장소에서 확인해 주세요.")
                 candidate = ai_game_title(self.original_title, key, provider=self.provider, model=self.model)
                 if not candidate:
                     raise ValueError('AI가 제목을 확인하지 못했습니다.')

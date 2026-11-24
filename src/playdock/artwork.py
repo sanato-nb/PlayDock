@@ -1,7 +1,6 @@
 """Local image cache and optional provider-based AI helpers. No Steam API."""
 from __future__ import annotations
 
-import base64
 from io import BytesIO
 import json
 import os
@@ -14,11 +13,10 @@ import zipfile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from core import Game, Library
-from ai_providers import (get_secret, set_secret, provider_details, recommend_title, image_bytes)
+from ai_providers import (get_secret, set_secret, provider_details, recommend_title)
 
 Image.MAX_IMAGE_PIXELS = 90_000_000
 OPENAI_URL = "https://api.openai.com/v1/responses"
-IMAGE_URL = "https://api.openai.com/v1/images/generations"
 SERVICE = "PlayDock"
 
 
@@ -226,45 +224,3 @@ def discover_local(library: Library, game: Game) -> list[str]:
                 pass
     return found
 
-
-def generate_ai_art(library: Library, game: Game, api_key: str,
-                    provider: str = "openai", model: str | None = None) -> str:
-    """Explicit opt-in paid original artwork generation; no external asset catalog."""
-    if not api_key:
-        raise ValueError("AI 설정에서 선택한 서비스의 API 키를 등록해 주세요.")
-    provider_details(provider)
-    title = library.title(game)
-    destination = library.art_dir(game)
-    for kind in ("hero", "icon"):
-        if kind == "hero":
-            prompt = (f"Create original cinematic artwork loosely themed around a PC game titled {title!r}. "
-                      "Wide 3:1 video game library banner with a strong focal point to the right; "
-                      "moody, polished digital painting, atmospheric lighting, visually distinctive. "
-                      "No letters, no logos, no watermarks. Do not imply this is official promotional art. "
-                      "If title alone is ambiguous, prefer a neutral abstract atmospheric game banner.")
-            dimensions = "1536x1024"
-        else:
-            prompt = (f"Create original square game library icon art loosely themed around {title!r}. "
-                      "One striking emblem or silhouette, polished and readable at 32 pixels. "
-                      "No text, no logos, no watermarks, not official game art. "
-                      "If title alone is ambiguous, create a neutral abstract video game emblem.")
-            dimensions = "1024x1024"
-        if provider == "openai" and model is None:
-            # Backwards-compatible path for previous release integrations.
-            data = request_json(IMAGE_URL, api_key, {
-                "model": "gpt-image-1-mini", "prompt": prompt,
-                "size": dimensions, "quality": "low", "n": 1,
-            }, max_bytes=28 * 1024**2)
-            images = data.get("data") or []
-            encoded = images[0].get("b64_json") if images else None
-            if not encoded:
-                raise RuntimeError("이미지 생성 응답에 이미지 데이터가 없습니다.")
-            blob = base64.b64decode(encoded, validate=True)
-            if len(blob) > 20 * 1024**2:
-                raise ValueError("이미지 파일이 너무 큽니다.")
-        else:
-            blob = image_bytes(provider, model or provider_details(provider)["image_model"],
-                               prompt, api_key, kind)
-        save_image(BytesIO(blob), destination / f"{kind}.png", kind)
-    library.update_meta(game, artwork_source=f"{provider_details(provider)['name']} 생성 이미지 (공식 이미지 아님)")
-    return "AI 배너와 아이콘을 생성해 캐시에 저장했습니다. (공식 게임 이미지 아님)"

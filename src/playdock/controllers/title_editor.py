@@ -292,7 +292,7 @@ class TitleEditorActionsMixin:
                 model, _image_model = current_models(self.library, provider)
             if provider != 'ollama' and not get_secret(provider):
                 QMessageBox.information(self, 'API 키 필요',
-                    f"PlayDock의 AI 설정에서 {PROVIDERS[provider]['name']} 키를 등록하세요.")
+                    f"{PROVIDERS[provider]['name']} 키를 환경 변수 또는 기존 Windows 자격 증명 저장소에서 확인하세요.")
                 return
             if QMessageBox.question(self, 'AI 서비스 사용 안내',
                 f"{PROVIDERS[provider]['name']}의 {model} 모델을 사용합니다. API 비용이 발생할 수 있습니다. 계속할까요?") != QMessageBox.StandardButton.Yes:

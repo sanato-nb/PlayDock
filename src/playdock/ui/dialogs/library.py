@@ -16,7 +16,6 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QFormLayout,
     QCheckBox,
     QDialogButtonBox,
     QTabWidget,
@@ -26,92 +25,13 @@ from core import Game, Library
 from game_collections import CollectionStore
 from services.collection_service import CollectionMembershipActions
 from services.cache_service import CacheService
-from ui.selectors import DarkMenuSelect
-from services.settings_service import (
-    PROVIDERS, current_provider, load_provider_preferences,
-    save_provider_preferences, save_folder_settings, proposed_paths,
-)
+from services.settings_service import save_folder_settings, proposed_paths
 
 
 from ui.dialogs.common import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import ThemedDialog, ask_text, ask_yes_no, show_message
 from ui.widgets.launcher import friendly_bytes
 
-
-class SettingsDialog(ThemedDialog):
-    """Provider selector shared with the separate Title Editor via settings.json."""
-    def __init__(self, library: Library, parent=None):
-        super().__init__("AI 서비스 설정", parent, 520)
-        self.library = library
-        layout = self.body
-        heading = QLabel("AI 서비스 선택")
-        heading.setObjectName("Heading")
-        layout.addWidget(heading)
-        hint = QLabel("이 AI 설정은 별도 게임 이름 관리자의 이름 추천에만 사용됩니다.\n"
-                      "인터넷 이미지 검색·후보 선택·자르기는 API 키 없이 무료로 사용할 수 있습니다.\n"
-                      "API 키는 Windows 자격 증명 저장소에 저장하며 프로그램 폴더에 저장하지 않습니다.")
-        hint.setObjectName("Subtle")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
-        form = QFormLayout()
-        self.provider = DarkMenuSelect()
-        for provider_id, record in PROVIDERS.items():
-            self.provider.addItem(record["name"], provider_id)
-        form.addRow("AI 서비스", self.provider)
-        self.text_model = QLineEdit()
-        form.addRow("게임 이름 모델", self.text_model)
-        self.api_key = QLineEdit()
-        self.api_key.setEchoMode(QLineEdit.EchoMode.Password)
-        form.addRow("API 키", self.api_key)
-        layout.addLayout(form)
-        self.delete_key = QCheckBox("선택한 서비스의 저장된 API 키 삭제")
-        layout.addWidget(self.delete_key)
-        self.help_label = QLabel()
-        self.help_label.setObjectName("Subtle")
-        self.help_label.setWordWrap(True)
-        layout.addWidget(self.help_label)
-        note = QLabel("게임 이미지 검색은 생성형 AI 서비스를 호출하지 않습니다.\n"
-                      "게임 이름 추천 기능을 쓸 때만 선택한 텍스트 모델의 API 사용료나 요청 제한이 적용될 수 있습니다.")
-        note.setObjectName("Subtle")
-        note.setWordWrap(True)
-        layout.addWidget(note)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Save).setText("저장")
-        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText("취소")
-        buttons.accepted.connect(self.save)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-        provider_id = current_provider(library)
-        self.provider.setCurrentIndex(self.provider.findData(provider_id))
-        self.provider.currentIndexChanged.connect(self.on_provider_changed)
-        self.on_provider_changed()
-
-    def on_provider_changed(self, _index=None):
-        provider = self.provider.currentData() or "openai"
-        preferences = load_provider_preferences(self.library, provider)
-        self.text_model.setText(preferences.text_model)
-        self.api_key.clear()
-        self.delete_key.setChecked(False)
-        if provider == "ollama":
-            self.api_key.setEnabled(False)
-            self.delete_key.setEnabled(False)
-            self.api_key.setPlaceholderText("필요 없음")
-        else:
-            self.api_key.setEnabled(True)
-            self.delete_key.setEnabled(True)
-            self.api_key.setPlaceholderText("등록됨" if preferences.has_key else "API 키 입력")
-        self.help_label.setText(preferences.hint)
-
-    def save(self):
-        try:
-            save_provider_preferences(
-                self.library, self.provider.currentData() or "openai",
-                self.text_model.text(), api_key=self.api_key.text(),
-                delete_key=self.delete_key.isChecked(),
-            )
-            self.accept()
-        except Exception as exc:
-            show_message(self, "AI 설정 저장 실패", str(exc))
 
 class FirstRunDialog(ThemedDialog):
     def __init__(self, library: Library, parent=None):

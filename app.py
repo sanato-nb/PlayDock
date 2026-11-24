@@ -26,7 +26,6 @@ from ui.collection_board import CollectionBoard
 from library_tree import make_sidebar_groups
 from artwork import get_secret, set_secret, save_image, discover_local
 from ui.selectors import DarkMenuSelect
-from ai_providers import (PROVIDERS, current_provider, current_models, save_provider_settings)
 from setup_paths import save_folder_settings, proposed_paths
 from native_caption import windows_dark_caption
 from launch_options import parse_game_arguments
@@ -102,7 +101,7 @@ from ui.dialogs.common import (apply_windows_dark_titlebar, DarkCaptionEventFilt
                                DialogCloseButton, ThemedDialog, TextEntryDialog, ChoiceDialog,
                                MessageDialog, ask_text, ask_archive_password, ask_choice,
                                ask_yes_no, show_message)
-from ui.dialogs.library import (SettingsDialog, FirstRunDialog, GameCollectionsDialog,
+from ui.dialogs.library import (FirstRunDialog, GameCollectionsDialog,
                                 CacheManagerDialog, DataManagerDialog, LibraryInfoDialog)
 from services.workers import InstallThread, UninstallThread, SaveBackupThread
 
@@ -261,11 +260,6 @@ class MainWindow(LibraryControllerMixin, GameActionControllerMixin, MetadataCont
 
 
 
-
-    def settings_dialog(self):
-        dialog = SettingsDialog(self.library, self)
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            self.present_game()
 
 
 def main():
