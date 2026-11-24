@@ -224,7 +224,10 @@ def test_shared_file_dialog_style_keeps_filters_and_disables_grip(app, tmp_path)
     assert dialog.labelText(QFileDialog.DialogLabel.FileName) == "파일 이름:"
     back = dialog.findChild(QToolButton, "backButton")
     assert back is not None and not back.icon().isNull()
-    assert back.toolTip() == "뒤로"
+    # Hover tooltips are intentionally disabled; preserve accessible control names.
+    assert back.toolTip() == ""
+    assert back.accessibleName() == "뒤로"
+    assert not back.icon().isNull()
     style_file_dialog(dialog)
     dialog.close()
 
