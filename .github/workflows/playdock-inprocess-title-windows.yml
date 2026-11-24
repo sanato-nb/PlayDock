@@ -40,6 +40,8 @@ on:
       - "src/playdock/controllers/library.py"
       - "src/playdock/controllers/window_actions.py"
       - "src/playdock/ui/launcher_layout.py"
+      - "src/playdock/ui/styles.py"
+      - "src/playdock/ui/dialogs/common.py"
       - "src/playdock/ui/dialogs/database_status.py"
       - "src/playdock/services/database_status_service.py"
       - "tests/test_top_settings_and_db_status.py"

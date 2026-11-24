@@ -146,6 +146,7 @@ class LibraryControllerMixin:
             self.folder_btn.setEnabled(False)
             self.uninstall_btn.setVisible(False)
             self.select_exe_btn.setEnabled(False)
+            self.refresh_function_availability()
 
 
     def on_tree_select(self):
@@ -156,6 +157,10 @@ class LibraryControllerMixin:
             self.selected_game_item = item
             self.main_stack.setCurrentWidget(self.scroll)
             self.present_game()
+        elif kind != 'group':
+            self.selected_id = None
+            self.selected_game_item = None
+            self.refresh_function_availability()
 
 
     def on_tree_clicked(self, item, _column):
@@ -163,6 +168,8 @@ class LibraryControllerMixin:
         if kind == 'group':
             item.setExpanded(not item.isExpanded())
             self.show_collection(_cid)
+        elif kind == 'game' and self.main_stack.currentWidget() is not self.scroll:
+            self.on_tree_select()
 
 
     def update_group_label(self, item):
@@ -347,6 +354,7 @@ class LibraryControllerMixin:
 
 
     def present_game(self):
+        self.refresh_function_availability()
         game = self.current()
         if game is None:
             return

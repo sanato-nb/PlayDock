@@ -267,7 +267,7 @@ def test_identity_controller_accept_with_both_unchecked_saves_db_only(
 def test_official_artwork_action_is_in_top_function_menu():
     repo = Path(__file__).resolve().parents[1]
     actions = (repo / "src/playdock/controllers/window_actions.py").read_text("utf-8")
-    assert "공식 배너·아이콘 적용..." in actions
+    assert "공식 배너·아이콘 적용" in actions
     assert "self.has_official_image_candidates(game)" in actions
     assert "self.identify_selected_game" in actions
 

@@ -58,7 +58,14 @@ def test_top_function_menu_disabled_until_official_link_and_image_candidate(
         assert window.catalog_collection_btn.text() == "게임 정보 수집"
         assert "게임 이름 변경" not in capture_menu(window.settings_menu_btn).actions()[0].text()
 
-        menu = capture_menu(window.function_menu_btn)
+        assert not window.function_menu_btn.isEnabled()
+        menus = []
+        window.function_menu_btn.present_popup = lambda menu, **kwargs: menus.append(menu)
+        window.function_menu_btn.click()
+        assert not menus
+        # Inspect the same QAction predicates directly without clicking a disabled button.
+        window.show_function_menu()
+        menu = menus[-1]
         image, names = menu.actions()
         assert "공식 배너·아이콘" in image.text()
         assert not image.isEnabled()
@@ -69,6 +76,8 @@ def test_top_function_menu_disabled_until_official_link_and_image_candidate(
             "title": "Game from works DB", "page_url": PAGE,
         }])
         assert window.work_db.save_verified_game_link(game.id, "dlsite", "RJ123456")
+        window.catalog_collection_finished()
+        assert window.function_menu_btn.isEnabled()
         menu = capture_menu(window.function_menu_btn)
         assert not menu.actions()[0].isEnabled()  # link alone is insufficient
         assert menu.actions()[1].isEnabled()  # official game name available
@@ -92,14 +101,14 @@ def test_exact_four_manual_game_management_functions_and_only_four_settings(
         window.populate_games(game.id)
         manual = capture_menu(window.extra_menu_btn).actions()
         assert [a.text() for a in manual] == [
-            "게임 이름 변경 (수동)…",
+            "게임 이름 변경 (수동)",
             "배너·아이콘 수동 설정",
-            "실행 옵션 설정…",
+            "실행 옵션 설정",
             "공식 작품 페이지 열기",
         ]
         subitems = manual[1].menu().actions()
         assert [a.text() for a in subitems] == [
-            "배너 이미지 선택…", "아이콘 이미지 선택…",
+            "배너 이미지 선택", "아이콘 이미지 선택",
         ]
         assert manual[0].isEnabled() and manual[1].isEnabled()
         assert not manual[2].isEnabled()  # not installed
@@ -108,13 +117,13 @@ def test_exact_four_manual_game_management_functions_and_only_four_settings(
         settings = [x.text() for x in capture_menu(window.settings_menu_btn).actions()
                     if not x.isSeparator()]
         assert settings == [
-            "폴더 설정...", "데이터 관리...", "라이브러리 속성...",
-            "DB 상태 확인...",
+            "폴더 설정", "데이터 관리", "라이브러리 속성",
+            "DB 상태 확인",
         ]
         assert not any("AI" in a or "이름 설정" in a or "이미지" in a
                        for a in settings)
-        assert not any("설정" in a.text() and a.text() != "공식 게임명 설정 (여러 게임)..."
-                       for a in capture_menu(window.function_menu_btn).actions() if a.isSeparator())
+        assert not window.function_menu_btn.isEnabled()
+        assert all(not a.text().endswith(("...", "…")) for a in manual + subitems)
     finally:
         window.close()
 
@@ -173,3 +182,46 @@ def test_source_menu_order_and_sidebar_duplicates_removed():
     assert "AI 설정" not in settings
     assert "게임 이름 설정" not in settings
     assert "내 이미지 보관 폴더 열기" not in settings
+
+
+def test_top_navigation_follows_visible_screen(app, tmp_path, monkeypatch):
+    window, _, game = make_window(tmp_path, monkeypatch)
+    try:
+        assert window.library_nav_btn.isChecked()
+        assert not window.collections_nav_btn.isChecked()
+        window.collections_nav_btn.click()
+        assert window.main_stack.currentWidget() is window.collections_board
+        assert window.collections_nav_btn.isChecked()
+        assert not window.library_nav_btn.isChecked()
+        window.open_game_from_board(game.id)
+        assert window.library_nav_btn.isChecked()
+        assert not window.collections_nav_btn.isChecked()
+        window.show_collection("__uncategorized__")
+        assert window.collections_nav_btn.isChecked()
+        window.library_nav_btn.click()
+        assert window.main_stack.currentWidget() is window.scroll
+        assert window.library_nav_btn.isChecked()
+        assert not window.collections_nav_btn.isChecked()
+    finally:
+        window.close()
+
+
+def test_shared_file_dialog_style_keeps_filters_and_disables_grip(app, tmp_path):
+    from PySide6.QtWidgets import QFileDialog, QToolButton
+    from ui.dialogs.common import style_file_dialog
+    dialog = QFileDialog(None, "이미지 선택", str(tmp_path), "이미지 (*.png *.jpg)")
+    dialog.setOption(QFileDialog.Option.DontUseNativeDialog, True)
+    dialog.setFileMode(QFileDialog.FileMode.ExistingFile)
+    original = dialog.nameFilters()
+    style_file_dialog(dialog)
+    assert dialog.property("playdockFileDialogStyled")
+    assert not dialog.isSizeGripEnabled()
+    assert dialog.nameFilters() == original
+    assert dialog.fileMode() == QFileDialog.FileMode.ExistingFile
+    assert dialog.labelText(QFileDialog.DialogLabel.Reject) == "취소"
+    assert dialog.labelText(QFileDialog.DialogLabel.FileName) == "파일 이름:"
+    back = dialog.findChild(QToolButton, "backButton")
+    assert back is not None and not back.icon().isNull()
+    assert back.toolTip() == "뒤로"
+    style_file_dialog(dialog)
+    dialog.close()

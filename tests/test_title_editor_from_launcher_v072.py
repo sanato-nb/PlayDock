@@ -41,7 +41,7 @@ def test_function_menu_opens_official_bulk_selection_dialog():
     assert 'self.settings_menu_btn = ChevronMenuButton("설정")' in layout
     assert "self.rename_selected_game" in menus
     assert "BulkTitleSettingsDialog(self.library, self.games, None, self)" in metadata
-    assert "공식 게임명 설정 (여러 게임)..." in menus
+    assert "공식 게임명 설정 (여러 게임)" in menus
     assert "self.open_official_name_settings" in menus
     assert "menu.addAction('모음집에 추가 / 제거')" in context
 

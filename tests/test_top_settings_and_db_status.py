@@ -102,8 +102,8 @@ def test_popup_preserves_all_actions_and_database_status(app):
     assert shown[0][1]
     actions = [x for x in shown[0][0].actions() if not x.isSeparator()]
     assert [x.text() for x in actions] == [
-        "폴더 설정...", "데이터 관리...", "라이브러리 속성...",
-        "DB 상태 확인...",
+        "폴더 설정", "데이터 관리", "라이브러리 속성",
+        "DB 상태 확인",
     ]
     for action in actions:
         action.trigger()
