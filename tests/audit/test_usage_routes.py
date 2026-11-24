@@ -92,6 +92,7 @@ def test_legacy_editor_ai_routes_still_exist(qapp, tmp_path, monkeypatch):
     (archive / "Example [RJ123456].zip").write_bytes(b"synthetic")
     lib = Library(tmp_path / "data")
     lib.change_archive_root(archive)
+    (tmp_path / "installed").mkdir()
     lib.change_root(tmp_path / "installed")
     editor = TitleEditor(library=lib)
     try:
