@@ -242,8 +242,10 @@ class CollectionBoard(QScrollArea):
                 hint.setFixedHeight(64)
                 hint.setMinimumWidth(400)
                 self._cards.append(hint)
-            for idx, game in enumerate(sorted(members, key=lambda g: self.library.title(g).casefold())):
-                tile = ArtworkTile(self.library.title(game), '설치됨' if game.installed else '미설치',
+            titled = [(self.library.title(game), game) for game in members]
+            titled.sort(key=lambda row: row[0].casefold())
+            for idx, (title, game) in enumerate(titled):
+                tile = ArtworkTile(title, '설치됨' if game.installed else '미설치',
                                    self._tile_art([game]), idx)
                 tile.clicked.connect(lambda checked=False, gid=game.id: self.gameOpened.emit(gid))
                 self._cards.append(tile)

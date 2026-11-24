@@ -90,7 +90,15 @@ class LibraryControllerMixin:
         desired_id = prefer_id or self.selected_id
         query = self.search.text()
         filter_mode = self.mode_filter.currentData()
-        rows = make_sidebar_groups(self.games, self.collections.list(), self.library.title,
+        # Share one title snapshot within this rebuild only. A later rebuild
+        # always reads current metadata, including edits from another window.
+        titles = {}
+        def title_of(game):
+            key = id(game)
+            if key not in titles:
+                titles[key] = self.library.title(game)
+            return titles[key]
+        rows = make_sidebar_groups(self.games, self.collections.list(), title_of,
                                   filter_mode or 'all', query, self.sort_mode)
         self.tree.blockSignals(True)
         self.tree.clear()
@@ -108,7 +116,7 @@ class LibraryControllerMixin:
             else:
                 expanded = group.id in self.expanded_groups
             for game in group.games:
-                item = QTreeWidgetItem(header, [self.library.title(game)])
+                item = QTreeWidgetItem(header, [title_of(game)])
                 item.setData(0, Qt.ItemDataRole.UserRole, ("game", game.id))
                 item.setToolTip(0, "")
                 art = self.library.art_dir(game) / 'icon.png'

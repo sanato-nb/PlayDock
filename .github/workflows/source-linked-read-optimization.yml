@@ -1,13 +1,5 @@
 name: PlayDock 공식 작품 중복 조회 최적화 검증
 on:
-  push:
-    branches: [refactor/source-audit-20261124]
-    paths:
-      - .github/workflows/source-linked-read-optimization.yml
-      - tests/audit/test_linked_read_optimization.py
-      - src/playdock/database/work_repository.py
-      - src/playdock/controllers/metadata.py
-      - src/playdock/controllers/library.py
   workflow_dispatch:
 permissions:
   contents: read
@@ -22,6 +14,8 @@ jobs:
       PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: 35ca5c5f69e5cb118b7820d3b03dc2d0f000ebe9
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"

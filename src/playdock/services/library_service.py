@@ -188,10 +188,13 @@ class Library:
 
     def base_title(self, game: Game) -> str:
         """Raw user-visible name, without the optional product-code overlay."""
-        from services.localized_titles import localized_title_for
         meta = self.meta(game)
+        return self._base_title_from_meta(game, meta, self._product_code_from_meta(game, meta))
+
+    def _base_title_from_meta(self, game: Game, meta: dict, code: str) -> str:
+        from services.localized_titles import localized_title_for
         translated = localized_title_for(meta, self.settings, original_name=game.name,
-                                          product_code=self.product_code(game))
+                                          product_code=code)
         # A title explicitly saved in the simple editor wins over cached
         # localized suggestions, without deleting those language variants.
         if meta.get("prefer_manual_title") is True and meta.get("title"):
@@ -201,8 +204,11 @@ class Library:
         return str(meta.get("title") or game.name)
 
     def product_code(self, game: Game) -> str:
+        return self._product_code_from_meta(game, self.meta(game))
+
+    @staticmethod
+    def _product_code_from_meta(game: Game, meta: dict) -> str:
         from models.game_codes import effective_product_code
-        meta = self.meta(game)
         return effective_product_code(meta, game.name,
                                       game.archive.name if game.archive else '')
 
@@ -214,4 +220,6 @@ class Library:
 
     def title(self, game: Game) -> str:
         from models.game_codes import title_with_code
-        return title_with_code(self.base_title(game), self.product_code(game))
+        meta = self.meta(game)
+        code = self._product_code_from_meta(game, meta)
+        return title_with_code(self._base_title_from_meta(game, meta, code), code)
