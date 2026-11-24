@@ -10,7 +10,8 @@ from PySide6.QtWidgets import QDialog
 from artwork import discover_local
 from ui.artwork_dialog import OnlineArtworkDialog
 from title_editor_entry import title_editor_command
-from ui.work_info_dialog import WorkLookupThread, WorkPreviewDialog
+from services.work_lookup_worker import WorkLookupThread
+from ui.work_info_dialog import WorkPreviewDialog
 
 
 from ui.dialogs.common import ask_yes_no, show_message

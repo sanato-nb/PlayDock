@@ -2,26 +2,10 @@
 from __future__ import annotations
 
 import webbrowser
-from PySide6.QtCore import QThread, Signal
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
                                QCheckBox, QPushButton, QLineEdit)
 from ui.selectors import DarkMenuSelect
-from work_db import fetch_dlsite_work
-
-
-class WorkLookupThread(QThread):
-    complete = Signal(object)
-    failed = Signal(str)
-
-    def __init__(self, code: str, parent=None):
-        super().__init__(parent)
-        self.code = code
-
-    def run(self):
-        try:
-            self.complete.emit(fetch_dlsite_work(self.code))
-        except Exception as exc:
-            self.failed.emit(str(exc))
+from services.work_lookup_worker import WorkLookupThread  # 기존 import 호환
 
 
 class WorkPreviewDialog(QDialog):
