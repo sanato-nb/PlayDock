@@ -6,6 +6,7 @@ may occur in several named collections, but uncategorized shows it only once.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from models.collection_board import partition_collection_games
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,8 @@ def make_sidebar_groups(games, collections, title_of, filter_mode='all', search=
         key = id(g)
         if key not in titles:
             titles[key] = title_of(g).casefold()
-        if all(term in (titles[key] + ' ' + g.name.casefold()) for term in words):
+        searchable = titles[key] + ' ' + g.name.casefold() if words else ''
+        if all(term in searchable for term in words):
             filtered.append(g)
     if sort_mode == 'name':
         filtered.sort(key=lambda g: titles[id(g)])
@@ -47,16 +49,15 @@ def make_sidebar_groups(games, collections, title_of, filter_mode='all', search=
         filtered.sort(key=lambda g: (-size(g), titles[id(g)]))
     else:
         raise ValueError('알 수 없는 정렬 옵션입니다.')
-    grouped_ids = set()
+    collections = list(collections)
+    buckets, unassigned = partition_collection_games(filtered, collections)
     results = []
-    for col in collections:
-        member_ids = set(col['game_ids'])
-        grouped_ids.update(member_ids)
-        matched = tuple(g for g in filtered if g.id in member_ids)
+    for col, members in zip(collections, buckets):
+        matched = tuple(members)
         # Keep empty custom collections visible until an active search hides them.
         if matched or not search.strip():
             results.append(SidebarGroup(col['id'], col['name'], matched))
-    uncategorized = tuple(g for g in filtered if g.id not in grouped_ids)
+    uncategorized = tuple(unassigned)
     if uncategorized or not search.strip():
         results.append(SidebarGroup('__uncategorized__', '미분류', uncategorized))
     return results

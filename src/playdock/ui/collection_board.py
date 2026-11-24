@@ -14,7 +14,8 @@ from PySide6.QtWidgets import (
     QLabel, QPushButton, QMenu,
 )
 
-from models.collection_board import list_collection_cards, member_games, unassigned_games
+from models.collection_board import (list_collection_cards, member_games, unassigned_games,
+                                     partition_collection_games)
 
 PALETTES = [
     ("#294a67", "#47677e"), ("#35445c", "#665069"),
@@ -217,8 +218,8 @@ class CollectionBoard(QScrollArea):
             create = ArtworkTile('새 모음집 만들기', '', [], is_create=True)
             create.clicked.connect(lambda _checked=False: self.createRequested.emit())
             self._cards.append(create)
-            for idx, record in enumerate(records):
-                members = member_games(self.games, record['game_ids'])
+            buckets, _unassigned = partition_collection_games(self.games, records)
+            for idx, (record, members) in enumerate(zip(records, buckets)):
                 tile = ArtworkTile(record['name'], f"{len(members)}개 게임", self._tile_art(members), idx)
                 tile.clicked.connect(lambda checked=False, cid=record['id']: self.collectionOpened.emit(cid))
                 tile.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
