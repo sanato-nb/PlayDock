@@ -242,12 +242,13 @@ def test_ui_places_collection_before_identity_and_removes_web_image_search():
     repo = Path(__file__).resolve().parents[1]
     layout = (repo / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
     meta = (repo / "src/playdock/controllers/metadata.py").read_text("utf-8")
-    assert layout.index('"게임 정보 수집"') < layout.index('"배너·아이콘 설정"')
+    top = layout.split("outer.addWidget(top)", 1)[0]
+    assert top.index("게임 정보 수집") < top.index("게임 관리")
     assert "인터넷 이미지 검색·편집" not in layout
     assert "open_online_artwork" not in layout
     assert "def open_online_artwork" not in meta
     assert "온라인 이미지 검색" not in layout
-    assert "이미지 직접 지정" in layout
+    assert "이미지 직접 지정" not in layout
 
 
 def test_steam_name_preview_uses_unified_db_without_web(tmp_path, monkeypatch):

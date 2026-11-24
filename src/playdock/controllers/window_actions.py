@@ -11,7 +11,6 @@ class WindowActionControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
 
     def show_settings_menu(self):
-        """One top-right settings popup; refresh remains the only other button."""
         menu = QMenu(self.settings_menu_btn)
         menu.addAction("폴더 설정...").triggered.connect(
             lambda _checked=False: self.folder_wizard())
@@ -24,27 +23,15 @@ class WindowActionControllerMixin:
         menu.addSeparator()
         menu.addAction("DB 상태 확인...").triggered.connect(
             lambda _checked=False: self.show_database_status())
+        menu.addSeparator()
+        menu.addAction('게임 이름 설정 (여러 게임)...', self.open_bulk_name_settings)
+        menu.addAction('내 이미지 보관 폴더 열기', self.open_artwork_library)
         self.settings_menu_btn.present_popup(menu, right_align=True)
 
 
     def show_database_status(self):
         """Show actual record counts, paths and SQLite health without writes."""
         DatabaseStatusDialog(self.library.store, len(self.games), parent=self).exec()
-
-
-    def show_image_menu(self):
-        """Only manual/local artwork options; no paid image generation path."""
-        menu = QMenu(self.image_menu_btn)
-        menu.addAction("배너 이미지 직접 선택...").triggered.connect(
-            lambda _checked=False: self.change_image("hero"))
-        menu.addAction("게임 아이콘 직접 선택...").triggered.connect(
-            lambda _checked=False: self.change_image("icon"))
-        menu.addSeparator()
-        menu.addAction('로컬 이미지 자동 찾기 (무료)').triggered.connect(
-            lambda _checked=False: self.refresh_local_art())
-        menu.addAction('내 이미지 보관 폴더 열기').triggered.connect(
-            lambda _checked=False: self.open_artwork_library())
-        self.image_menu_btn.present_popup(menu, right_align=True)
 
 
     def open_sort_menu(self):
@@ -65,26 +52,19 @@ class WindowActionControllerMixin:
 
     def show_extra_menu(self):
         menu = QMenu(self.extra_menu_btn)
-        menu.addAction('게임 이름 설정 (선택 게임)...').triggered.connect(
-            lambda _checked=False: self.open_selected_name_settings())
-        menu.addAction('게임 이름 설정 (여러 게임)...').triggered.connect(
-            lambda _checked=False: self.open_bulk_name_settings())
-        art_action = menu.addAction('배너·아이콘 설정...')
-        art_action.setEnabled(self.has_collected_game_info())
-        art_action.triggered.connect(
-            lambda _checked=False: self.identify_selected_game())
-        menu.addAction('저장된 공식 작품 페이지 열기').triggered.connect(
-            lambda _checked=False: self.open_saved_official_page())
-        menu.addSeparator()
-        menu.addAction('실행 옵션 설정...').triggered.connect(
-            lambda _checked=False: self.edit_launch_options())
-        menu.addAction('세이브 폴더 백업...').triggered.connect(
-            lambda _checked=False: self.backup_saves())
-        menu.addAction('세이브 ZIP 복원 (새 폴더)...').triggered.connect(
-            lambda _checked=False: self.restore_saves())
-        if self.current() is not None and self.current().external:
-            menu.addSeparator()
-            menu.addAction('수동 등록 게임 연결 해제').triggered.connect(
-                lambda _checked=False: self.unregister_manual_game())
-        self.extra_menu_btn.present_popup(menu, right_align=True)
+        game = self.current() if self.main_stack.currentWidget() is self.scroll else None
 
+        rename = menu.addAction('게임 이름 변경 (수동)…', self.rename_selected_game)
+        rename.setEnabled(game is not None)
+
+        images = menu.addMenu('배너·아이콘 수동 설정')
+        images.setEnabled(game is not None)
+        images.addAction('배너 이미지 선택…', lambda: self.change_image("hero"))
+        images.addAction('아이콘 이미지 선택…', lambda: self.change_image("icon"))
+
+        launch = menu.addAction('실행 옵션 설정…', self.edit_launch_options)
+        launch.setEnabled(game is not None and game.installed)
+
+        official = menu.addAction('공식 작품 페이지 열기', self.open_saved_official_page)
+        official.setEnabled(game is not None)
+        self.extra_menu_btn.present_popup(menu, right_align=True)

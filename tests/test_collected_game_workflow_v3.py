@@ -175,11 +175,7 @@ def test_new_main_screen_names_and_db_only_title_option():
     meta = (root / "src/playdock/controllers/metadata.py").read_text("utf-8")
     title = (root / "src/playdock/ui/dialogs/title.py").read_text("utf-8")
     assert '"게임 정보 수집"' in ui
-    assert '"배너·아이콘 설정"' in ui
-    assert '"게임 이름 설정"' in ui
-    assert ui.index('"게임 정보 수집"') < ui.index('"배너·아이콘 설정"')
-    assert ui.index('"배너·아이콘 설정"') < ui.index('"게임 이름 설정"')
-    assert "scan_button.setEnabled(False)" in ui
+    assert "self.extra_menu_btn.clicked.connect(self.show_extra_menu)" in ui
     assert "self.has_collected_game_info(game)" in meta or \
            "self.collected_game_record(game)" in meta
     assert "공식 게임명 적용 (수집한 DB)" in title

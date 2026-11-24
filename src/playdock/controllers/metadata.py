@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from sqlite3 import Error as SQLiteError
 import subprocess
 import sys
 import webbrowser
@@ -9,6 +10,7 @@ import webbrowser
 from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
+from simple_title_edit import save_display_title
 from title_editor import TitleEditor
 from ui.dialogs.title import BulkTitleSettingsDialog
 from services.work_lookup_worker import WorkLookupThread
@@ -20,11 +22,30 @@ from services.official_artwork_service import apply_checked_images
 from ui.dialogs.identity_artwork import IdentityArtworkDialog
 
 
-from ui.dialogs.common import ask_yes_no, show_message
+from ui.dialogs.common import ask_text, ask_yes_no, show_message
 
 
 class MetadataControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
+
+    def rename_selected_game(self):
+        game = self.current()
+        if game is None:
+            return
+        current_title = self.library.base_title(game)
+        title, accepted = ask_text(
+            self, '게임 이름 변경', '새 표시 이름을 입력하세요.', current_title,
+        )
+        if not accepted or title.strip() == current_title:
+            return
+        try:
+            changed = save_display_title(self.library, game, title)
+        except (OSError, ValueError) as exc:
+            show_message(self, '게임 이름 변경 실패', str(exc))
+            return
+        if changed:
+            self.reload(prefer_id=game.id)
+            self.set_message('게임 표시 이름을 변경했습니다.')
 
     def open_saved_official_page(self):
         """Open only a verified official store page from PlayDock's local DB."""
@@ -32,15 +53,17 @@ class MetadataControllerMixin:
         if game is None:
             return
         try:
-            record = official_metadata_for_game(self.library, game, self.work_db)
-        except (OSError, ValueError):
+            record = (self.collected_game_record(game)
+                      or official_metadata_for_game(self.library, game, self.work_db))
+        except (OSError, ValueError, SQLiteError):
             record = None
         if not record:
             show_message(self, '공식 작품정보 없음',
                          '해당 게임의 품번 / Steam App ID와 일치하는 저장된 정보가 없습니다.\n'
-                         '정체 판독기를 실행했다면 PlayDock에서 새로고침을 눌러주세요.')
+                         '상단의 게임 정보 수집에서 공식 작품을 확인해 주세요.')
             return
-        webbrowser.open(record['page_url'])
+        if not webbrowser.open(record['page_url']):
+            show_message(self, '브라우저 실행 실패', record['page_url'])
 
     def lookup_work_database(self):
         """Retrieve one user-selected work; no automatic site crawling."""

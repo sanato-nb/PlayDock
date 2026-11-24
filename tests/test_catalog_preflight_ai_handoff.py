@@ -177,29 +177,34 @@ def test_controller_sends_only_eligible_entries_to_worker(app, tmp_path, monkeyp
         host.close()
 
 
-def test_topbar_placement_and_missing_gui_button_activation_source():
+def test_topbar_placement_keeps_game_actions_out_of_the_details_panel():
     root = Path(__file__).resolve().parents[1]
     ui = (root / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
-    lib = (root / "src/playdock/controllers/library.py").read_text("utf-8")
-    top = ui.split("outer.addWidget(top)", 1)[0]
-    bottom = ui.split("    tools = QHBoxLayout()", 1)[1]
-    assert top.index('"게임 정보 수집"') < top.index('"새로고침"') < top.index('"설정"')
-    assert '"게임 정보 수집"' not in bottom
-    assert 'self.identity_scan_btn.setEnabled(confirmed is not None)' in lib
-    assert 'self.identity_scan_btn.setEnabled(False)' in lib
-    assert 'self.game_name_btn.setEnabled(False)' in lib
+    top, bottom = ui.split("outer.addWidget(top)", 1)
+    assert top.index("게임 정보 수집") < top.index("새로고침") < top.index("게임 관리") < top.index('"설정"')
+    assert "게임 정보 수집" not in bottom
+    assert "게임 관리" not in bottom
+    assert "이미지 직접 지정" not in bottom
 
 
-def test_actual_main_window_unlocks_artwork_after_collection_and_refresh(
-        app, tmp_path, monkeypatch):
-    """Reproduce screenshot: DB says verified but artwork button stayed disabled."""
+def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, monkeypatch):
     import app as application
+    from PIL import Image
+    from PySide6.QtWidgets import QFileDialog
+    from controllers import game_actions, metadata
+
     archive_root = tmp_path / "archives"
     root = tmp_path / "installed"
     archive_root.mkdir()
     root.mkdir()
-    archive = archive_root / "Example [RJ123456].7z"
+    archive = archive_root / "Example.7z"
     archive.write_bytes(b"archive content must remain untouched")
+    other_archive = archive_root / "Other.zip"
+    other_archive.write_bytes(b"other archive")
+    installed = root / archive.stem
+    installed.mkdir()
+    exe = installed / "Example.exe"
+    exe.write_bytes(b"MZ executable fixture")
     lib = Library(tmp_path / "data")
     lib.settings["archives"] = str(archive_root)
     lib.settings["library"] = str(root)
@@ -207,24 +212,76 @@ def test_actual_main_window_unlocks_artwork_after_collection_and_refresh(
 
     window = application.MainWindow()
     try:
-        assert len(window.games) == 1
-        game = window.games[0]
-        window.selected_id = game.id
-        window.present_game()
-        assert not window.identity_scan_btn.isEnabled()
+        games = {game.name: game for game in window.games}
+        game = games["Example"]
+        other = games["Other"]
+        assert game.installed
+        menus = []
+        monkeypatch.setattr(window.extra_menu_btn, "present_popup",
+                            lambda menu, **kwargs: menus.append(menu))
+
+        def open_menu():
+            window.extra_menu_btn.click()
+            return menus[-1].actions()
+
+        window.populate_games(other.id)
+        assert not open_menu()[2].isEnabled()
+
+        window.populate_games(game.id)
+        rename, artwork, launch, official = open_menu()
+        assert [action.text() for action in (rename, artwork, launch, official)] == [
+            "게임 이름 변경 (수동)…", "배너·아이콘 수동 설정",
+            "실행 옵션 설정…", "공식 작품 페이지 열기",
+        ]
+        assert all(action.isEnabled() for action in (rename, artwork, launch, official))
+
+        monkeypatch.setattr(metadata, "ask_text", lambda *args: ("새 표시 이름", True))
+        rename.trigger()
+        assert lib.base_title(game) == "새 표시 이름"
+        assert lib.base_title(other) == "Other"
+        assert window.current().id == game.id
+
+        image = tmp_path / "custom.png"
+        Image.new("RGB", (16, 16), "red").save(image)
+        monkeypatch.setattr(QFileDialog, "getOpenFileName", lambda *args, **kwargs: (str(image), ""))
+        for action in artwork.menu().actions():
+            action.trigger()
+        for kind, size in (("hero", (1600, 520)), ("icon", (256, 256))):
+            with Image.open(lib.art_dir(game) / f"{kind}.png") as result:
+                assert result.size == size
+            assert not (lib.art_dir(other) / f"{kind}.png").exists()
+
+        monkeypatch.setattr(game_actions, "ask_text", lambda *args: ("--windowed", True))
+        launch.trigger()
+        assert lib.meta(game)["launch_args"] == "--windowed"
+        assert "launch_args" not in lib.meta(other)
+
+        messages = []
+        opened = []
+        monkeypatch.setattr(metadata, "show_message", lambda *args: messages.append(args[1]))
+        monkeypatch.setattr(metadata.webbrowser, "open", lambda url: opened.append(url) or True)
+        official.trigger()
+        assert messages == ["공식 작품정보 없음"]
+        assert opened == []
+
+        url = "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"
         window.work_db._upsert_verified([{
             "store": "dlsite", "code": "RJ123456",
-            "title": "검증된 공식 작품", "page_url":
-            "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html",
+            "title": "검증된 공식 작품", "page_url": url,
         }])
-        assert window.work_db.save_verified_game_link(
-            game.id, "dlsite", "RJ123456")
-        window.present_game()
-        assert window.identity_scan_btn.isEnabled()
-        assert "공식 작품 확인" in window.game_info.text()
+        assert window.work_db.save_verified_game_link(game.id, "dlsite", "RJ123456")
         window.reload(prefer_id=game.id)
-        assert window.identity_scan_btn.isEnabled()
-        assert window.game_name_btn.isEnabled()
+        open_menu()[3].trigger()
+        assert opened == [url]
+        assert "DLsite" in window.game_info.text()
         assert archive.read_bytes() == b"archive content must remain untouched"
+        assert other_archive.read_bytes() == b"other archive"
+        assert exe.read_bytes() == b"MZ executable fixture"
+
+        window.show_collections_overview()
+        assert all(not action.isEnabled() for action in open_menu())
+        window.show_all_games()
+        window.search.setText("no matching game")
+        assert all(not action.isEnabled() for action in open_menu())
     finally:
         window.close()
