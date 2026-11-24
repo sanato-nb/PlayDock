@@ -417,6 +417,88 @@ class WorkDatabase:
             return None
         return _record(row)
 
+    @staticmethod
+    def _official_key(store, code):
+        store = str(store).strip().lower()
+        code = str(code or "").strip()
+        return store, code.upper() if store == "dlsite" else code
+
+    @staticmethod
+    def _verified_record(row, store, code):
+        if not row or not row["page_url"] or not _valid_identity(store, code, row["page_url"]):
+            return None
+        record = dict(row)
+        for key in ("_link_store", "_link_code", "_game_id"):
+            record.pop(key, None)
+        return _record(record)
+
+    @staticmethod
+    def _chunks(values, size=400):
+        for start in range(0, len(values), size):
+            yield values[start:start + size]
+
+    def get_official_works(self, identities):
+        """Read distinct normalized official identities in bounded SQL batches."""
+        keys = list(dict.fromkeys(self._official_key(*identity) for identity in identities))
+        keys = [key for key in keys if key[0] in ("dlsite", "steam")]
+        if not keys:
+            return {}
+        with self.connect() as conn:
+            return self._read_official_works(conn, keys)
+
+    def _read_official_works(self, conn, keys):
+        result = {}
+        for batch in self._chunks(keys):
+            values = ",".join("(?,?)" for _ in batch)
+            params = [value for key in batch for value in key]
+            rows = conn.execute(
+                "WITH requested(store,code) AS (VALUES " + values + ") "
+                "SELECT w.* FROM requested AS r JOIN works AS w "
+                "ON w.store=r.store AND w.code=r.code", params)
+            for row in rows:
+                key = (row["store"], row["code"])
+                record = self._verified_record(row, *key)
+                if record is not None:
+                    result[key] = record
+        return result
+
+    def get_linked_official_works(self, game_ids):
+        """Read verified links for a selection using one connection.
+
+        Normal links use bounded JOIN batches. Noncanonical legacy links are
+        normalized and resolved on that same connection; missing or invalid
+        official rows are omitted. Returned records are a per-call snapshot.
+        """
+        ids = list(dict.fromkeys(game_ids))
+        if not ids:
+            return {}
+        result, fallback = {}, {}
+        with self.connect() as conn:
+            for batch in self._chunks(ids):
+                marks = ",".join("?" for _ in batch)
+                rows = conn.execute(
+                    "SELECT w.*, l.game_id AS _game_id, l.store AS _link_store, "
+                    "l.code AS _link_code FROM library_links AS l "
+                    "LEFT JOIN works AS w ON w.store=l.store AND w.code=l.code "
+                    "WHERE l.game_id IN (" + marks + ")", batch)
+                for row in rows:
+                    raw = (row["_link_store"], row["_link_code"])
+                    key = self._official_key(*raw)
+                    if key[0] not in ("dlsite", "steam"):
+                        continue
+                    if key != raw:
+                        fallback[row["_game_id"]] = key
+                        continue
+                    record = self._verified_record(row, *key)
+                    if record is not None:
+                        result[row["_game_id"]] = record
+            if fallback:
+                records = self._read_official_works(conn, list(dict.fromkeys(fallback.values())))
+                for game_id, key in fallback.items():
+                    if key in records:
+                        result[game_id] = records[key]
+        return result
+
     def get_linked_official_work(self, game_id: str):
         """Resolve a local game's verified official row in one DB connection.
 

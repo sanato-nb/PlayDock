@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from time import sleep
 from pathlib import Path
+import sqlite3
 
 from database.work_repository import WorkDatabase
 
@@ -34,6 +35,10 @@ def _db_title(code: str, language: str, cache_path: Path, *, store: str = 'dlsit
         record = db.get_official_work(store, code)
     except (OSError, ValueError, RuntimeError):
         return None
+    return _title_from_record(record, language, store=store)
+
+
+def _title_from_record(record, language, *, store):
     if not record:
         return None
     titles = record.get("titles") or {}
@@ -118,12 +123,14 @@ class BulkTitleWorker(QThread):
     progress = Signal(int, int, str)
     complete = Signal(object)
 
-    def __init__(self, entries, language: str, cache_path: Path, *, db_only=False):
+    def __init__(self, entries, language: str, cache_path: Path, *, db_only=False,
+                 verified_records=None):
         super().__init__()
         self.entries = list(entries)  # game_id, original_title, code, store
         self.language = language
         self.cache_path = cache_path
         self.db_only = bool(db_only)
+        self.verified_records = verified_records
         self.cancelled = False
 
     def stop(self):
@@ -132,6 +139,19 @@ class BulkTitleWorker(QThread):
     def run(self):
         results = []
         total = len(self.entries)
+        records = self.verified_records
+        if self.db_only and records is None and not self.cancelled:
+            records = {}
+            path = Path(self.cache_path).parent / "playdock.db"
+            if path.is_file():
+                try:
+                    db = WorkDatabase(path.parent)
+                    records = db.get_official_works(
+                        (entry[3] if len(entry) > 3 else "dlsite", entry[2])
+                        for entry in self.entries)
+                except (OSError, ValueError, RuntimeError, sqlite3.Error):
+                    # Keep the existing per-entry missing-DB error behavior.
+                    records = {}
         for index, entry in enumerate(self.entries, 1):
             if self.cancelled:
                 break
@@ -139,7 +159,11 @@ class BulkTitleWorker(QThread):
             store = entry[3] if len(entry) > 3 else "dlsite"
             from_db = False
             try:
-                cached = _db_title(code, self.language, self.cache_path, store=store)
+                if self.db_only:
+                    key = WorkDatabase._official_key(store, code)
+                    cached = _title_from_record((records or {}).get(key), self.language, store=store)
+                else:
+                    cached = _db_title(code, self.language, self.cache_path, store=store)
                 if cached:
                     found_title, source, actual = cached
                     from_db = True

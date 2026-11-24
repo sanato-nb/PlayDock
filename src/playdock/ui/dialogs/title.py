@@ -247,13 +247,18 @@ class BulkTitleSettingsDialog(QDialog):
         mode = self.mode.currentData()
         if mode == 'lookup':
             db = WorkDatabase(self.library.store)
+            # Read verified links once for this preview; the worker reuses
+            # the same official records, not a second per-game DB lookup.
+            linked = db.get_linked_official_works(game.id for game in games)
             entries = []
+            verified_records = {}
             for game in games:
-                # Filename extraction alone is not a confirmed association.
-                link = db.get_link(game.id)
-                if not link or not db.get_official_work(*link):
+                record = linked.get(game.id)
+                if not record:
                     continue
-                entries.append((game.id, self.library.title(game), link[1], link[0]))
+                code, store = record["code"], record["store"]
+                entries.append((game.id, self.library.title(game), code, store))
+                verified_records[(store, code)] = record
             if not entries:
                 QMessageBox.information(
                     self, '공식 게임정보 없음',
@@ -270,7 +275,7 @@ class BulkTitleSettingsDialog(QDialog):
             self.worker = BulkTitleWorker(
                 entries, self.language.currentData() or 'ko',
                 self.library.store / 'localized_product_titles.json',
-                db_only=True,
+                db_only=True, verified_records=verified_records,
             )
             self.worker.progress.connect(self.on_progress)
             self.worker.complete.connect(self.show_lookup_preview)
