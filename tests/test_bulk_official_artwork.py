@@ -1,6 +1,8 @@
 """Bulk scope, explicit choices, overwrite safety and partial failure."""
 from PySide6.QtWidgets import QApplication
 from PySide6.QtCore import Qt
+from PySide6.QtTest import QTest
+from ui.widgets.table_checks import StatusCheckDelegate
 from core import Library, Game
 from database.work_repository import WorkDatabase
 from services.bulk_official_artwork import apply_bulk_artwork
@@ -30,16 +32,36 @@ def test_dialog_defaults_unchecked_and_selects_only_missing(tmp_path,monkeypatch
                                  (games[1],rec,{"hero"},set())])
     try:
         assert not d.selected_jobs() and not d.apply_button.isEnabled()
+        assert d.selection_summary.text() == "선택한 게임 0개 · 이미지 0개 (배너 0개 · 아이콘 0개)"
+        assert isinstance(d.table.itemDelegateForColumn(2), StatusCheckDelegate)
+        assert isinstance(d.table.itemDelegateForColumn(3), StatusCheckDelegate)
+        assert d.table.item(0, 2).text() == "보유"
+        assert d.table.item(0, 3).text() == "미등록"
+        assert d.table.item(1, 3).text() == "후보 없음"
         d.select_missing()
         assert [j[2] for j in d.selected_jobs()]==[{"icon"},{"hero"}]
         assert all(not j[3] for j in d.selected_jobs())
+        assert d.apply_button.isEnabled()
+        assert d.selection_summary.text() == "선택한 게임 2개 · 이미지 2개 (배너 1개 · 아이콘 1개)"
         d.table.item(0,2).setCheckState(Qt.CheckState.Checked)
         assert d.selected_jobs()[0][3]=={"hero"}
         d.select_all()
         assert [j[2] for j in d.selected_jobs()]==[{"hero","icon"},{"hero"}]
         assert d.selected_jobs()[0][3]=={"hero"}
+        assert d.selection_summary.text() == "선택한 게임 2개 · 이미지 3개 (배너 2개 · 아이콘 1개)"
         d.clear_selection()
         assert not d.selected_jobs() and not d.apply_button.isEnabled()
+        assert d.selection_summary.text() == "선택한 게임 0개 · 이미지 0개 (배너 0개 · 아이콘 0개)"
+        d.show()
+        app.processEvents()
+        # Clicking the status text also toggles the checkbox; unavailable cells do not.
+        QTest.mouseClick(d.table.viewport(), Qt.MouseButton.LeftButton,
+                         pos=d.table.visualItemRect(d.table.item(0, 3)).center())
+        assert [j[2] for j in d.selected_jobs()] == [{"icon"}]
+        QTest.mouseClick(d.table.viewport(), Qt.MouseButton.LeftButton,
+                         pos=d.table.visualItemRect(d.table.item(1, 3)).center())
+        assert [j[2] for j in d.selected_jobs()] == [{"icon"}]
+        assert d.selection_summary.text() == "선택한 게임 1개 · 이미지 1개 (배너 0개 · 아이콘 1개)"
     finally:
         d.close()
 
