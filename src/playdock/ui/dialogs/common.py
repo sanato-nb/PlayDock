@@ -96,6 +96,15 @@ class ThemedDialog(QDialog):
         return super().eventFilter(watched, event)
 
 
+def add_standard_confirmation_box(layout, primary, text, on_accept, on_reject):
+    """Append a native Qt button box with the caller's original action role."""
+    buttons = QDialogButtonBox(primary | QDialogButtonBox.StandardButton.Cancel)
+    buttons.button(primary).setText(text)
+    buttons.accepted.connect(on_accept)
+    buttons.rejected.connect(on_reject)
+    layout.addWidget(buttons)
+
+
 def _add_confirmation_buttons(dialog):
     buttons = QHBoxLayout()
     buttons.addStretch(1)
