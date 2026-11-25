@@ -21,6 +21,21 @@ class ArchivePasswordRequired(RuntimeError):
 class ArchivePasswordInvalid(RuntimeError):
     """The supplied archive password did not decrypt this archive."""
 
+def _progress_reporter(progress: Callable[[int], None], total: int):
+    """Emit only changed integer percentages while writing archive members."""
+    last = None
+    denominator = max(1, total)
+
+    def report(done: int) -> None:
+        nonlocal last
+        percent = min(99, int(done * 100 / denominator))
+        if percent != last:
+            last = percent
+            progress(percent)
+
+    return report
+
+
 def archive_requires_password(archive: Path) -> bool:
     """Inspect archive metadata without extracting or changing any file."""
     suffix = archive.suffix.lower()
@@ -109,6 +124,7 @@ def _unpack_zip(archive: Path, stage: Path, progress: Callable[[int], None],
                 raise ValueError('심볼릭 링크가 들어 있는 ZIP은 안전상 설치하지 않습니다.')
             members.append((item, _check_target(stage, parts)))
         done = 0
+        report = _progress_reporter(progress, total)
         try:
             for item, dest in members:
                 if item.is_dir():
@@ -122,7 +138,7 @@ def _unpack_zip(archive: Path, stage: Path, progress: Callable[[int], None],
                             break
                         out.write(chunk)
                         done += len(chunk)
-                        progress(min(99, int(done * 100 / max(1, total))))
+                        report(done)
         except RuntimeError as exc:
             if 'password' in str(exc).casefold():
                 raise ArchivePasswordInvalid('압축파일 비밀번호가 올바르지 않습니다. 다시 확인해 주세요.') from exc
@@ -220,6 +236,7 @@ def _unpack_rar(archive: Path, stage: Path, progress: Callable[[int], None],
             except Exception as exc:
                 raise RuntimeError('RAR 압축 해제 프로그램이 없습니다. 공식 7-Zip 또는 UnRAR를 설치하고 다시 시도하세요.') from exc
             done = 0
+            report = _progress_reporter(progress, total)
             for item, dest in validated:
                 if item.isdir():
                     dest.mkdir(parents=True, exist_ok=True)
@@ -234,7 +251,7 @@ def _unpack_rar(archive: Path, stage: Path, progress: Callable[[int], None],
                         if done > MAX_EXTRACTED_BYTES:
                             raise ValueError('압축 해제 크기 제한을 초과했습니다.')
                         dst.write(block)
-                        progress(min(99, int(done * 100 / max(1, total))))
+                        report(done)
     except Exception as exc:
         if isinstance(exc, (ArchivePasswordRequired, ArchivePasswordInvalid)):
             raise
