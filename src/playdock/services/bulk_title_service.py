@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 from services.bulk_title_edit import (
     BulkChange, replace_name, name_was_manually_changed,
     preview_undo_name, apply_bulk_changes,
@@ -33,27 +35,27 @@ class BulkTitleActions:
             raise ValueError("지원하지 않는 일괄 변경 방식입니다.")
         records = []
         for game in games:
-            old = self.library.title(game)
+            meta = self.library.meta(game)
+            base, old = self.library.title_pair(game, meta=meta)
             if mode == "manual":
-                proposed = self.library.base_title(game)
+                proposed = base
                 method = "manual"
             elif mode == "replace":
-                proposed = replace_name(self.library.base_title(game), find, replacement,
+                proposed = replace_name(base, find, replacement,
                                         case_sensitive=case_sensitive)
-                if not proposed or proposed == self.library.base_title(game):
+                if not proposed or proposed == base:
                     continue
                 method = "manual"
             elif mode == "undo":
-                proposed = preview_undo_name(self.library, game)
+                proposed = preview_undo_name(self.library, game, meta=meta)
                 if proposed is None:
                     continue
                 method = "undo"
             else:
                 # First-seen archive filename is immutable once recorded.
-                from pathlib import Path
-                archived_name = self.library.meta(game).get("original_archive_name")
+                archived_name = meta.get("original_archive_name")
                 proposed = Path(archived_name).stem if archived_name else game.name
-                if self.library.base_title(game) == proposed:
+                if base == proposed:
                     continue
                 method = "original"
             records.append(BulkChange(game.id, old, proposed, method,

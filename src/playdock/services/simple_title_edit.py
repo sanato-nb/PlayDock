@@ -11,8 +11,10 @@ MAX_TITLE_HISTORY = 20
 SNAPSHOT_FIELDS = ("title", "prefer_manual_title", "title_source", "title_product_code")
 
 
-def title_history(library: Library, game: Game) -> list[dict]:
-    raw = library.meta(game).get("title_history", [])
+def title_history(library: Library, game: Game, *, meta: dict | None = None) -> list[dict]:
+    if meta is None:
+        meta = library.meta(game)
+    raw = meta.get("title_history", [])
     if not isinstance(raw, list):
         return []
     return [x for x in raw if isinstance(x, dict) and all(key in x for key in SNAPSHOT_FIELDS)][-MAX_TITLE_HISTORY:]

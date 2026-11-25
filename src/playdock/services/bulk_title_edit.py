@@ -86,21 +86,24 @@ def validate_changes(library: Library, games: list[Game], changes: list[BulkChan
 
 
 
-def preview_undo_name(library: Library, game: Game) -> str | None:
+def preview_undo_name(library: Library, game: Game, *, meta: dict | None = None) -> str | None:
     """Display the next undo target, including any prior localized title state."""
-    history = title_history(library, game)
+    if meta is None:
+        meta = library.meta(game)
+    history = title_history(library, game, meta=meta)
     if not history:
         return None
     previous = history[-1]
-    old_meta = dict(library.meta(game), **previous)
+    old_meta = dict(meta, **previous)
+    code = library.product_code(game, meta=meta)
     from services.localized_titles import localized_title_for
     from models.game_codes import title_with_code
     if old_meta.get('prefer_manual_title') and old_meta.get('title'):
         name = str(old_meta['title'])
     else:
         name = (localized_title_for(old_meta, library.settings, original_name=game.name,
-                product_code=library.product_code(game)) or str(old_meta.get('title') or game.name))
-    return title_with_code(name, library.product_code(game))
+                product_code=code) or str(old_meta.get('title') or game.name))
+    return title_with_code(name, code)
 
 def _backup_meta(library: Library, pairs: list[tuple[Game, BulkChange]]) -> Path:
     folder = library.store / 'backups'
