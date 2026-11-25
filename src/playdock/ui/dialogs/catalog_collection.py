@@ -43,15 +43,15 @@ class CatalogCollectionDialog(QDialog):
         title.setObjectName("Heading")
         layout.addWidget(title)
         hint = QLabel(
-            "압축파일명 또는 등록된 DLsite 품번·Steam App ID로 공식 사이트에서 확인합니다.\n"
-            "품번이 없는 게임은 검색에서 제외하고, 수집 완료 후 AI 조사 프롬프트를 제공합니다.\n"
-            "이미 저장된 작품은 재사용하며 게임 이름과 배너·아이콘은 변경하지 않습니다."
+            "압축파일명이나 등록 정보의 DLsite 품번·Steam App ID로 공식 작품 정보를 확인합니다.\n"
+            "품번 또는 App ID가 없는 게임은 공식 조회에서 제외하며, 수집 완료 후 AI 조사 프롬프트를 제공합니다.\n"
+            "DB에 저장된 공식 작품 정보는 재사용합니다. 게임 이름과 배너·아이콘은 변경하지 않습니다."
         )
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
         self.preflight = QLabel(
-            f"공식 조회 대상 {total}개 · 품번/App ID 없어 사전 제외 {len(self.no_code)}개"
+            f"공식 조회 대상 {total}개 · 품번·App ID 없음 · 사전 제외 {len(self.no_code)}개"
         )
         self.preflight.setWordWrap(True)
         layout.addWidget(self.preflight)
@@ -59,17 +59,17 @@ class CatalogCollectionDialog(QDialog):
         self.progress.setRange(0, max(total, 1))
         self.progress.setValue(0)
         layout.addWidget(self.progress)
-        self.summary = QLabel(f"0 / {total}개 공식정보 조회 준비 중")
+        self.summary = QLabel(f"0 / {total}개 공식 정보 조회 준비 중")
         self.summary.setWordWrap(True)
         self.summary.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.summary)
 
-        layout.addWidget(QLabel("조회 제외 또는 공식 확인에 실패한 게임"))
+        layout.addWidget(QLabel("공식 조회 제외·실패 내역"))
         self.failures = QPlainTextEdit()
         self.failures.setReadOnly(True)
-        self.failures.setPlaceholderText("수집 실패 또는 품번 없는 게임이 이곳에 표시됩니다.")
+        self.failures.setPlaceholderText("공식 조회에서 제외되거나 확인에 실패한 게임을 표시합니다.")
         for label in self.no_code:
-            self.failures.appendPlainText(f"• {label[:180]} — 품번/App ID 없음 (공식 조회 제외)")
+            self.failures.appendPlainText(f"• {label[:180]} — 품번·App ID 없음 (공식 조회 제외)")
         layout.addWidget(self.failures, 1)
 
         row = QHBoxLayout()
@@ -100,7 +100,7 @@ class CatalogCollectionDialog(QDialog):
             return
         self.cancelRequested.emit()
         self.stop_button.setEnabled(False)
-        self.summary.setText("중단 요청 중… 이미 저장한 공식 작품정보는 유지합니다.")
+        self.summary.setText("중단 요청 중… 이미 저장한 공식 작품 정보는 유지합니다.")
 
     def on_progress(self, index: int, total: int, event):
         self.counts[event.outcome] += 1
@@ -128,8 +128,8 @@ class CatalogCollectionDialog(QDialog):
         self.import_button.setEnabled(handoff_ready)
         self.summary.setText(
             f"{'중단됨' if interrupted else '등록 처리 완료' if self.import_mode else '수집 완료'}  |  공식 조회 {len(events)}/{self.total}개\n"
-            f"게임 연결 {sum(bool(e.connected) for e in events)}개  ·  신규 작품 {sum(e.saved for e in events)}개  ·  기존 DB 재사용 {self.counts['cached']}개\n"
-            f"상세정보 보강 {sum(e.enriched for e in events)}개  ·  조회 실패 {self.counts['excluded']}개  ·  오류 {self.counts['error']}개\n"
+            f"공식 DB 연결 {sum(bool(e.connected) for e in events)}개  ·  신규 작품 {sum(e.saved for e in events)}개  ·  기존 DB 재사용 {self.counts['cached']}개\n"
+            f"상세 정보 보강 {sum(e.enriched for e in events)}개  ·  조회 실패 {self.counts['excluded']}개  ·  오류 {self.counts['error']}개\n"
             f"남은 품번 없는 게임 {len(self.no_code)}개"
         )
 
@@ -141,7 +141,7 @@ class CatalogCollectionDialog(QDialog):
         reasons = list(self.import_reasons)
         reasons.extend(f"{e.label} — {e.message}" for e in events if not e.connected)
         self.failures.setPlainText("\n".join(
-            [f"• {name} — 품번/App ID 없음" for name in self.no_code] +
+            [f"• {name} — 품번·App ID 없음" for name in self.no_code] +
             (["\n[조사 및 조회 결과]"] + reasons if reasons else [])))
         self.prompt_copy_button.setText("품번 없는 게임 AI 조사 프롬프트 복사")
         self.prompt_save_button.setText("TXT 저장")
