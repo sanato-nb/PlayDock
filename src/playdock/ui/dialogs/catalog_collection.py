@@ -11,10 +11,11 @@ from pathlib import Path
 from PySide6.QtCore import Signal, Qt
 from PySide6.QtWidgets import (
     QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox,
-    QPlainTextEdit, QProgressBar, QPushButton, QVBoxLayout,
+    QPlainTextEdit, QPushButton, QVBoxLayout,
 )
 
 from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
+from ui.widgets.presentation import progress_bar, summary_label
 
 
 class CatalogCollectionDialog(QDialog):
@@ -55,13 +56,9 @@ class CatalogCollectionDialog(QDialog):
         )
         self.preflight.setWordWrap(True)
         layout.addWidget(self.preflight)
-        self.progress = QProgressBar()
-        self.progress.setRange(0, max(total, 1))
-        self.progress.setValue(0)
+        self.progress = progress_bar(max(total, 1), initial=0)
         layout.addWidget(self.progress)
-        self.summary = QLabel(f"0 / {total}개 공식 정보 조회 준비 중")
-        self.summary.setWordWrap(True)
-        self.summary.setTextFormat(Qt.TextFormat.PlainText)
+        self.summary = summary_label(f"0 / {total}개 공식 정보 조회 준비 중")
         layout.addWidget(self.summary)
 
         layout.addWidget(QLabel("공식 조회 제외·실패 내역"))

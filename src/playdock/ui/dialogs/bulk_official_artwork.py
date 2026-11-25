@@ -2,9 +2,12 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView, QProgressBar, QAbstractItemView,
+    QTableWidgetItem, QHeaderView,
 )
 from ui.widgets.table_checks import StatusCheckDelegate
+from ui.widgets.tables import configure_review_table
+from ui.widgets.buttons import configure_action_button
+from ui.widgets.presentation import progress_bar, summary_label
 
 
 class BulkOfficialArtworkDialog(QDialog):
@@ -26,14 +29,7 @@ class BulkOfficialArtworkDialog(QDialog):
         header = self.table.horizontalHeader()
         header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.verticalHeader().hide()
-        self.table.verticalHeader().setDefaultSectionSize(44)
-        self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet(
-            "QTableWidget { alternate-background-color:#1c2b39; gridline-color:#304253; }"
-            "QHeaderView::section { background:#25394a; color:#e2edf6; padding:5px; }"
-        )
+        configure_review_table(self.table)
         for column in (2, 3):
             self.table.setItemDelegateForColumn(column, StatusCheckDelegate(self.table))
             header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
@@ -51,8 +47,7 @@ class BulkOfficialArtworkDialog(QDialog):
                     item.setCheckState(Qt.CheckState.Unchecked)
                 self.table.setItem(i, col, item)
         layout.addWidget(self.table, 1)
-        self.selection_summary = QLabel()
-        self.selection_summary.setWordWrap(True)
+        self.selection_summary = summary_label()
         layout.addWidget(self.selection_summary)
         buttons = QHBoxLayout()
         missing = QPushButton("미등록 이미지 선택")
@@ -66,10 +61,7 @@ class BulkOfficialArtworkDialog(QDialog):
         buttons.addWidget(clear)
         buttons.addStretch()
         self.apply_button = QPushButton("선택 이미지 적용")
-        self.apply_button.setObjectName("Blue")
-        self.apply_button.setStyleSheet(
-            "QPushButton#Blue:disabled { color:#74818c; background:#26313b; }"
-        )
+        configure_action_button(self.apply_button, "Blue")
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self.accept)
         buttons.addWidget(self.apply_button)
@@ -133,8 +125,7 @@ class BulkArtworkProgressDialog(QDialog):
         self.label = QLabel("공식 이미지를 가져오는 중…")
         self.label.setTextFormat(Qt.TextFormat.PlainText)
         layout.addWidget(self.label)
-        self.bar = QProgressBar()
-        self.bar.setRange(0,total)
+        self.bar = progress_bar(total)
         layout.addWidget(self.bar)
         self.stop = QPushButton("중단")
         self.stop.clicked.connect(self.reject)

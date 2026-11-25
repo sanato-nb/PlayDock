@@ -1,12 +1,15 @@
 """Plain JSON input and explicit preview for external AI suggestions."""
 from pathlib import Path
-from PySide6.QtCore import Qt, QEvent, QRectF
-from PySide6.QtGui import QColor, QPen, QPainter
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPlainTextEdit,
-    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView, QStyledItemDelegate, QAbstractItemView)
+    QPushButton, QTableWidget, QTableWidgetItem, QHeaderView)
 from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
 from ui.dialogs.common import show_message
 from services.identity_import_service import MAX_BYTES
+from ui.widgets.table_checks import CandidateCheckDelegate
+from ui.widgets.tables import configure_review_table
+from ui.widgets.buttons import configure_action_button
 
 
 class IdentityImportDialog(QDialog):
@@ -49,38 +52,6 @@ class IdentityImportDialog(QDialog):
             show_message(self,"파일 읽기 실패",str(exc))
 
 
-class CandidateCheckDelegate(QStyledItemDelegate):
-    """Readable check marks independent of the operating system's palette."""
-    def paint(self, painter, option, index):
-        super().paint(painter, option, index)
-        painter.save()
-        painter.fillRect(option.rect, QColor("#1b2836"))
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
-        box = QRectF(option.rect.center().x()-9, option.rect.center().y()-9, 18, 18)
-        painter.setPen(QPen(QColor("#8bb4ce" if not checked else "#59b8ee"), 1.5))
-        painter.setBrush(QColor("#101923" if not checked else "#207cac"))
-        painter.drawRoundedRect(box, 3, 3)
-        if checked:
-            painter.setPen(QPen(QColor("#ffffff"), 2, Qt.PenStyle.SolidLine,
-                                Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            x,y = box.x(),box.y()
-            painter.drawLine(int(x+4),int(y+9),int(x+8),int(y+13))
-            painter.drawLine(int(x+8),int(y+13),int(x+14),int(y+5))
-        painter.restore()
-
-    def editorEvent(self, event, model, option, index):
-        if not index.flags() & Qt.ItemFlag.ItemIsUserCheckable:
-            return False
-        mouse = event.type() == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton
-        key = event.type() == QEvent.Type.KeyPress and event.key() in (Qt.Key.Key_Space, Qt.Key.Key_Select)
-        if mouse or key:
-            checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
-            return model.setData(index, Qt.CheckState.Unchecked.value if checked else Qt.CheckState.Checked.value,
-                                 Qt.ItemDataRole.CheckStateRole)
-        return False
-
-
 class IdentityImportPreviewDialog(QDialog):
     """Compact candidates, complete evidence on selection, explicit approval."""
     def __init__(self, proposals, rejected, parent=None, *, official_titles=None):
@@ -99,16 +70,7 @@ class IdentityImportPreviewDialog(QDialog):
         layout.addWidget(label)
         self.table = QTableWidget(len(proposals), 4)
         self.table.setHorizontalHeaderLabels(["선택", "원본 파일명", "품번 / 상태", "공식 작품명" if verified else "AI 후보 작품명"])
-        self.table.setStyleSheet("QTableWidget { alternate-background-color:#1c2b39; gridline-color:#304253; }"
-                                 "QTableWidget::item:selected { background:#31526b; color:#fff; }"
-                                 "QHeaderView::section { background:#25394a; color:#e2edf6; padding:5px; border:1px solid #344b60; }")
-        self.table.setAlternatingRowColors(True)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.table.verticalHeader().hide()
-        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-        self.table.verticalHeader().setDefaultSectionSize(44)
+        configure_review_table(self.table, fixed_rows=True, row_selection=True)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(0, 54)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
@@ -159,7 +121,7 @@ class IdentityImportPreviewDialog(QDialog):
         row.addWidget(self.selection_count)
         row.addStretch()
         self.confirm = QPushButton("선택 품번 등록" if verified else "선택 후보 공식 조회")
-        self.confirm.setObjectName("Blue")
+        configure_action_button(self.confirm, "Blue")
         self.confirm.setEnabled(False)
         self.confirm.clicked.connect(self.accept)
         row.addWidget(self.confirm)

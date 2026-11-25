@@ -15,6 +15,9 @@ from PySide6.QtWidgets import (
 )
 
 
+from ui.widgets.buttons import configure_action_button
+
+
 class IdentityArtworkDialog(QDialog):
     def __init__(self, work, images: dict, *, existing_kinds=(), warnings=(), parent=None):
         super().__init__(parent)
@@ -68,7 +71,7 @@ class IdentityArtworkDialog(QDialog):
         actions = QHBoxLayout()
         actions.addStretch()
         save = QPushButton("체크한 이미지 적용 · 미선택 유지")
-        save.setObjectName("Blue")
+        configure_action_button(save, "Blue")
         save.clicked.connect(self.accept)
         actions.addWidget(save)
         cancel = QPushButton("취소")

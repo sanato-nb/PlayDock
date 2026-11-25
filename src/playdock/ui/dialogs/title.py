@@ -32,6 +32,8 @@ from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from native_caption import windows_dark_caption
 from services.localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
+from ui.widgets.table_checks import StatusCheckDelegate
+from ui.widgets.buttons import configure_action_button
 
 
 from workers.title import BulkTitleWorker
@@ -130,6 +132,7 @@ class BulkTitleSettingsDialog(QDialog):
 
         self.targets = QTableWidget(len(self.games), 3)
         self.targets.setHorizontalHeaderLabels(['대상', '현재 표시 이름', '작품 코드'])
+        self.targets.setItemDelegateForColumn(0, StatusCheckDelegate(self.targets))
         self.targets.verticalHeader().hide()
         self.targets.setSelectionMode(QTableWidget.SelectionMode.NoSelection)
         self.targets.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -162,6 +165,7 @@ class BulkTitleSettingsDialog(QDialog):
         outer.addLayout(review_row)
         self.preview_table = QTableWidget(0, 5)
         self.preview_table.setHorizontalHeaderLabels(['적용', '현재 제목', '변경할 제목 (편집 가능)', '출처', '확인 상태'])
+        self.preview_table.setItemDelegateForColumn(0, StatusCheckDelegate(self.preview_table))
         self.preview_table.verticalHeader().hide()
         self.preview_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.preview_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -173,7 +177,7 @@ class BulkTitleSettingsDialog(QDialog):
         outer.addWidget(self.preview_table, 1)
         footer = QHBoxLayout()
         self.confirm = QPushButton('체크한 변경 사항 저장')
-        self.confirm.setObjectName('Save')
+        configure_action_button(self.confirm, 'Save')
         self.confirm.setEnabled(False)
         self.confirm.clicked.connect(self.apply_preview)
         footer.addStretch(1)

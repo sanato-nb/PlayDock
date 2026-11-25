@@ -4,6 +4,20 @@ from PySide6.QtGui import QColor, QPainter, QPen, QPalette
 from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionViewItem, QStyledItemDelegate
 
 
+def _draw_check(painter, box, checked):
+    """Shared checkbox palette and geometry."""
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(QPen(QColor("#59b8ee" if checked else "#8bb4ce"), 1.5))
+    painter.setBrush(QColor("#207cac" if checked else "#101923"))
+    painter.drawRoundedRect(box, 3, 3)
+    if checked:
+        painter.setPen(QPen(QColor("#ffffff"), 2, Qt.PenStyle.SolidLine,
+                            Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        x, y = box.x(), box.y()
+        painter.drawLine(int(x + 4), int(y + 9), int(x + 8), int(y + 13))
+        painter.drawLine(int(x + 8), int(y + 13), int(x + 14), int(y + 5))
+
+
 class StatusCheckDelegate(QStyledItemDelegate):
     """Paint the same bright checkbox palette as the AI candidate review."""
     BOX = 18
@@ -38,21 +52,13 @@ class StatusCheckDelegate(QStyledItemDelegate):
         # Keep the normal table background, selection and focus painting.
         style.drawControl(QStyle.ControlElement.CE_ItemViewItem, opt, painter, opt.widget)
         checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
-        box = QRectF(opt.rect.left() + self.PADDING,
+        left = opt.rect.left() + self.PADDING if text else opt.rect.center().x() - self.BOX / 2
+        box = QRectF(left,
                      opt.rect.center().y() - self.BOX / 2,
                      self.BOX, self.BOX)
         painter.save()
         painter.setClipRect(opt.rect)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(QColor("#59b8ee" if checked else "#8bb4ce"), 1.5))
-        painter.setBrush(QColor("#207cac" if checked else "#101923"))
-        painter.drawRoundedRect(box, 3, 3)
-        if checked:
-            painter.setPen(QPen(QColor("#ffffff"), 2, Qt.PenStyle.SolidLine,
-                                Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-            x, y = box.x(), box.y()
-            painter.drawLine(int(x + 4), int(y + 9), int(x + 8), int(y + 13))
-            painter.drawLine(int(x + 8), int(y + 13), int(x + 14), int(y + 5))
+        _draw_check(painter, box, checked)
         text_rect = opt.rect.adjusted(self.PADDING + self.BOX + self.GAP,
                                       0, -self.PADDING, 0)
         role = (QPalette.ColorRole.HighlightedText
@@ -78,3 +84,17 @@ class StatusCheckDelegate(QStyledItemDelegate):
             return model.setData(index, Qt.CheckState.Unchecked.value if checked
                                  else Qt.CheckState.Checked.value, Qt.ItemDataRole.CheckStateRole)
         return False
+
+
+class CandidateCheckDelegate(StatusCheckDelegate):
+    """Readable check marks independent of the operating system's palette."""
+    def paint(self, painter, option, index):
+        QStyledItemDelegate.paint(self, painter, option, index)
+        painter.save()
+        painter.fillRect(option.rect, QColor("#1b2836"))
+        checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
+        box = QRectF(option.rect.center().x()-9, option.rect.center().y()-9, 18, 18)
+        _draw_check(painter, box, checked)
+        painter.restore()
+
+

@@ -32,6 +32,8 @@ from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
 from native_caption import windows_dark_caption
 from services.localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
+from ui.widgets.table_checks import StatusCheckDelegate
+from ui.widgets.buttons import configure_action_button
 
 
 from workers.title import BulkTitleWorker
@@ -53,6 +55,7 @@ class BulkPreviewDialog(QDialog):
         layout.addWidget(explanation)
         self.table = QTableWidget(len(rows), 5)
         self.table.setHorizontalHeaderLabels(['적용', '현재 표시', '조회한 작품명', '언어', '조회 상태'])
+        self.table.setItemDelegateForColumn(0, StatusCheckDelegate(self.table))
         self.table.verticalHeader().hide()
         self.table.setWordWrap(True)
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
@@ -81,7 +84,7 @@ class BulkPreviewDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.addStretch(1)
         apply = QPushButton('선택한 제목 저장')
-        apply.setObjectName('Save')
+        configure_action_button(apply, 'Save')
         apply.clicked.connect(self.accept)
         buttons.addWidget(apply)
         cancel = QPushButton('취소')
@@ -130,7 +133,7 @@ class KoreanWebCandidatesDialog(QDialog):
         buttons.addWidget(self.open_source_btn)
         buttons.addStretch(1)
         apply = QPushButton('이 제목을 후보로 사용')
-        apply.setObjectName('Save')
+        configure_action_button(apply, 'Save')
         apply.clicked.connect(self.accept_candidate)
         buttons.addWidget(apply)
         cancel = QPushButton('취소')
