@@ -85,7 +85,13 @@ class LibraryControllerMixin:
 
     def populate_games(self, prefer_id: str | None = None):
         # Qt signals pass an integer or string to this slot; they are not game IDs.
-        if not isinstance(prefer_id, str) or not any(g.id == prefer_id for g in self.games):
+        game_ids = {}
+        def game_id_of(game):
+            key = id(game)
+            if key not in game_ids:
+                game_ids[key] = game.id
+            return game_ids[key]
+        if not isinstance(prefer_id, str) or not any(game_id_of(g) == prefer_id for g in self.games):
             prefer_id = self.selected_id
         desired_id = prefer_id or self.selected_id
         query = self.search.text()
@@ -98,12 +104,18 @@ class LibraryControllerMixin:
             if key not in titles:
                 titles[key] = self.library.title(game)
             return titles[key]
-        rows = make_sidebar_groups(self.games, self.collections.list(), title_of,
+        collections = self.collections.list()
+        group_names = {'__uncategorized__': '미분류'}
+        for collection in collections:
+            group_names.setdefault(collection['id'], collection['name'])
+        rows = make_sidebar_groups(self.games, collections, title_of,
                                   filter_mode or 'all', query, self.sort_mode)
         self.tree.blockSignals(True)
         self.tree.clear()
         self.selected_game_item = None
         first_game_item = None
+        icons = {}
+        placeholder = None
         for group in rows:
             header = QTreeWidgetItem(self.tree)
             header.setData(0, Qt.ItemDataRole.UserRole, ("group", group.id))
@@ -117,21 +129,27 @@ class LibraryControllerMixin:
                 expanded = group.id in self.expanded_groups
             for game in group.games:
                 item = QTreeWidgetItem(header, [title_of(game)])
-                item.setData(0, Qt.ItemDataRole.UserRole, ("game", game.id))
+                game_id = game_id_of(game)
+                item.setData(0, Qt.ItemDataRole.UserRole, ("game", game_id))
                 item.setToolTip(0, "")
-                art = self.library.art_dir(game) / 'icon.png'
-                item.setIcon(0, game_art_icon(art, game_placeholder_icon()))
+                key = id(game)
+                if key not in icons:
+                    if placeholder is None:
+                        placeholder = game_placeholder_icon()
+                    art = self.library.art_dir(game) / 'icon.png'
+                    icons[key] = game_art_icon(art, placeholder)
+                item.setIcon(0, icons[key])
                 if first_game_item is None:
                     first_game_item = item
-                if game.id == desired_id and self.selected_game_item is None:
+                if game_id == desired_id and self.selected_game_item is None:
                     self.selected_game_item = item
             header.setExpanded(expanded)
-            self.update_group_label(header)
+            self.update_group_label(header, name=group_names.get(group.id, '모음집'))
         selected = self.selected_game_item or first_game_item
         if selected is not None:
             selected.parent().setExpanded(True)
-            self.update_group_label(selected.parent())
             _kind, group_id = self.tree_identity(selected.parent())
+            self.update_group_label(selected.parent(), name=group_names.get(group_id, '모음집'))
             if _kind == "group":
                 self.expanded_groups.add(group_id)
             self.tree.setCurrentItem(selected)
@@ -140,7 +158,6 @@ class LibraryControllerMixin:
         else:
             self.selected_id = None
         self.tree.blockSignals(False)
-        visible_ids = {g.id for group in rows for g in group.games}
         # Counts belong to the on-demand Properties dialog, not a footer.
         self.tree.setToolTip("")
         if selected is not None:
@@ -180,13 +197,13 @@ class LibraryControllerMixin:
             self.on_tree_select()
 
 
-    def update_group_label(self, item):
+    def update_group_label(self, item, *, name=None):
         kind, cid = self.tree_identity(item)
         if kind != 'group':
             return
         if cid == '__uncategorized__':
             name = '미분류'
-        else:
+        elif name is None:
             name = next((c['name'] for c in self.collections.list() if c['id'] == cid), '모음집')
         item.setText(0, f"{name}  ({item.childCount()})")
         item.setIcon(0, collection_chevron(item.isExpanded()))

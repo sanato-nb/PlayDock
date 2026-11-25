@@ -259,3 +259,39 @@ def test_bulk_artwork_enabled_for_other_game_and_collection_view(app,tmp_path,mo
         assert capture_menu(window.function_menu_btn).actions()[0].isEnabled()
     finally:
         window.close()
+
+
+def test_sidebar_rebuild_reuses_icons_and_collection_snapshot(app, tmp_path, monkeypatch):
+    from controllers import library as controller
+    window, _, game = make_window(tmp_path, monkeypatch)
+    try:
+        ids = {window.collections.create(name) for name in ("A", "B", "C")}
+        window.collections.set_game_memberships(game.id, ids)
+        monkeypatch.setattr(window, "present_game", lambda: None)
+        original_list = window.collections.list
+        original_icon = controller.game_art_icon
+        list_calls = []
+        icon_calls = []
+
+        def counted_list():
+            list_calls.append(True)
+            return original_list()
+
+        def counted_icon(path, fallback):
+            icon_calls.append(path)
+            return original_icon(path, fallback)
+
+        monkeypatch.setattr(window.collections, "list", counted_list)
+        monkeypatch.setattr(controller, "game_art_icon", counted_icon)
+        for rebuild in range(1, 3):
+            window.populate_games(game.id)
+            assert len(list_calls) == rebuild
+            assert len(icon_calls) == rebuild
+            groups = [window.tree.topLevelItem(i) for i in range(window.tree.topLevelItemCount())]
+            rows = [group.child(0) for group in groups if group.childCount()]
+            assert len(rows) == 3
+            assert all(window.tree_identity(row) == ("game", game.id) for row in rows)
+            assert all(not row.icon(0).isNull() for row in rows)
+            assert window.selected_id == game.id
+    finally:
+        window.close()
