@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-from ui.widgets.artwork_cache import artwork_pixmap
+from ui.widgets.artwork_cache import artwork_pixmap, cached_pixmap
 from ui.selectors import add_selection_actions, draw_menu_chevron
-from functools import lru_cache
 from time import monotonic
 
 from PySide6.QtCore import Qt, Signal, QPoint, QRect, QRectF
@@ -23,8 +22,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import QWidget, QPushButton, QSizePolicy, QMenu
 
 
-@lru_cache(maxsize=2)
-def collection_chevron(expanded: bool) -> QIcon:
+def _render_collection_chevron(expanded: bool) -> QPixmap:
     """Symmetric anti-aliased arrow; never depends on a Korean font glyph."""
     pic = QPixmap(40, 40)
     pic.fill(Qt.GlobalColor.transparent)
@@ -44,6 +42,14 @@ def collection_chevron(expanded: bool) -> QIcon:
     painter.drawPath(path)
     painter.end()
     pic.setDevicePixelRatio(2)
+    return pic
+
+
+def collection_chevron(expanded: bool) -> QIcon:
+    # Let Qt own the cached pixmap's lifetime rather than holding a global
+    # Python QIcon cache that may outlive QApplication during shutdown.
+    pic = cached_pixmap(('collection-chevron-v1', expanded), ('group-arrow', 40),
+                        lambda: _render_collection_chevron(expanded))
     return QIcon(pic)
 
 
