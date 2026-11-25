@@ -91,3 +91,30 @@ def test_popup_actions_still_connected_to_business_functions():
     assert 'self.rename_game()' not in APP
     assert 'self.rename_collection()' in body_of('sidebar_context_menu')
     assert 'self.delete_collection()' in body_of('sidebar_context_menu')
+
+
+def test_collection_chevrons_use_qt_owned_cache_and_keep_pixels():
+    import os
+    import subprocess
+    import sys
+    import pytest
+    pytest.importorskip("PySide6")
+    script = r'''
+from PySide6.QtWidgets import QApplication
+from PySide6.QtGui import QPixmapCache
+from PySide6.QtCore import QSize
+from ui.widgets.launcher import collection_chevron, _render_collection_chevron
+app = QApplication([])
+for expanded in (False, True):
+    first = collection_chevron(expanded).pixmap(QSize(20, 20), 2.0).toImage()
+    expected = _render_collection_chevron(expanded).toImage()
+    assert not first.isNull()
+    assert first == expected
+    assert collection_chevron(expanded).pixmap(QSize(20, 20), 2.0).toImage() == first
+    QPixmapCache.clear()
+    assert collection_chevron(expanded).pixmap(QSize(20, 20), 2.0).toImage() == first
+assert collection_chevron(False).pixmap(QSize(20, 20), 2.0).toImage() != collection_chevron(True).pixmap(QSize(20, 20), 2.0).toImage()
+QPixmapCache.clear()
+'''
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen')
+    subprocess.run([sys.executable, '-c', script], env=env, check=True, timeout=25)
