@@ -96,6 +96,18 @@ class ThemedDialog(QDialog):
         return super().eventFilter(watched, event)
 
 
+def _add_confirmation_buttons(dialog):
+    buttons = QHBoxLayout()
+    buttons.addStretch(1)
+    ok = QPushButton('OK')
+    cancel = QPushButton('Cancel')
+    ok.clicked.connect(dialog.accept)
+    cancel.clicked.connect(dialog.reject)
+    buttons.addWidget(ok)
+    buttons.addWidget(cancel)
+    dialog.body.addLayout(buttons)
+
+
 class TextEntryDialog(ThemedDialog):
     def __init__(self, title: str, label: str, parent=None, text: str = ''):
         super().__init__(title, parent, 430)
@@ -105,15 +117,7 @@ class TextEntryDialog(ThemedDialog):
         self.body.addWidget(prompt)
         self.edit = QLineEdit(text)
         self.body.addWidget(self.edit)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        ok = QPushButton('OK')
-        cancel = QPushButton('Cancel')
-        ok.clicked.connect(self.accept)
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(ok)
-        buttons.addWidget(cancel)
-        self.body.addLayout(buttons)
+        _add_confirmation_buttons(self)
         self.edit.selectAll()
         self.edit.setFocus()
 
@@ -133,15 +137,7 @@ class ChoiceDialog(ThemedDialog):
         if values:
             self.combo.setCurrentIndex(max(0, min(current, len(values)-1)))
         self.body.addWidget(self.combo)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        ok = QPushButton('OK')
-        cancel = QPushButton('Cancel')
-        ok.clicked.connect(self.accept)
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(ok)
-        buttons.addWidget(cancel)
-        self.body.addLayout(buttons)
+        _add_confirmation_buttons(self)
         self.combo.setFocus()
 
 
