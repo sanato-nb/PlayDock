@@ -54,8 +54,8 @@ class BulkTitleSettingsDialog(QDialog):
         heading = QLabel('일괄 게임 이름 변경')
         heading.setObjectName('Heading')
         outer.addWidget(heading)
-        hint = QLabel('공식 게임명은 먼저 게임 정보 수집으로 확인한 작품만 적용합니다.\n'
-                      '직접 수정·원본 이름 복원은 수집 전에도 가능하며, 실제 ZIP·7z·RAR 파일은 변경하지 않습니다.')
+        hint = QLabel('공식 게임명은 게임 정보 수집에서 확인한 작품에만 적용할 수 있습니다.\n'
+                      '직접 수정과 원본 이름 복원은 수집 전에도 가능합니다. 실제 압축파일명은 변경하지 않습니다.')
         hint.setObjectName('Muted')
         hint.setWordWrap(True)
         outer.addWidget(hint)
@@ -155,7 +155,7 @@ class BulkTitleSettingsDialog(QDialog):
         self.preview_btn = QPushButton('변경 전후 미리보기')
         self.preview_btn.clicked.connect(self.create_preview)
         review_row.addWidget(self.preview_btn)
-        self.progress = QLabel('이름은 미리보기를 만든 다음에만 변경할 수 있어.')
+        self.progress = QLabel('변경 전후 미리보기를 확인한 후 이름을 변경할 수 있습니다.')
         self.progress.setObjectName('Muted')
         self.progress.setWordWrap(True)
         review_row.addWidget(self.progress, 1)
@@ -232,17 +232,17 @@ class BulkTitleSettingsDialog(QDialog):
     def create_preview(self):
         if self.worker is not None:
             self.worker.stop()
-            self.progress.setText('조회 중단 요청 중… 완료된 결과만 미리보기에 표시할게.')
+            self.progress.setText('조회 중단 요청 중… 완료된 결과만 미리보기에 표시합니다.')
             return
         self.clear_preview()
         games = self.selected_games()
         if not games:
-            QMessageBox.information(self, '대상 없음', '변경할 게임을 먼저 체크해 주세요.')
+            QMessageBox.information(self, '대상 없음', '변경할 게임을 먼저 선택해 주세요.')
             return
         games = self.bulk_actions.eligible_games(
             games, skip_custom=self.keep_custom.isChecked())
         if not games:
-            QMessageBox.information(self, '대상 없음', '수동 수정된 이름을 제외하면 남는 게임이 없어.')
+            QMessageBox.information(self, '대상 없음', '수동으로 수정한 게임을 제외하면 변경할 대상이 없습니다.')
             return
         mode = self.mode.currentData()
         if mode == 'lookup':
@@ -261,7 +261,7 @@ class BulkTitleSettingsDialog(QDialog):
                 verified_records[(store, code)] = record
             if not entries:
                 QMessageBox.information(
-                    self, '공식 게임정보 없음',
+                    self, '공식 게임 정보 없음',
                     "선택한 게임에 저장된 공식 작품 연결이 없습니다.\n"
                     "먼저 PlayDock에서 '게임 정보 수집'을 실행하세요.\n"
                     "직접 수정과 원본 이름 복원은 그대로 이용할 수 있습니다.",
@@ -269,7 +269,7 @@ class BulkTitleSettingsDialog(QDialog):
                 return
             if QMessageBox.question(self, '공식 게임명 적용',
                     f'{len(entries)}개 게임의 공식 작품명을 PlayDock DB에서 가져올까요?\n'
-                    '인터넷에서 다시 검색하지 않고, 미리보기 후 체크한 항목만 저장합니다.'
+                    '인터넷에서 다시 검색하지 않으며, 미리보기에서 선택한 항목만 저장합니다.'
                     ) != QMessageBox.StandardButton.Yes:
                 return
             self.worker = BulkTitleWorker(
@@ -334,7 +334,7 @@ class BulkTitleSettingsDialog(QDialog):
             self.preview_table.setRowHeight(i, 37)
         self.preview_table.blockSignals(False)
         self.confirm.setEnabled(bool(records))
-        self.progress.setText(f'{len(records)}개 미리보기 생성 · 체크한 행만 저장돼. 결과 제목은 직접 수정 가능해.')
+        self.progress.setText(f'미리보기 {len(records)}개 생성 · 선택한 게임만 저장합니다. 변경할 제목은 직접 수정할 수 있습니다.')
 
     def preview_edited(self, item):
         if item.column() == 2:
@@ -356,12 +356,12 @@ class BulkTitleSettingsDialog(QDialog):
         changes = self.bulk_actions.prepare_changes(
             approved_edits, self.language.currentData() or 'ko')
         if not changes:
-            QMessageBox.information(self, '선택 없음', '저장할 변경 사항을 체크해 주세요.')
+            QMessageBox.information(self, '선택 없음', '저장할 변경 사항을 선택해 주세요.')
             return
         if QMessageBox.question(self, '일괄 이름 저장 확인',
                 f'{len(changes)}개 게임의 표시 이름을 변경할까요?\n'
-                '저장 전에 메타데이터 ZIP 백업을 만들고, 게임별 이전 이름 이력에도 기록해.\n'
-                '실제 압축파일/설치 폴더는 변경하지 않아.') != QMessageBox.StandardButton.Yes:
+                '저장 전에 메타데이터를 ZIP으로 백업하고, 게임별 이전 이름을 변경 이력에 기록합니다.\n'
+                '실제 압축파일명과 설치 폴더는 변경하지 않습니다.') != QMessageBox.StandardButton.Yes:
             return
         try:
             total, backup = self.bulk_actions.apply_changes(self.games, changes)
@@ -370,7 +370,7 @@ class BulkTitleSettingsDialog(QDialog):
             return
         QMessageBox.information(self, '일괄 변경 완료',
                     f'{total}개 게임 이름 변경 완료.\n백업: {backup}\n'
-                    '원본 파일은 그대로이며, 본체에서 새로고침하면 적용돼.')
+                    '원본 파일은 그대로 유지됩니다. 본체에서 새로고침하면 변경된 이름을 확인할 수 있습니다.')
         self.accept()
 
     def worker_finished(self):
@@ -381,21 +381,21 @@ class BulkTitleSettingsDialog(QDialog):
     def request_close(self):
         if self.worker is not None and self.worker.isRunning():
             self.worker.stop()
-            self.progress.setText('조회 중단 요청 중… 작업이 끝나면 닫아 줘.')
+            self.progress.setText('조회 중단 요청 중… 작업이 끝난 후 창을 닫아 주세요.')
             return
         self.reject()
 
     def reject(self):
         if self.worker is not None and self.worker.isRunning():
             self.worker.stop()
-            self.progress.setText('조회 중단 요청 중… 작업이 끝나면 닫아 줘.')
+            self.progress.setText('조회 중단 요청 중… 작업이 끝난 후 창을 닫아 주세요.')
             return
         super().reject()
 
     def closeEvent(self, event):
         if self.worker is not None and self.worker.isRunning():
             self.worker.stop()
-            self.progress.setText('조회 중단 요청 중… 완료되면 창을 닫을 수 있어.')
+            self.progress.setText('조회 중단 요청 중… 작업이 끝나면 창을 닫을 수 있습니다.')
             event.ignore()
             return
         super().closeEvent(event)
