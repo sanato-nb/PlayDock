@@ -2,8 +2,9 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QDialog, QLabel, QVBoxLayout, QHBoxLayout, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView, QProgressBar,
+    QTableWidgetItem, QHeaderView, QProgressBar, QAbstractItemView,
 )
+from ui.widgets.table_checks import StatusCheckDelegate
 
 
 class BulkOfficialArtworkDialog(QDialog):
@@ -22,10 +23,20 @@ class BulkOfficialArtworkDialog(QDialog):
         layout.addWidget(hint)
         self.table = QTableWidget(len(self.rows), 4)
         self.table.setHorizontalHeaderLabels(["게임", "공식 품번", "배너", "아이콘"])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(1, 140)
-        self.table.setColumnWidth(2, 120)
-        self.table.setColumnWidth(3, 120)
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.verticalHeader().hide()
+        self.table.verticalHeader().setDefaultSectionSize(44)
+        self.table.setAlternatingRowColors(True)
+        self.table.setStyleSheet(
+            "QTableWidget { alternate-background-color:#1c2b39; gridline-color:#304253; }"
+            "QHeaderView::section { background:#25394a; color:#e2edf6; padding:5px; }"
+        )
+        for column in (2, 3):
+            self.table.setItemDelegateForColumn(column, StatusCheckDelegate(self.table))
+            header.setSectionResizeMode(column, QHeaderView.ResizeMode.ResizeToContents)
         for i, (game, record, kinds, existing) in enumerate(self.rows):
             for col, value in enumerate((game.name, f'{record["store"].upper()} {record["code"]}')):
                 item = QTableWidgetItem(value)
@@ -34,12 +45,15 @@ class BulkOfficialArtworkDialog(QDialog):
             for col, kind in ((2,"hero"),(3,"icon")):
                 item = QTableWidgetItem("후보 없음" if kind not in kinds else
                                         "보유" if kind in existing else "미등록")
-                item.setFlags((Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+                item.setFlags((Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsSelectable)
                               if kind in kinds else Qt.ItemFlag.NoItemFlags)
                 if kind in kinds:
                     item.setCheckState(Qt.CheckState.Unchecked)
                 self.table.setItem(i, col, item)
         layout.addWidget(self.table, 1)
+        self.selection_summary = QLabel()
+        self.selection_summary.setWordWrap(True)
+        layout.addWidget(self.selection_summary)
         buttons = QHBoxLayout()
         missing = QPushButton("미등록 이미지 선택")
         missing.clicked.connect(self.select_missing)
@@ -53,6 +67,9 @@ class BulkOfficialArtworkDialog(QDialog):
         buttons.addStretch()
         self.apply_button = QPushButton("선택 이미지 적용")
         self.apply_button.setObjectName("Blue")
+        self.apply_button.setStyleSheet(
+            "QPushButton#Blue:disabled { color:#74818c; background:#26313b; }"
+        )
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self.accept)
         buttons.addWidget(self.apply_button)
@@ -60,7 +77,18 @@ class BulkOfficialArtworkDialog(QDialog):
         cancel.clicked.connect(self.reject)
         buttons.addWidget(cancel)
         layout.addLayout(buttons)
-        self.table.itemChanged.connect(lambda *_: self.apply_button.setEnabled(bool(self.selected_jobs())))
+        self.table.itemChanged.connect(self.refresh_selection)
+        self.refresh_selection()
+
+    def refresh_selection(self, *_args):
+        jobs = self.selected_jobs()
+        banners = sum("hero" in job[2] for job in jobs)
+        icons = sum("icon" in job[2] for job in jobs)
+        self.selection_summary.setText(
+            f"선택한 게임 {len(jobs)}개 · 이미지 {banners + icons}개"
+            f" (배너 {banners}개 · 아이콘 {icons}개)"
+        )
+        self.apply_button.setEnabled(bool(jobs))
 
     def _select(self, mode):
         previous = self.table.blockSignals(True)
@@ -73,7 +101,7 @@ class BulkOfficialArtworkDialog(QDialog):
                             Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
         finally:
             self.table.blockSignals(previous)
-        self.apply_button.setEnabled(bool(self.selected_jobs()))
+        self.refresh_selection()
 
     def select_missing(self):
         self._select("missing")
