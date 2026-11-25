@@ -295,3 +295,50 @@ def test_sidebar_rebuild_reuses_icons_and_collection_snapshot(app, tmp_path, mon
             assert window.selected_id == game.id
     finally:
         window.close()
+
+
+def test_detail_refresh_shares_selected_metadata_and_verified_db_snapshot(app, tmp_path, monkeypatch):
+    from controllers import library as controller
+    window, lib, game = make_window(tmp_path, monkeypatch)
+    try:
+        window.work_db._upsert_verified([{
+            "store": "dlsite", "code": "RJ123456", "title": "Verified title",
+            "page_url": PAGE,
+        }])
+        assert window.work_db.save_verified_game_link(game.id, "dlsite", "RJ123456")
+        lib.update_meta(game, artwork_source="Test source")
+        window.populate_games(game.id)
+        monkeypatch.setattr(controller, "discover_local", lambda *_: [])
+        original_meta = lib.meta
+        original_batch = window.work_db.get_linked_official_works
+        original_single = window.work_db.get_linked_official_work
+        calls = {"meta": 0, "batch": 0, "single": 0}
+
+        def meta(item):
+            calls["meta"] += 1
+            return original_meta(item)
+
+        def batch(ids):
+            calls["batch"] += 1
+            return original_batch(ids)
+
+        def single(game_id):
+            calls["single"] += 1
+            return original_single(game_id)
+
+        monkeypatch.setattr(lib, "meta", meta)
+        monkeypatch.setattr(window.work_db, "get_linked_official_works", batch)
+        monkeypatch.setattr(window.work_db, "get_linked_official_work", single)
+        window.present_game()
+        assert calls == {"meta": 1, "batch": 1, "single": 0}
+        assert "Verified title" in window.game_info.text()
+        assert "Test source" in window.game_info.text()
+        assert window.function_menu_btn.isEnabled()
+        lib.update_meta(game, product_code="")
+        calls.update(meta=0, batch=0, single=0)
+        window.present_game()
+        assert calls == {"meta": 1, "batch": 1, "single": 0}
+        assert "Verified title" not in window.game_info.text()
+        assert not window.function_menu_btn.isEnabled()
+    finally:
+        window.close()

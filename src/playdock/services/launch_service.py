@@ -62,14 +62,16 @@ def executable_candidates(folder: Path, title: str = "") -> list[Path]:
     result.sort(key=lambda pair: (-pair[0], str(pair[1]).casefold()))
     return [path for _, path in result]
 
-def chosen_executable(library: Library, game: Game) -> Path | None:
+def chosen_executable(library: Library, game: Game, *, meta: dict | None = None,
+                      title: str | None = None) -> Path | None:
     if not game.folder:
         return None
-    meta = library.meta(game)
+    if meta is None:
+        meta = library.meta(game)
     selected = meta.get("executable")
     if isinstance(selected, str):
         path = (game.folder / selected).resolve()
         if path.is_relative_to(game.folder.resolve()) and path.is_file() and path.suffix.casefold() == ".exe":
             return path
-    paths = executable_candidates(game.folder, library.title(game))
+    paths = executable_candidates(game.folder, library.title(game) if title is None else title)
     return paths[0] if paths else None

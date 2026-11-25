@@ -379,14 +379,18 @@ class LibraryControllerMixin:
 
 
     def present_game(self):
-        self.refresh_function_availability()
         game = self.current()
         if game is None:
+            self.refresh_function_availability()
             return
         dest = self.library.art_dir(game)
         discover_local(self.library, game)
-        title = self.library.title(game)
-        exe = chosen_executable(self.library, game)
+        meta = self.library.meta(game)
+        records = self.refresh_function_availability(meta_by_game={game.id: meta})
+        _, title = self.library.title_pair(game, meta=meta)
+        exe = chosen_executable(self.library, game, meta=meta, title=title)
+        installed = game.installed
+        status = '설치됨' if installed else '설치 가능' if game.archive else '경로 없음'
         if exe and not (dest / "icon.png").exists():
             try:
                 provider = QFileIconProvider()
@@ -401,9 +405,9 @@ class LibraryControllerMixin:
             art_file = dest / 'icon.png'
             current_item.setIcon(0, game_art_icon(art_file, game_placeholder_icon()))
         hero = dest / "hero.png"
-        self.banner.set_game(title, "PLAYDOCK · " + game.status, hero if hero.exists() else None)
-        self.status_title.setText(game.status)
-        if game.installed:
+        self.banner.set_game(title, "PLAYDOCK · " + status, hero if hero.exists() else None)
+        self.status_title.setText(status)
+        if installed:
             self.main_button.setText("▶  플레이" if exe else "실행 파일 선택")
             self.status_detail.setText(f"실행 대상: {exe.name if exe else '지정 필요'}")
         else:
@@ -411,20 +415,21 @@ class LibraryControllerMixin:
             self.status_detail.setText("압축을 풀어 설치할 수 있습니다")
         self.main_button.setEnabled(True)
         self.folder_btn.setEnabled(True)
-        self.uninstall_btn.setVisible(game.installed and not game.external)
-        self.uninstall_btn.setEnabled(game.installed and not game.external and self.install_worker is None and self.uninstall_worker is None)
-        self.select_exe_btn.setEnabled(game.installed)
+        self.uninstall_btn.setVisible(installed and not game.external)
+        self.uninstall_btn.setEnabled(installed and not game.external and self.install_worker is None and self.uninstall_worker is None)
+        self.select_exe_btn.setEnabled(installed)
         archive = str(game.archive) if game.archive else "없음"
         size = ""
         if game.archive and game.archive.exists():
             size = f" ({friendly_bytes(game.archive.stat().st_size)})"
         folder = str(game.folder) if game.folder else "미설치"
-        source = self.library.meta(game).get("artwork_source", "로컬 파일 / 기본 이미지")
+        source = meta.get("artwork_source", "로컬 파일 / 기본 이미지")
         belonging = self.collections.for_game(game.id)
         collection_names = ", ".join(col["name"] for col in belonging) if belonging else "없음"
         from html import escape
-        confirmed = self.collected_game_record(game)
-        product_code = self.library.product_code(game)
+        confirmed = (records.get(game.id) if records is not None else
+                     self.collected_game_record(game, meta=meta))
+        product_code = self.library.product_code(game, meta=meta)
         info_rows = [
             ('모음집', collection_names),
             ('공식 작품 확인', '확인 완료' if confirmed else '정보 수집 필요'),
@@ -432,7 +437,7 @@ class LibraryControllerMixin:
                (not confirmed or product_code != confirmed['code']) else []),
             *official_info_rows(confirmed),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),
-            ('상태', game.status),
+            ('상태', status),
             ('압축 파일', archive + size),
             ('설치 폴더', folder),
             ('실행 파일', str(exe) if exe else '미지정'),

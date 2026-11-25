@@ -25,21 +25,31 @@ class WindowActionControllerMixin:
         self.settings_menu_btn.present_popup(menu, right_align=True)
 
 
-    def function_availability(self):
+    def function_availability(self, *, records=None):
         """One source of truth for the button and its two menu actions."""
         try:
-            records = self.collected_library_records()
+            if records is None:
+                records = self.collected_library_records()
             artwork = any(self._record_has_official_images(row) for row in records.values())
             return artwork, bool(records)
         except (OSError, ValueError, SQLiteError):
             return False, False
 
-    def refresh_function_availability(self):
-        artwork, names = self.function_availability()
+    def refresh_function_availability(self, *, meta_by_game=None):
+        records = None
+        if meta_by_game is None:
+            artwork, names = self.function_availability()
+        else:
+            try:
+                records = self.collected_library_records(meta_by_game=meta_by_game)
+                artwork, names = self.function_availability(records=records)
+            except (OSError, ValueError, SQLiteError):
+                artwork, names = False, False
         self.function_menu_btn.setEnabled(artwork or names)
         self.function_menu_btn.setToolTip(
             "" if artwork or names else "게임 정보 수집 후 사용 가능한 기능입니다."
         )
+        return records
 
     def sync_top_navigation(self, *_args):
         library_active = self.main_stack.currentWidget() is self.scroll

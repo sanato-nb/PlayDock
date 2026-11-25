@@ -125,12 +125,13 @@ class MetadataControllerMixin:
 
 
 
-    def collected_game_record(self, game=None):
+    def collected_game_record(self, game=None, *, meta=None):
         """Official facts must have a verified DB link to this actual game."""
         game = game or self.current()
         if game is None:
             return None
-        meta = self.library.meta(game)
+        if meta is None:
+            meta = self.library.meta(game)
         if "product_code" in meta and not meta.get("product_code"):
             return None
         try:
@@ -138,12 +139,14 @@ class MetadataControllerMixin:
         except (OSError, ValueError):
             return None
 
-    def collected_library_records(self):
+    def collected_library_records(self, *, meta_by_game=None):
         """One batched DB read, independent of current selection or list filter."""
         records = self.work_db.get_linked_official_works(g.id for g in self.games)
         for game in self.games:
             if game.id in records:
-                meta = self.library.meta(game)
+                meta = meta_by_game.get(game.id) if meta_by_game is not None else None
+                if meta is None:
+                    meta = self.library.meta(game)
                 if "product_code" in meta and not meta.get("product_code"):
                     records.pop(game.id, None)
         return records
