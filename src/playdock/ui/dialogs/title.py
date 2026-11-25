@@ -5,10 +5,8 @@ Archives, installed directories, executable choices and collections are untouche
 """
 from __future__ import annotations
 
-import weakref
 
-from PySide6.QtCore import Qt, QUrl, QTimer, QObject, QEvent
-from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QWidget,
     QLabel,
@@ -16,8 +14,6 @@ from PySide6.QtWidgets import (
     QPushButton,
     QHBoxLayout,
     QVBoxLayout,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QDialog,
     QTableWidget,
@@ -28,8 +24,7 @@ from PySide6.QtWidgets import (
 
 from core import Library
 from database.work_repository import WorkDatabase
-from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
-from native_caption import windows_dark_caption
+from services.bulk_title_service import BulkTitleActions
 from services.localized_titles import LANGUAGES, is_code_only_title
 from ui.selectors import DarkMenuSelect
 from ui.widgets.table_checks import StatusCheckDelegate
