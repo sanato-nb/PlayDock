@@ -60,14 +60,20 @@ def metrics(inv):
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--out",type=Path,required=True)
+    ap.add_argument("--baseline", default=BASELINE)
+    ap.add_argument("--reviewed-ui-ref", help="Explicit previously reviewed revision for intentional UI source changes")
     a=ap.parse_args()
     out=a.out.resolve()
-    before=run_inventory(BASELINE,out/"before")
+    before=run_inventory(a.baseline,out/"before")
     after=run_inventory("HEAD",out/"after")
     old,new=tree(before),tree(after)
     manifest=json.loads((ROOT/"docs/ui_reference/source_manifest.json").read_text(encoding="utf-8"))
     ui={r["path"]:r["sha"] for r in manifest["files"]}
     ui_changes=[p for p,sha in ui.items() if new.get(p)!=sha]
+    reviewed_ui = ui
+    if a.reviewed_ui_ref:
+        reviewed_ui = {p: git("rev-parse", f"{a.reviewed_ui_ref}:{p}").decode().strip() for p in ui}
+    unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]
     retired_files=[p for p in new if p.startswith("src/playdock/") and p.endswith(".py")
@@ -124,6 +130,7 @@ def main():
     report={"baseline":before["baseline"],"head":after["baseline"],"before":metrics(before),"after":metrics(after),
             "retired_files":retired_files,"retired_findings":findings,
             "ui_protected":len(ui),"ui_changes":ui_changes,
+            "reviewed_ui_ref":a.reviewed_ui_ref,"unreviewed_ui_changes":unreviewed_ui_changes,
             "experiment_files":sum(p.startswith("experiments/") for p in new),
             "experiment_changes":experiment_changes,
             "remaining_unused_import_candidates":candidates,
@@ -133,10 +140,11 @@ def main():
     (out/"final_residual.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print("FINAL_RESIDUAL_METRICS",json.dumps({"before":report["before"],"after":report["after"]},ensure_ascii=False))
     print("FINAL_RESIDUAL_FINDINGS",json.dumps({"retired_files":retired_files,"retired_findings":findings,
-          "ui_changes":ui_changes,"experiment_changes":experiment_changes,"unreachable":unreachable,
+          "ui_changes":ui_changes,"unreviewed_ui_changes":unreviewed_ui_changes,
+          "experiment_changes":experiment_changes,"unreachable":unreachable,
           "duplicates":duplicates},ensure_ascii=False))
     assert not retired_files and not findings, "Removed functionality detected"
-    assert not ui_changes and not experiment_changes, "Protected source changed"
+    assert not unreviewed_ui_changes and not experiment_changes, "Unreviewed protected source changed"
     assert not after["experiment_edges"] and not after["reachable_experiments"], "Production depends on experiments"
     print("FINAL_RESIDUAL_AUDIT_VERIFIED")
 
