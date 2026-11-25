@@ -35,7 +35,20 @@ jobs:
       - name: 전체 Python 구문 검사
         run: python -m compileall -q app.py title_editor.py src/playdock tests
       - name: pytest 회귀 검사
-        run: python -m pytest -q
+        run: python -X faulthandler -m pytest -q
+      - name: 실패 시 PR 기준 소스 대조
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: baseline
+          persist-credentials: false
+      - name: 기준 소스 Python 회귀 검사
+        if: failure() && github.event_name == 'pull_request'
+        working-directory: baseline
+        env:
+          PYTHONPATH: ${{ github.workspace }}/baseline/src/playdock:${{ github.workspace }}/baseline
+        run: python -X faulthandler -m pytest -q
 
   windows-tests:
     runs-on: windows-latest
