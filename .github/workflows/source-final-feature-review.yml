@@ -1,7 +1,7 @@
 name: PlayDock Windows 통합 기능·EXE 검증
 on:
   push:
-    branches: [main, refactor/source-audit-20261124, feature/ai-identity-import-20261124]
+    branches: [main, refactor/source-audit-20261124, feature/ai-identity-import-20261124, experiment/flat-dark-skin-20261125]
     paths:
       - app.py
       - title_editor.py
@@ -86,10 +86,12 @@ jobs:
           ./.venv/Scripts/python.exe scripts/verify_upgrade_compatibility.py --baseline ../final-upgrade-baseline --source . --dist dist --output final-evidence/upgrade.json
           exit $LASTEXITCODE
       - name: 최신 기준 기존 데이터와 설치기 호환 검증
-        if: github.head_ref == 'refactor/ui-cleanup-20261125'
+        if: github.head_ref == 'refactor/ui-cleanup-20261125' || github.ref_name == 'experiment/flat-dark-skin-20261125'
         shell: pwsh
         run: |
-          git worktree add --detach ../stage10-baseline 86635400e4c925ddfd63e144112214eaaf27f50b
+          $baseline = '86635400e4c925ddfd63e144112214eaaf27f50b'
+          if ($env:GITHUB_REF_NAME -eq 'experiment/flat-dark-skin-20261125') { $baseline = 'cfe9639c485a876348b1f023de95df4a3e3c3532' }
+          git worktree add --detach ../stage10-baseline $baseline
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./.venv/Scripts/python.exe scripts/verify_upgrade_compatibility.py --baseline ../stage10-baseline --source . --dist dist --output final-evidence/upgrade.json
           exit $LASTEXITCODE
