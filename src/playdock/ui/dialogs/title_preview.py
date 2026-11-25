@@ -39,6 +39,17 @@ from ui.widgets.buttons import configure_action_button
 from workers.title import BulkTitleWorker
 
 
+def _add_title_choice_actions(buttons, label, on_accept, on_reject):
+    buttons.addStretch(1)
+    apply = QPushButton(label)
+    configure_action_button(apply, 'Save')
+    apply.clicked.connect(on_accept)
+    buttons.addWidget(apply)
+    cancel = QPushButton('취소')
+    cancel.clicked.connect(on_reject)
+    buttons.addWidget(cancel)
+
+
 class BulkPreviewDialog(QDialog):
     """Opt-in review; no game data changes until user confirms checked rows."""
     def __init__(self, rows, requested_language: str, parent=None):
@@ -82,14 +93,7 @@ class BulkPreviewDialog(QDialog):
             self.table.setRowHeight(row_index, 47)
         layout.addWidget(self.table)
         buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        apply = QPushButton('선택한 제목 저장')
-        configure_action_button(apply, 'Save')
-        apply.clicked.connect(self.accept)
-        buttons.addWidget(apply)
-        cancel = QPushButton('취소')
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(cancel)
+        _add_title_choice_actions(buttons, '선택한 제목 저장', self.accept, self.reject)
         layout.addLayout(buttons)
 
     def selected_rows(self):
@@ -131,14 +135,7 @@ class KoreanWebCandidatesDialog(QDialog):
         self.open_source_btn = QPushButton('출처 페이지 열기')
         self.open_source_btn.clicked.connect(self.open_source)
         buttons.addWidget(self.open_source_btn)
-        buttons.addStretch(1)
-        apply = QPushButton('이 제목을 후보로 사용')
-        configure_action_button(apply, 'Save')
-        apply.clicked.connect(self.accept_candidate)
-        buttons.addWidget(apply)
-        cancel = QPushButton('취소')
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(cancel)
+        _add_title_choice_actions(buttons, '이 제목을 후보로 사용', self.accept_candidate, self.reject)
         layout.addLayout(buttons)
         if self.suggestions:
             self.listing.setCurrentRow(0)
