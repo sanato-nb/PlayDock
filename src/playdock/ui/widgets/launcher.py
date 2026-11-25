@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from ui.widgets.artwork_cache import artwork_pixmap
+from ui.selectors import add_selection_actions, draw_menu_chevron
 from functools import lru_cache
 from time import monotonic
 
@@ -130,11 +131,7 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
 
     def open_filter_menu(self):
         menu = QMenu(self)
-        for index, (label, _) in enumerate(self._options):
-            action = menu.addAction(label)
-            action.setCheckable(True)
-            action.setChecked(index == self._index)
-            action.triggered.connect(lambda _checked=False, i=index: self.setCurrentIndex(i))
+        add_selection_actions(menu, self._options, self._index, self.setCurrentIndex)
         self.present_popup(menu)
 
     def paintEvent(self, event):
@@ -145,7 +142,6 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         painter.setPen(QPen(QColor('#53728a' if self.underMouse() else '#355267'), 1))
         painter.setBrush(QColor(bg))
         painter.drawRoundedRect(bounds, 6, 6)
-        label = self._options[self._index][0] if self._options else '게임 라이브러리'
         short = {'all': '전체', 'installed': '설치됨', 'uninstalled': '미설치'}
         mode = self.currentData()
         badge_text = short.get(mode, '전체')
@@ -168,16 +164,7 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         arrow_y = self.height() // 2
         painter.setPen(QPen(QColor('#afd0e1'), 1.8, Qt.PenStyle.SolidLine,
                             Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        path = QPainterPath()
-        if self.is_menu_open():
-            path.moveTo(arrow_x - 5, arrow_y + 2)
-            path.lineTo(arrow_x, arrow_y - 3)
-            path.lineTo(arrow_x + 5, arrow_y + 2)
-        else:
-            path.moveTo(arrow_x - 5, arrow_y - 2)
-            path.lineTo(arrow_x, arrow_y + 3)
-            path.lineTo(arrow_x + 5, arrow_y - 2)
-        painter.drawPath(path)
+        draw_menu_chevron(painter, arrow_x, arrow_y, expanded=self.is_menu_open(), half_width=5, tip_height=3)
         painter.end()
 
 
@@ -204,16 +191,7 @@ class ChevronMenuButton(PopupMenuState, QPushButton):
         pen = QPen(QColor('#a9cadc' if self.isEnabled() else '#6e8393'), 1.8,
                    Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
-        path = QPainterPath()
-        if self.is_menu_open():
-            path.moveTo(cx - 4.5, cy + 2)
-            path.lineTo(cx, cy - 2.5)
-            path.lineTo(cx + 4.5, cy + 2)
-        else:
-            path.moveTo(cx - 4.5, cy - 2)
-            path.lineTo(cx, cy + 2.5)
-            path.lineTo(cx + 4.5, cy - 2)
-        painter.drawPath(path)
+        draw_menu_chevron(painter, cx, cy, expanded=self.is_menu_open(), half_width=4.5, tip_height=2.5)
         painter.end()
 
 
@@ -268,7 +246,6 @@ class Banner(QWidget):
             img = self.image
             ratio = max(area.width() / img.width(), area.height() / img.height())
             src_w, src_h = area.width() / ratio, area.height() / ratio
-            from PySide6.QtCore import QRectF
             source = QRectF((img.width() - src_w) / 2, (img.height() - src_h) / 2, src_w, src_h)
             p.drawPixmap(QRectF(area), img, source)
         else:
@@ -300,7 +277,6 @@ class Banner(QWidget):
         font = QFont("Malgun Gothic", 26, QFont.Weight.Bold)
         p.setFont(font)
         p.setPen(QColor("#fcfdff"))
-        from PySide6.QtCore import QRect
         title_rect = QRect(28, area.height() - 112, max(200, area.width() - 60), 66)
         rendered_title = p.fontMetrics().elidedText(self.title, Qt.TextElideMode.ElideRight, title_rect.width())
         alignment = Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
