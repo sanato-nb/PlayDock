@@ -13,11 +13,11 @@ class BulkOfficialArtworkDialog(QDialog):
         self.setWindowTitle("공식 배너·아이콘 적용 (여러 게임)")
         self.resize(850, 560)
         layout = QVBoxLayout(self)
-        heading = QLabel(f"전체 라이브러리 · 공식 이미지 후보 {len(self.rows)}개 게임")
+        heading = QLabel(f"공식 이미지 적용 가능 · 게임 {len(self.rows)}개")
         heading.setObjectName("Heading")
         layout.addWidget(heading)
-        hint = QLabel("적용할 게임별 배너·아이콘을 체크하세요. 기존 이미지는 기본적으로 유지됩니다.\n"
-                      "비어 있는 이미지만 일괄 선택하거나, 기존 이미지도 직접 선택해 교체할 수 있습니다.")
+        hint = QLabel("적용할 배너와 아이콘을 선택해 주세요. 기존 이미지는 기본적으로 유지됩니다.\n"
+                      "미등록 이미지를 한 번에 선택하거나 기존 이미지를 선택해 교체할 수 있습니다.")
         hint.setWordWrap(True)
         layout.addWidget(hint)
         self.table = QTableWidget(len(self.rows), 4)
@@ -33,7 +33,7 @@ class BulkOfficialArtworkDialog(QDialog):
                 self.table.setItem(i, col, item)
             for col, kind in ((2,"hero"),(3,"icon")):
                 item = QTableWidgetItem("후보 없음" if kind not in kinds else
-                                        "기존 이미지 있음" if kind in existing else "이미지 없음")
+                                        "보유" if kind in existing else "미등록")
                 item.setFlags((Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
                               if kind in kinds else Qt.ItemFlag.NoItemFlags)
                 if kind in kinds:
@@ -41,7 +41,7 @@ class BulkOfficialArtworkDialog(QDialog):
                 self.table.setItem(i, col, item)
         layout.addWidget(self.table, 1)
         buttons = QHBoxLayout()
-        missing = QPushButton("빈 이미지 전체 선택")
+        missing = QPushButton("미등록 이미지 선택")
         missing.clicked.connect(self.select_missing)
         buttons.addWidget(missing)
         all_images = QPushButton("전체 선택")
@@ -120,7 +120,7 @@ class BulkArtworkProgressDialog(QDialog):
         if self.running:
             self.worker.requestInterruption()
             self.stop.setEnabled(False)
-            self.label.setText("중단 요청 · 현재 이미지 처리 종료 대기")
+            self.label.setText("중단 요청 중… 현재 이미지 처리가 끝나면 중단합니다.")
         else:
             super().reject()
 
