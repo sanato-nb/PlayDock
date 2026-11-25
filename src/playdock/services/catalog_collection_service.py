@@ -63,8 +63,10 @@ def game_catalog_entries(library, games):
             saved_steam = str(meta.get("steam_app_id") or "").strip()
             if STEAM_ID.fullmatch(saved_steam):
                 appid = saved_steam
-        if not code and codes_in(label):
-            code = codes_in(label)[0]
+        if not code:
+            filename_codes = codes_in(label)
+            if filename_codes:
+                code = filename_codes[0]
         output.append(CatalogEntry(
             game.id, label, "archive" if game.archive else "manual",
             code, appid, "product_code" in meta and not meta.get("product_code"),

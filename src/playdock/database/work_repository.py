@@ -585,9 +585,13 @@ class WorkDatabase:
         code = str(code or "").strip()
         if store == "dlsite":
             code = code.upper()
-        if not game_id or not self.get_official_work(store, code):
+        if not game_id or store not in ('dlsite', 'steam'):
             return False
         with self.connect() as con:
+            row = con.execute('SELECT * FROM works WHERE store=? AND code=?',
+                              (store, code)).fetchone()
+            if not self._verified_record(row, store, code):
+                return False
             con.execute(
                 """INSERT INTO library_links (game_id,store,code) VALUES (?,?,?)
                 ON CONFLICT(game_id) DO UPDATE SET

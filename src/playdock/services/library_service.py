@@ -38,13 +38,15 @@ class Library:
             # v0.1.1 stored both archives and games under `library`. Keep the old
             # folder as the archive source until the user explicitly changes it.
             self.settings = dict(existing)
-            self.settings.setdefault("archives", self.settings.get("library", str(default_library())))
-            self.settings.setdefault("library", str(default_library()))
+            if "library" not in self.settings:
+                self.settings["library"] = str(default_library())
+            self.settings.setdefault("archives", self.settings["library"])
             self.settings.setdefault("auto_art", False)
         else:
+            default = default_library()
             self.settings = {
-                "library": str(default_library()),
-                "archives": str(default_library().parent / "game_archives"),
+                "library": str(default),
+                "archives": str(default.parent / "game_archives"),
                 "auto_art": False,
             }
         self.manual_path = self.store / "manual_games.json"

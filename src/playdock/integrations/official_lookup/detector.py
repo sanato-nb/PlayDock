@@ -13,7 +13,6 @@ from urllib.parse import urlsplit, urlencode
 from urllib.request import Request, urlopen
 import json
 import re
-import unicodedata
 
 from .search_terms import cleaned_search_title, search_title_variants
 
