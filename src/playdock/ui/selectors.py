@@ -13,26 +13,7 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QPushButton, QMenu
 
 
-DARK_POPUP_STYLE = """
-QMenu {
-    background-color:#182a3b;
-    color:#ecf4fc;
-    border:1px solid #4b6b85;
-    padding:5px;
-    font-family:'Malgun Gothic','Segoe UI',sans-serif;
-    font-size:13px;
-}
-QMenu::item {
-    color:#ecf4fc;
-    background-color:#182a3b;
-    padding:9px 18px 9px 25px;
-    margin:2px 1px;
-    min-height:20px;
-}
-QMenu::item:selected { background-color:#365a76; color:#ffffff; }
-QMenu::item:disabled { color:#8092a2; }
-QMenu::indicator:checked { image:none; }
-"""
+from ui.styles import DARK_POPUP_STYLE, DARK_SELECTOR_STYLESHEET
 
 
 def draw_menu_chevron(painter, cx, cy, *, expanded, half_width, tip_height):
@@ -77,16 +58,7 @@ class DarkMenuSelect(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(37)
         self.setObjectName('DarkMenuSelect')
-        self.setStyleSheet('''
-            QPushButton#DarkMenuSelect {
-                background-color:#1e3143; color:#f3f8fc;
-                border:1px solid #496b82; border-radius:4px;
-                padding:8px 31px 8px 11px;
-                text-align:left;
-            }
-            QPushButton#DarkMenuSelect:hover { background-color:#28465e; border-color:#76a6c2; }
-            QPushButton#DarkMenuSelect:pressed { background-color:#31546e; }
-        ''')
+        self.setStyleSheet(DARK_SELECTOR_STYLESHEET)
         self.clicked.connect(self._show_menu)
 
     def addItem(self, text: str, userData=None):
