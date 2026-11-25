@@ -34,9 +34,36 @@ def test_all_dropdowns_use_async_popups_not_blocking_exec():
 def test_arrow_points_up_when_open_for_filter_and_image_more_buttons():
     assert 'class LibraryFilterButton(PopupMenuState, QPushButton)' in APP
     assert 'class ChevronMenuButton(PopupMenuState, QPushButton)' in APP
-    assert 'if self.is_menu_open():' in APP
-    assert 'path.lineTo(arrow_x, arrow_y - 3)' in APP
-    assert 'path.lineTo(cx, cy - 2.5)' in APP
+    assert 'draw_menu_chevron(painter, arrow_x, arrow_y, expanded=self.is_menu_open(), half_width=5, tip_height=3)' in APP
+    assert 'draw_menu_chevron(painter, cx, cy, expanded=self.is_menu_open(), half_width=4.5, tip_height=2.5)' in APP
+    # Verify the shared implementation rather than requiring duplicated paths.
+    selector = (Path(__file__).resolve().parents[1] / 'src/playdock/ui/selectors.py').read_text('utf-8')
+    helper = next(node for node in ast.parse(selector).body
+                  if isinstance(node, ast.FunctionDef) and node.name == 'draw_menu_chevron')
+
+    class RecordingPath:
+        def __init__(self):
+            self.points = []
+        def moveTo(self, x, y):
+            self.points.append((x, y))
+        def lineTo(self, x, y):
+            self.points.append((x, y))
+
+    class Painter:
+        def drawPath(self, path):
+            self.points = path.points
+
+    ns = {'QPainterPath': RecordingPath}
+    exec(compile(ast.Module(body=[helper], type_ignores=[]), '<chevron>', 'exec'), ns)
+    for half_width, tip_height in ((5, 3), (4.5, 2.5)):
+        for expanded in (True, False):
+            painter = Painter()
+            ns['draw_menu_chevron'](painter, 20, 10, expanded=expanded,
+                                    half_width=half_width, tip_height=tip_height)
+            sign = 1 if expanded else -1
+            assert painter.points == [(20 - half_width, 10 + sign * 2),
+                                      (20, 10 - sign * tip_height),
+                                      (20 + half_width, 10 + sign * 2)]
     assert 'menu.aboutToHide.connect(finished)' in APP
 
 

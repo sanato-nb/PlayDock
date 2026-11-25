@@ -182,7 +182,14 @@ def test_controller_sends_only_eligible_entries_to_worker(app, tmp_path, monkeyp
 def test_topbar_placement_separates_official_and_manual_actions():
     root = Path(__file__).resolve().parents[1]
     ui = (root / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
-    top, bottom = ui.split("outer.addWidget(top)", 1)
+    import ast
+    sections = {node.name: ast.get_source_segment(ui, node)
+                for node in ast.parse(ui).body if isinstance(node, ast.FunctionDef)}
+    top = sections["_build_top_bar"]
+    bottom = "\n".join(body for name, body in sections.items() if name != "_build_top_bar")
+    main = sections["build_main_ui"]
+    assert main.index("_build_top_bar(") < main.index("_build_game_details(")
+    assert "_build_sidebar(" in main
     assert top.index("게임 정보 수집") < top.index("새로고침") < top.index("'기능'") < top.index('"설정"')
     assert "게임 정보 수집" not in bottom
     assert "self.extra_menu_btn = ChevronMenuButton('게임 관리')" in bottom

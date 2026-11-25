@@ -170,7 +170,14 @@ def test_source_menu_order_and_sidebar_duplicates_removed():
     layout = (root / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
     code = (root / "src/playdock/controllers/library.py").read_text("utf-8")
     actions = (root / "src/playdock/controllers/window_actions.py").read_text("utf-8")
-    top, detail = layout.split("outer.addWidget(top)", 1)
+    import ast
+    sections = {node.name: ast.get_source_segment(layout, node)
+                for node in ast.parse(layout).body if isinstance(node, ast.FunctionDef)}
+    top = sections["_build_top_bar"]
+    detail = "\n".join(body for name, body in sections.items() if name != "_build_top_bar")
+    main = sections["build_main_ui"]
+    assert main.index("_build_top_bar(") < main.index("_build_game_details(")
+    assert "_build_sidebar(" in main
     assert top.index('"게임 정보 수집"') < top.index('"새로고침"')
     assert top.index('"새로고침"') < top.index("ChevronMenuButton('기능')") < top.index('ChevronMenuButton("설정")')
     assert "ChevronMenuButton('게임 관리')" not in top
