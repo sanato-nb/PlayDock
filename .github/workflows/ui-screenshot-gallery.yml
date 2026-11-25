@@ -1,8 +1,9 @@
-name: PlayDock 전체 UI 화면 검수
+name: PlayDock 플랫 다크 스킨 시안 검수
 on:
   push:
-    branches: [review/ui-screenshots-20261125]
+    branches: [experiment/flat-dark-skin-20261125]
     paths:
+      - src/playdock/ui/**
       - scripts/capture_all_ui_windows.py
       - .github/workflows/ui-screenshot-gallery.yml
   workflow_dispatch:
@@ -23,12 +24,23 @@ jobs:
         with:
           python-version: "3.12"
       - name: 캡처 환경 설치
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements.txt pytest
       - name: 실제 Qt 및 Tk UI 캡처
         run: python scripts/capture_all_ui_windows.py --out screenshot-gallery
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: PlayDock-native-UI-screenshot-gallery
+          name: PlayDock-flat-dark-skin-gallery
           path: screenshot-gallery/
           if-no-files-found: error
+
+      - name: 전체 기능 회귀 테스트
+        if: always()
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: python -m pytest -q --junitxml=skin-test-results.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-flat-dark-regression
+          path: skin-test-results.xml
