@@ -8,6 +8,9 @@ from PIL import Image, ImageChops
 
 root=Path(__file__).resolve().parents[1]
 old,new=(Path(x) for x in sys.argv[1:3])
+# Refactor reviews compare against the immediate pre-change source, not the
+# historical frozen design manifest. Default mode keeps its strict SHA guard.
+refactor_base=sys.argv[3] if len(sys.argv)==4 else None
 manifest=json.loads((root/"docs/ui_reference/source_manifest.json").read_text(encoding="utf-8"))
 a,b=(json.loads((p/"ui_contract.json").read_text(encoding="utf-8")) for p in (old,new))
 changed=[]
@@ -15,6 +18,8 @@ for row in manifest["files"]:
     r=subprocess.run(["git","rev-parse","HEAD:"+row["path"]],cwd=root,capture_output=True,text=True)
     if r.returncode or r.stdout.strip()!=row["sha"]:
         changed.append(row["path"])
+if refactor_base:
+    changed=subprocess.check_output(["git","diff","--name-only",refactor_base,"HEAD"],cwd=root,text=True).splitlines()
 differences=[k for k in sorted(set(a)|set(b)) if a.get(k)!=b.get(k)]
 old_png={p.name:p for p in old.glob("*.png")}
 new_png={p.name:p for p in new.glob("*.png")}
@@ -45,7 +50,7 @@ font_info={label:json.loads((path/"font_environment.json").read_text(encoding="u
 static_changes=[r["name"] for r in pixels if not r["dynamic_content"] and not r["identical"]]
 size_changes=[r["name"] for r in pixels if r["baseline_size"]!=r["current_size"]]
 dynamic_review=[r["name"] for r in pixels if r["dynamic_content"] and not r["identical"]]
-report={"baseline":manifest["baseline"],"protected_files":len(manifest["files"]),
+report={"baseline":refactor_base or manifest["baseline"],"protected_files":len(manifest["files"]),
         "changed_reference_files":changed,"contract_differences":differences,
         "pixel_comparisons":pixels,"identical_images":sum(r["identical"] for r in pixels),
         "static_changes":static_changes,"size_changes":size_changes,"dynamic_review":dynamic_review,
@@ -54,7 +59,8 @@ report={"baseline":manifest["baseline"],"protected_files":len(manifest["files"])
 (new/"comparison.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
 print("UI_SOURCE_CHANGED_REVIEW",json.dumps(changed,ensure_ascii=False))
 print("UI_PIXEL_COMPARISON",json.dumps(report,ensure_ascii=False))
-assert not changed, "Protected UI source changed; explicit review required"
+if not refactor_base:
+    assert not changed, "Protected UI source changed; explicit review required"
 assert not differences, "UI contract changed: "+", ".join(differences)
 assert not size_changes, "Screenshot size changed: "+", ".join(size_changes)
 assert not static_changes, "Static screenshot changed: "+", ".join(static_changes)

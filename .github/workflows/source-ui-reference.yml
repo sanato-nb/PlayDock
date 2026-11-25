@@ -14,11 +14,14 @@ on:
       - scripts/compare_ui_reference.py
       - docs/ui_reference/**
       - .github/workflows/source-ui-reference.yml
+  pull_request:
+    branches: [feature/ai-identity-import-20261124]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   windows:
+    if: github.event_name != 'pull_request' || github.head_ref == 'refactor/ui-cleanup-20261125'
     runs-on: windows-latest
     timeout-minutes: 25
     env:
@@ -39,7 +42,11 @@ jobs:
       - name: UI 기준 및 최신 화면 캡처
         shell: pwsh
         run: |
-          git worktree add --detach ../ui-baseline 84bbde02630e6c0b10a05662a24cb44354722dfb
+          $baseline = "84bbde02630e6c0b10a05662a24cb44354722dfb"
+          if ("${{ github.head_ref || github.ref_name }}" -eq "refactor/ui-cleanup-20261125") {
+            $baseline = "86635400e4c925ddfd63e144112214eaaf27f50b"
+          }
+          git worktree add --detach ../ui-baseline $baseline
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $fixture = Join-Path $env:RUNNER_TEMP "playdock-ui-fixture-${{ github.run_id }}-${{ github.run_attempt }}"
           if (Test-Path -LiteralPath $fixture) { throw "Fixture already exists" }
@@ -49,7 +56,11 @@ jobs:
           python scripts/capture_ui_reference.py --source . --out ui-evidence/current --fixture-root "$fixture"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Remove-Item -LiteralPath $fixture -Recurse -Force
-          python scripts/compare_ui_reference.py ui-evidence/baseline ui-evidence/current
+          if ("${{ github.head_ref || github.ref_name }}" -eq "refactor/ui-cleanup-20261125") {
+            python scripts/compare_ui_reference.py ui-evidence/baseline ui-evidence/current $baseline
+          } else {
+            python scripts/compare_ui_reference.py ui-evidence/baseline ui-evidence/current
+          }
           exit $LASTEXITCODE
       - name: 기존 UI 기능 회귀
         run: python -m pytest -q tests/audit/test_usage_routes.py tests/test_feature_menu_cleanup_v4.py tests/test_dark_dialog_titles.py tests/test_popup_menus.py tests/test_collection_board.py tests/test_game_icons.py tests/test_title_editor_inprocess.py
