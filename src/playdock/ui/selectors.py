@@ -124,7 +124,7 @@ class DarkMenuSelect(QPushButton):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(QPen(QColor('#d4e7f5'), 1.8, Qt.PenStyle.SolidLine,
+        painter.setPen(QPen(QColor('#e2e4e7'), 1.8, Qt.PenStyle.SolidLine,
                             Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         cx, cy = self.width() - 16, self.height() / 2
         draw_menu_chevron(painter, cx, cy, expanded=self._menu_open, half_width=5, tip_height=3)

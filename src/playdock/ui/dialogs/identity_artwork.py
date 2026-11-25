@@ -45,7 +45,7 @@ class IdentityArtworkDialog(QDialog):
             "체크하지 않으면 기존 이미지를 그대로 유지합니다. 기본값은 둘 다 적용하지 않음입니다."
         )
         notice.setWordWrap(True)
-        notice.setStyleSheet("color:#9db0c3;")
+        notice.setStyleSheet("color:#abadb0;")
         layout.addWidget(notice)
 
         panels = QHBoxLayout()
@@ -60,7 +60,7 @@ class IdentityArtworkDialog(QDialog):
             message = QLabel("참고: " + " · ".join(str(w) for w in warnings[:2])[:350])
             message.setTextFormat(Qt.TextFormat.PlainText)
             message.setWordWrap(True)
-            message.setStyleSheet("color:#a8afbd;")
+            message.setStyleSheet("color:#adafb2;")
             layout.addWidget(message)
 
         link = QPushButton(f"{site} 공식 작품 페이지 열기")
@@ -94,7 +94,7 @@ class IdentityArtworkDialog(QDialog):
         preview.setMinimumWidth(230)
         preview.setWordWrap(True)
         preview.setStyleSheet(
-            "background:#101923; color:#9aaaba; border:1px solid #344b60; border-radius:6px;"
+            "background:#131518; color:#a6a8ab; border:1px solid #343b43; border-radius:6px;"
         )
         if offer is not None and getattr(offer, "preview", None):
             pixmap = QPixmap()
@@ -112,7 +112,7 @@ class IdentityArtworkDialog(QDialog):
                        else "현재 이미지 없음" if offer is not None
                        else "공식 이미지 없음 · 변경 불가")
         state.setWordWrap(True)
-        state.setStyleSheet("color:#9db0c3; font-size:11px;")
+        state.setStyleSheet("color:#abadb0; font-size:11px;")
         card.addWidget(state)
         row.addWidget(frame, 1)
         return checkbox

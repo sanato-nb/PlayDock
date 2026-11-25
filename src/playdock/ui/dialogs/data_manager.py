@@ -43,10 +43,10 @@ class DataManagerDialog(ThemedDialog):
         self.body.addWidget(tip)
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet("""
-            QTabWidget::pane { border:1px solid #324a60; background:#1d2835; }
-            QTabBar::tab { padding:9px 13px; background:#233547; border:1px solid #354b5c;
-                           color:#b9c8d9; margin-right:3px; }
-            QTabBar::tab:selected { background:#34526a; color:#fff; }
+            QTabWidget::pane { border:1px solid #44464a; background:#202327; }
+            QTabBar::tab { padding:9px 13px; background:#272b30; border:1px solid #46484c;
+                           color:#c4c6c9; margin-right:3px; }
+            QTabBar::tab:selected { background:#25465e; color:#fff; }
         """)
         self.body.addWidget(self.tabs)
         self._create_inventory_tab()

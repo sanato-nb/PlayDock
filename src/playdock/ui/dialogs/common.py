@@ -33,7 +33,7 @@ class DialogCloseButton(QPushButton):
         super().paintEvent(event)
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-        painter.setPen(QPen(QColor('#e3edf7'), 1.7, Qt.PenStyle.SolidLine,
+        painter.setPen(QPen(QColor('#eaecef'), 1.7, Qt.PenStyle.SolidLine,
                             Qt.PenCapStyle.RoundCap))
         cx, cy = self.width() / 2, self.height() / 2
         painter.drawLine(QPointF(cx - 4.5, cy - 4.5), QPointF(cx + 4.5, cy + 4.5))

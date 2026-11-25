@@ -19,9 +19,9 @@ from models.collection_board import (list_collection_cards, member_games, unassi
                                      partition_collection_games)
 
 PALETTES = [
-    ("#294a67", "#47677e"), ("#35445c", "#665069"),
-    ("#253e49", "#3f6669"), ("#735042", "#ad745c"),
-    ("#524321", "#ad7929"), ("#454859", "#626a87"),
+    ("#434549", "#606266"), ("#414347", "#665069"),
+    ("#37393d", "#5c5e62"), ("#735042", "#ad745c"),
+    ("#524321", "#ad7929"), ("#47494d", "#686a6e"),
     ("#384827", "#758048"), ("#625054", "#976b75"),
 ]
 
@@ -57,14 +57,14 @@ class ArtworkTile(QPushButton):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
         w, h = self.width(), self.height()
         if self.is_create:
-            p.setPen(QPen(QColor('#455669'), 2))
-            p.setBrush(QColor('#202b39'))
+            p.setPen(QPen(QColor('#525458'), 2))
+            p.setBrush(QColor('#282a2e'))
             p.drawRoundedRect(QRectF(2, 2, w - 4, h - 4), 5, 5)
-            p.setPen(QPen(QColor('#edf6fb'), 4))
+            p.setPen(QPen(QColor('#f2f4f7'), 4))
             cx, cy = w // 2, 78
             p.drawLine(cx - 13, cy, cx + 13, cy)
             p.drawLine(cx, cy - 13, cx, cy + 13)
-            p.setPen(QColor('#f1f6fb'))
+            p.setPen(QColor('#f3f5f8'))
             p.setFont(QFont('Malgun Gothic', 11, QFont.Weight.DemiBold))
             p.drawText(QRect(10, 126, w - 20, 60), Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
                        self.title)
@@ -109,15 +109,15 @@ class ArtworkTile(QPushButton):
         shade.setColorAt(1, QColor(11, 17, 25, 215))
         p.fillRect(QRect(0, 79, w, h - 79), shade)
         p.restore()
-        p.setPen(QColor('#f6faff'))
+        p.setPen(QColor('#f8fafd'))
         p.setFont(QFont('Malgun Gothic', 11, QFont.Weight.Bold))
         p.drawText(QRect(10, 142, w - 20, 51), Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
                    | Qt.TextFlag.TextWordWrap, self.title)
         p.setFont(QFont('Malgun Gothic', 10))
-        p.setPen(QColor('#e0e9f0'))
+        p.setPen(QColor('#e6e8eb'))
         p.drawText(QRect(8, 191, w - 16, 22), Qt.AlignmentFlag.AlignCenter, self.count)
         if self.underMouse():
-            p.setPen(QPen(QColor('#79badf'), 2))
+            p.setPen(QPen(QColor('#adafb2'), 2))
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.drawRoundedRect(QRectF(2, 2, w - 4, h - 4), 5, 5)
         p.end()

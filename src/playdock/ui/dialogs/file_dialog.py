@@ -34,7 +34,7 @@ from ui.dialogs.common import DialogCloseButton
 def _file_toolbar_icon(name):
     """Use high-contrast vector strokes instead of Fusion's dark arrow assets."""
     icon = QIcon()
-    for mode, color in ((QIcon.Mode.Normal, "#e3edf7"), (QIcon.Mode.Disabled, "#748495")):
+    for mode, color in ((QIcon.Mode.Normal, "#eaecef"), (QIcon.Mode.Disabled, "#808285")):
         pix = QPixmap(20, 20)
         pix.fill(Qt.GlobalColor.transparent)
         p = QPainter(pix)
@@ -116,12 +116,12 @@ def style_file_dialog(dialog):
     height = min(600, max(240, area.height() - 64)) if area is not None else 600
     dialog.resize(max(dialog.width(), width), max(dialog.height(), height))
     palette = dialog.palette()
-    for role, color in ((QPalette.ColorRole.Window, "#1d2835"),
-                        (QPalette.ColorRole.Base, "#141e29"),
-                        (QPalette.ColorRole.AlternateBase, "#1b2938"),
-                        (QPalette.ColorRole.Text, "#edf5fc"),
-                        (QPalette.ColorRole.WindowText, "#e5eef7"),
-                        (QPalette.ColorRole.Highlight, "#315d7f"),
+    for role, color in ((QPalette.ColorRole.Window, "#202327"),
+                        (QPalette.ColorRole.Base, "#15171a"),
+                        (QPalette.ColorRole.AlternateBase, "#1c1f23"),
+                        (QPalette.ColorRole.Text, "#f2f4f7"),
+                        (QPalette.ColorRole.WindowText, "#ebedf0"),
+                        (QPalette.ColorRole.Highlight, "#234d6b"),
                         (QPalette.ColorRole.HighlightedText, "#ffffff")):
         palette.setColor(role, QColor(color))
     dialog.setPalette(palette)
@@ -192,13 +192,13 @@ class PlayDockFileDialog(QFileDialog):
         self._caption = QFrame(self)
         self._caption.setObjectName("FileDialogCaption")
         self._caption.setStyleSheet(
-            "QFrame#FileDialogCaption { background:#111923; border:none;"
-            " border-bottom:1px solid #31465a; }"
-            "QLabel#FileDialogTitle { color:#e7f1fb; background:transparent;"
+            "QFrame#FileDialogCaption { background:#121416; border:none;"
+            " border-bottom:1px solid #383d43; }"
+            "QLabel#FileDialogTitle { color:#eef0f3; background:transparent;"
             " font-size:13px; font-weight:600; }"
             "QPushButton#DialogClose { background:transparent; border:none;"
             " padding:0; min-width:30px; min-height:26px; }"
-            "QPushButton#DialogClose:hover { background:#35506d; }"
+            "QPushButton#DialogClose:hover { background:#233d52; }"
         )
         header = QHBoxLayout(self._caption)
         header.setContentsMargins(10, 0, 3, 0)

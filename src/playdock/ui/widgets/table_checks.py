@@ -7,8 +7,8 @@ from PySide6.QtWidgets import QApplication, QStyle, QStyleOptionViewItem, QStyle
 def _draw_check(painter, box, checked):
     """Shared checkbox palette and geometry."""
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(QColor("#59b8ee" if checked else "#8bb4ce"), 1.5))
-    painter.setBrush(QColor("#207cac" if checked else "#101923"))
+    painter.setPen(QPen(QColor("#49a8ef" if checked else "#8a929d"), 1.5))
+    painter.setBrush(QColor("#167bc4" if checked else "#131518"))
     painter.drawRoundedRect(box, 3, 3)
     if checked:
         painter.setPen(QPen(QColor("#ffffff"), 2, Qt.PenStyle.SolidLine,
@@ -91,7 +91,7 @@ class CandidateCheckDelegate(StatusCheckDelegate):
     def paint(self, painter, option, index):
         QStyledItemDelegate.paint(self, painter, option, index)
         painter.save()
-        painter.fillRect(option.rect, QColor("#1b2836"))
+        painter.fillRect(option.rect, QColor("#1b1e22"))
         checked = index.data(Qt.ItemDataRole.CheckStateRole) == Qt.CheckState.Checked.value
         box = QRectF(option.rect.center().x()-9, option.rect.center().y()-9, 18, 18)
         _draw_check(painter, box, checked)

@@ -28,7 +28,7 @@ def _render_collection_chevron(expanded: bool) -> QPixmap:
     pic.fill(Qt.GlobalColor.transparent)
     painter = QPainter(pic)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
-    painter.setPen(QPen(QColor('#a6c3d7'), 3.0, Qt.PenStyle.SolidLine,
+    painter.setPen(QPen(QColor('#bcbec1'), 3.0, Qt.PenStyle.SolidLine,
                         Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
     path = QPainterPath()
     if expanded:  # down arrow
@@ -144,8 +144,8 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         bounds = QRectF(self.rect()).adjusted(0.6, 0.6, -0.6, -0.6)
-        bg = '#294a63' if self.is_menu_open() else '#294258' if self.isDown() else '#253b50' if self.underMouse() else '#1e3143'
-        painter.setPen(QPen(QColor('#53728a' if self.underMouse() else '#355267'), 1))
+        bg = '#283c4c' if self.is_menu_open() else '#29333e' if self.isDown() else '#30363d' if self.underMouse() else '#24282d'
+        painter.setPen(QPen(QColor('#6b6d71' if self.underMouse() else '#4b4d51'), 1))
         painter.setBrush(QColor(bg))
         painter.drawRoundedRect(bounds, 6, 6)
         short = {'all': '전체', 'installed': '설치됨', 'uninstalled': '미설치'}
@@ -155,11 +155,11 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         badge_x = self.width() - badge_width - 28
         badge_rect = QRectF(badge_x, 8, badge_width, self.height() - 16)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor('#335673'))
+        painter.setBrush(QColor('#26445d'))
         painter.drawRoundedRect(badge_rect, 4, 4)
-        painter.setPen(QColor('#a8dafa'))
+        painter.setPen(QColor('#a7d7f6'))
         painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
-        painter.setPen(QColor('#e4edf5'))
+        painter.setPen(QColor('#eaecef'))
         # Prefer the stable section label; status lives in its separate badge.
         base_label = '게임 라이브러리'
         text_rect = QRect(12, 0, max(20, int(badge_x) - 20), self.height())
@@ -168,7 +168,7 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         # Right-hand chevron is drawn at a fixed 2:1 aspect ratio.
         arrow_x = self.width() - 17
         arrow_y = self.height() // 2
-        painter.setPen(QPen(QColor('#afd0e1'), 1.8, Qt.PenStyle.SolidLine,
+        painter.setPen(QPen(QColor('#c8cacd'), 1.8, Qt.PenStyle.SolidLine,
                             Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         draw_menu_chevron(painter, arrow_x, arrow_y, expanded=self.is_menu_open(), half_width=5, tip_height=3)
         painter.end()
@@ -194,7 +194,7 @@ class ChevronMenuButton(PopupMenuState, QPushButton):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         cx = self.width() - 15
         cy = self.height() / 2
-        pen = QPen(QColor('#a9cadc' if self.isEnabled() else '#6e8393'), 1.8,
+        pen = QPen(QColor('#c2c4c7' if self.isEnabled() else '#7e8083'), 1.8,
                    Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         draw_menu_chevron(painter, cx, cy, expanded=self.is_menu_open(), half_width=4.5, tip_height=2.5)
@@ -213,16 +213,16 @@ def friendly_bytes(num: int) -> str:
 def game_placeholder_icon() -> QIcon:
     """A neutral gamepad, never a folder / ZIP icon or fake cover artwork."""
     pix = QPixmap(56, 56)
-    pix.fill(QColor("#1c3347"))
+    pix.fill(QColor("#252b32"))
     painter = QPainter(pix)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(QColor("#81bbde"), 2.2))
-    painter.setBrush(QBrush(QColor("#285875")))
+    painter.setPen(QPen(QColor("#7db9e4"), 2.2))
+    painter.setBrush(QBrush(QColor("#394c5b")))
     painter.drawRoundedRect(7, 14, 42, 28, 12, 12)
-    painter.setPen(QPen(QColor("#e9f5ff"), 3))
+    painter.setPen(QPen(QColor("#f1f3f6"), 3))
     painter.drawLine(16, 27, 28, 27)
     painter.drawLine(22, 21, 22, 33)
-    painter.setPen(QPen(QColor("#bdeafa"), 2.5))
+    painter.setPen(QPen(QColor("#e0e2e5"), 2.5))
     painter.drawPoint(37, 25)
     painter.drawPoint(42, 31)
     painter.end()
@@ -256,22 +256,22 @@ class Banner(QWidget):
             p.drawPixmap(QRectF(area), img, source)
         else:
             gradient = QLinearGradient(0, 0, area.width(), area.height())
-            gradient.setColorAt(0, QColor("#1b4159"))
-            gradient.setColorAt(0.52, QColor("#265b76"))
-            gradient.setColorAt(1, QColor("#152635"))
+            gradient.setColorAt(0, QColor("#20262c"))
+            gradient.setColorAt(0.52, QColor("#343d46"))
+            gradient.setColorAt(1, QColor("#171a1e"))
             p.fillRect(area, gradient)
             p.setPen(QPen(QColor(255, 255, 255, 14), 5))
             for i in range(-8, 15):
                 x = i * 130
                 p.drawLine(x, 0, x + 490, area.height())
         fade = QLinearGradient(0, 0, area.width() * 0.73, 0)
-        fade.setColorAt(0, QColor(6, 13, 20, 210))
-        fade.setColorAt(0.65, QColor(8, 17, 25, 85))
-        fade.setColorAt(1, QColor(8, 17, 25, 0))
+        fade.setColorAt(0, QColor(10, 11, 13, 210))
+        fade.setColorAt(0.65, QColor(12, 13, 16, 85))
+        fade.setColorAt(1, QColor(12, 13, 16, 0))
         p.fillRect(area, fade)
         bottom = QLinearGradient(0, area.height() * 0.67, 0, area.height())
-        bottom.setColorAt(0, QColor(12, 20, 30, 0))
-        bottom.setColorAt(1, QColor(13, 22, 32, 190))
+        bottom.setColorAt(0, QColor(14, 15, 18, 0))
+        bottom.setColorAt(1, QColor(18, 19, 22, 190))
         p.fillRect(area, bottom)
         # Extra contrast only on real artwork; no change to stored image or placeholder.
         if not self.image.isNull():
@@ -293,7 +293,7 @@ class Banner(QWidget):
         p.drawText(title_rect, alignment, rendered_title)
         font = QFont("Malgun Gothic", 11)
         p.setFont(font)
-        p.setPen(QColor("#cbdde7"))
+        p.setPen(QColor("#d8dadd"))
         p.drawText(30, area.height() - 26, self.subtitle)
         p.end()
 
