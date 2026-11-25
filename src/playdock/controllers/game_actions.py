@@ -169,7 +169,10 @@ class GameActionControllerMixin:
             self.pick_exe()
             if not self.library.meta(game).get("executable"):
                 return
-        exe = chosen_executable(self.library, game)
+            # The dialog can change files or metadata; resolve again afterwards.
+            exe = chosen_executable(self.library, game)
+        else:
+            exe = chosen_executable(self.library, game, candidates=candidates)
         if not exe:
             self.pick_exe()
             exe = chosen_executable(self.library, game)
