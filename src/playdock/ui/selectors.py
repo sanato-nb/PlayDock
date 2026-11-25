@@ -35,6 +35,29 @@ QMenu::indicator:checked { image:none; }
 """
 
 
+def draw_menu_chevron(painter, cx, cy, *, expanded, half_width, tip_height):
+    """Draw a menu arrow while preserving each widget's own geometry and pen."""
+    path = QPainterPath()
+    if expanded:
+        path.moveTo(cx - half_width, cy + 2)
+        path.lineTo(cx, cy - tip_height)
+        path.lineTo(cx + half_width, cy + 2)
+    else:
+        path.moveTo(cx - half_width, cy - 2)
+        path.lineTo(cx, cy + tip_height)
+        path.lineTo(cx + half_width, cy - 2)
+    painter.drawPath(path)
+
+
+def add_selection_actions(menu, entries, current_index, select):
+    """Populate checkable menu options with their original index callbacks."""
+    for index, (label, _data) in enumerate(entries):
+        action = menu.addAction(label)
+        action.setCheckable(True)
+        action.setChecked(index == current_index)
+        action.triggered.connect(lambda _checked=False, i=index: select(i))
+
+
 class DarkMenuSelect(QPushButton):
     """Dropdown selector whose options always have a dark, readable popup.
 
@@ -109,11 +132,7 @@ class DarkMenuSelect(QPushButton):
         menu = QMenu(self)
         menu.setStyleSheet(DARK_POPUP_STYLE)
         menu.setMinimumWidth(self.width())
-        for index, (label, _data) in enumerate(self._entries):
-            action = menu.addAction(label)
-            action.setCheckable(True)
-            action.setChecked(index == self._index)
-            action.triggered.connect(lambda _checked=False, i=index: self.setCurrentIndex(i))
+        add_selection_actions(menu, self._entries, self._index, self.setCurrentIndex)
         self._menu = menu
         self._menu_open = True
         self.update()
@@ -136,14 +155,5 @@ class DarkMenuSelect(QPushButton):
         painter.setPen(QPen(QColor('#d4e7f5'), 1.8, Qt.PenStyle.SolidLine,
                             Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         cx, cy = self.width() - 16, self.height() / 2
-        path = QPainterPath()
-        if self._menu_open:
-            path.moveTo(cx - 5, cy + 2)
-            path.lineTo(cx, cy - 3)
-            path.lineTo(cx + 5, cy + 2)
-        else:
-            path.moveTo(cx - 5, cy - 2)
-            path.lineTo(cx, cy + 3)
-            path.lineTo(cx + 5, cy - 2)
-        painter.drawPath(path)
+        draw_menu_chevron(painter, cx, cy, expanded=self._menu_open, half_width=5, tip_height=3)
         painter.end()
