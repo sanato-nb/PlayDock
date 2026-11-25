@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections import Counter
 from pathlib import Path
 
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QApplication, QDialog, QHBoxLayout, QLabel, QMessageBox,
     QPlainTextEdit, QPushButton, QVBoxLayout,
