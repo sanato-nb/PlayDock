@@ -28,6 +28,7 @@ if _playdock_source.is_dir() and str(_playdock_source) not in _playdock_sys.path
 
 from storage.setup_paths import proposed_paths, normalize_paths, save_folder_settings, config_path
 from native_caption import darken_tk_root
+from ui.styles import configure_wizard_style
 from install_management import (UNINSTALL_EXE, app_install_directory, register_uninstall_entry,
                                 normalize_program_path, same_path, shortcut_points_to, LEGACY_BINARIES,
                                 desktop_directory)
@@ -114,7 +115,7 @@ class SetupWizard(tk.Tk):
                 pass
         self.geometry("820x660")
         self.minsize(760, 620)
-        self.configure(bg="#eff3f7")
+        self.configure(bg="#15171a")
         self.resizable(True, True)
         self.messages: queue.Queue[tuple[str, str]] = queue.Queue()
         self.archive_var, self.game_var = (tk.StringVar(value=x) for x in existing_or_default())
@@ -124,10 +125,7 @@ class SetupWizard(tk.Tk):
         self.desktop_shortcut = tk.BooleanVar(value=True)
         self.launch_after = tk.BooleanVar(value=True)
         self.shortcut_warning = ""
-        self.style = ttk.Style(self)
-        if "vista" in self.style.theme_names():
-            self.style.theme_use("vista")
-        self.style.configure("Wizard.Horizontal.TProgressbar", thickness=14)
+        self.style = configure_wizard_style(self)
         self.make_layout()
         self.protocol("WM_DELETE_WINDOW", self.close)
         self.after(120, self.poll)
@@ -136,37 +134,37 @@ class SetupWizard(tk.Tk):
         self.after(0, lambda: darken_tk_root(self))
 
     def make_layout(self):
-        header = tk.Frame(self, bg="#16283c", height=95)
+        header = tk.Frame(self, bg="#121416", height=95)
         header.pack(fill="x")
         header.pack_propagate(False)
         tk.Label(header, text="◈   PLAYDOCK", font=("Segoe UI", 19, "bold"),
-                 fg="white", bg="#16283c").pack(anchor="w", padx=35, pady=(16, 0))
+                 fg="white", bg="#121416").pack(anchor="w", padx=35, pady=(16, 0))
         tk.Label(header, text="Windows 게임 라이브러리 설치 마법사", font=("Malgun Gothic", 10),
-                 fg="#afc7db", bg="#16283c").pack(anchor="w", padx=37, pady=(0, 5))
+                 fg="#b8bec6", bg="#121416").pack(anchor="w", padx=37, pady=(0, 5))
         # Pack the fixed footer first: with Tk's packer, placing an expanding
         # body first can push the Next/Install buttons offscreen on Windows.
-        bottom = tk.Frame(self, bg="#e4eaf0", height=70)
+        bottom = tk.Frame(self, bg="#202327", height=70)
         bottom.pack(fill="x", side="bottom")
         bottom.pack_propagate(False)
         self.cancel_btn = ttk.Button(bottom, text="취소", command=self.close)
-        self.next_btn = ttk.Button(bottom, text="다음 >", command=self.advance)
+        self.next_btn = ttk.Button(bottom, text="다음 >", style="Primary.TButton", command=self.advance)
         self.back_btn = ttk.Button(bottom, text="< 이전", command=self.back)
         self.cancel_btn.pack(side="right", padx=(0, 25), pady=18)
         self.next_btn.pack(side="right", padx=8, pady=18)
         self.back_btn.pack(side="right", padx=8, pady=18)
-        self.body = tk.Frame(self, bg="#eff3f7")
+        self.body = tk.Frame(self, bg="#15171a")
         self.body.pack(fill="both", expand=True, padx=36, pady=25)
 
     def title_text(self, title, description):
-        tk.Label(self.body, text=title, bg="#eff3f7", fg="#172a3b",
+        tk.Label(self.body, text=title, bg="#15171a", fg="#f0f2f5",
                  font=("Malgun Gothic", 16, "bold")).pack(anchor="w", pady=(0, 12))
-        tk.Label(self.body, text=description, bg="#eff3f7", fg="#4d6071",
+        tk.Label(self.body, text=description, bg="#15171a", fg="#c3c8cf",
                  justify="left", font=("Malgun Gothic", 10), wraplength=640).pack(anchor="w", pady=(0, 20))
 
     def folder_entry(self, caption: str, var: tk.StringVar):
-        tk.Label(self.body, text=caption, bg="#eff3f7", fg="#193650",
+        tk.Label(self.body, text=caption, bg="#15171a", fg="#dddfe2",
                  font=("Malgun Gothic", 11, "bold")).pack(anchor="w", pady=(6, 5))
-        line = tk.Frame(self.body, bg="#eff3f7")
+        line = tk.Frame(self.body, bg="#15171a")
         line.pack(fill="x", pady=(0, 18))
         ttk.Entry(line, textvariable=var).pack(side="left", fill="x", expand=True, ipady=5)
         ttk.Button(line, text="찾아보기", command=lambda v=var: self.choose(v)).pack(side="left", padx=(12, 0))
@@ -189,7 +187,7 @@ class SetupWizard(tk.Tk):
                         "● 별도 게임 이름 관리 프로그램 함께 설치",
                         "● 프로그램 폴더 하나에 설정·모음집·캐시를 함께 저장",
                         "● 기존 게임이나 압축파일은 삭제·이동하지 않음"):
-                tk.Label(self.body, text=txt, bg="#eff3f7", fg="#274861",
+                tk.Label(self.body, text=txt, bg="#15171a", fg="#dddfe2",
                          font=("Malgun Gothic", 11)).pack(anchor="w", pady=8)
             self.back_btn.state(["disabled"])
             self.next_btn.config(text="다음 >")
@@ -199,15 +197,16 @@ class SetupWizard(tk.Tk):
             self.folder_entry("② 게임 압축파일 폴더 (.zip / .7z)", self.archive_var)
             self.folder_entry("③ 설치된 게임 폴더 (압축 해제 대상)", self.game_var)
             tk.Checkbutton(self.body, text="바탕화면에 바로가기 만들기", variable=self.desktop_shortcut,
-                           bg="#eff3f7", activebackground="#eff3f7", fg="#18364d",
+                           bg="#15171a", activebackground="#15171a", fg="#dddfe2",
+                           selectcolor="#292d32", activeforeground="#ffffff",
                            font=("Malgun Gothic", 10)).pack(anchor="w", pady=(0, 12))
             tk.Label(self.body, text="기존 AppData 모음집·캐시를 복사합니다. 원본 게임 파일은 유지됩니다.",
-                     bg="#eff3f7", fg="#637789", font=("Malgun Gothic", 9)).pack(anchor="w")
+                     bg="#15171a", fg="#a4aab2", font=("Malgun Gothic", 9)).pack(anchor="w")
             self.back_btn.state(["!disabled"])
             self.next_btn.config(text="설치")
         elif self.page == 2:
             self.title_text("설치 중", "프로그램 파일을 설치하고 기존 데이터를 이전하고 있어요.")
-            self.status = tk.Label(self.body, text="준비 중...", bg="#eff3f7", fg="#244d69",
+            self.status = tk.Label(self.body, text="준비 중...", bg="#15171a", fg="#91cafa",
                                    font=("Malgun Gothic", 11))
             self.status.pack(anchor="w", pady=(20, 16))
             self.bar = ttk.Progressbar(self.body, maximum=100, mode="indeterminate",
@@ -223,15 +222,16 @@ class SetupWizard(tk.Tk):
                                  ("앱 데이터:", str(program_store(Path(self.program_var.get())))),
                                  ("압축파일 폴더:", self.archive_var.get()),
                                  ("게임 설치 폴더:", self.game_var.get())):
-                tk.Label(self.body, text=label, bg="#eff3f7", fg="#223d55",
+                tk.Label(self.body, text=label, bg="#15171a", fg="#dddfe2",
                          font=("Malgun Gothic", 10, "bold")).pack(anchor="w", pady=(10, 1))
-                tk.Label(self.body, text=value, bg="#eff3f7", fg="#576a7b",
+                tk.Label(self.body, text=value, bg="#15171a", fg="#b8bec6",
                          font=("Malgun Gothic", 9), wraplength=660).pack(anchor="w")
             tk.Checkbutton(self.body, text="설치 완료 후 프로그램 실행", variable=self.launch_after,
-                           bg="#eff3f7", activebackground="#eff3f7", fg="#18364d",
+                           bg="#15171a", activebackground="#15171a", fg="#dddfe2",
+                           selectcolor="#292d32", activeforeground="#ffffff",
                            font=("Malgun Gothic", 10)).pack(anchor="w", pady=(15, 0))
             if self.shortcut_warning:
-                tk.Label(self.body, text=self.shortcut_warning, bg="#eff3f7", fg="#9a4b27",
+                tk.Label(self.body, text=self.shortcut_warning, bg="#15171a", fg="#f1bd81",
                          font=("Malgun Gothic", 9), wraplength=650).pack(anchor="w", pady=6)
             self.back_btn.state(["disabled"])
             self.cancel_btn.config(text="닫기", state="normal")

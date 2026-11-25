@@ -8,8 +8,8 @@ from __future__ import annotations
 import sys
 
 
-CAPTION_BG = (17, 25, 35)   # #111923: app top navigation background
-CAPTION_FG = (226, 238, 248)  # #e2eef8: app title foreground
+CAPTION_BG = (18, 20, 22)   # #121416: app top navigation background
+CAPTION_FG = (237, 239, 242)  # #edeff2: app title foreground
 
 
 def windows_dark_caption(hwnd: int) -> bool:

@@ -1,9 +1,12 @@
-name: PlayDock 플랫 다크 스킨 시안 검수
+name: PlayDock 기본 스킨 확정 검증
 on:
   push:
     branches: [experiment/flat-dark-skin-20261125]
     paths:
-      - src/playdock/ui/**
+      - src/playdock/**
+      - setup_wizard.py
+      - uninstall_wizard.py
+      - tests/**
       - scripts/capture_all_ui_windows.py
       - .github/workflows/ui-screenshot-gallery.yml
   workflow_dispatch:
@@ -30,7 +33,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: PlayDock-flat-dark-skin-gallery
+          name: PlayDock-default-skin-gallery
           path: screenshot-gallery/
           if-no-files-found: error
 
@@ -42,5 +45,43 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: PlayDock-flat-dark-regression
+          name: PlayDock-default-skin-regression
           path: skin-test-results.xml
+
+  upgrade-compatibility:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: utf-8
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 기존 버전 및 검수용 EXE 준비
+        shell: pwsh
+        run: |
+          git worktree add --detach ../skin-upgrade-baseline cfe9639c485a876348b1f023de95df4a3e3c3532
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/Build-Windows-Release.ps1 -NoLaunch -SkipTests -NoWinget
+      - name: 기존 데이터 및 실제 설치기 호환 검증
+        shell: pwsh
+        run: |
+          ./.venv/Scripts/python.exe scripts/verify_upgrade_compatibility.py --baseline ../skin-upgrade-baseline --source . --dist dist --output upgrade-evidence/result.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.venv/Scripts/python.exe scripts/audit_windows_bundle.py dist/PlayDock.exe --output upgrade-evidence/bundle.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.venv/Scripts/python.exe scripts/smoke_frozen_launcher.py dist/PlayDock.exe
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-default-skin-upgrade-evidence
+          path: |
+            upgrade-evidence/
+            dist/SHA256SUMS.txt

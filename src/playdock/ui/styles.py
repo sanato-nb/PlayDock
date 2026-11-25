@@ -211,3 +211,27 @@ DARK_SELECTOR_STYLESHEET = '''
 
 # Keep the disabled override local to dialog action buttons.
 DIALOG_ACTION_DISABLED_STYLE = "QPushButton#{role}:disabled {{ color:#72777e; background:#25282c; }}"
+
+
+def configure_wizard_style(root):
+    """Apply the same Flat Dark palette to Tk setup/uninstall without Qt."""
+    from tkinter import ttk
+    style = ttk.Style(root)
+    if "clam" in style.theme_names():
+        style.theme_use("clam")
+    style.configure("TButton", background="#292d32", foreground="#eaecef",
+                    bordercolor="#434951", lightcolor="#434951", darkcolor="#434951",
+                    padding=(12, 6), font=("Malgun Gothic", 10))
+    style.map("TButton", background=[("disabled", "#25282c"), ("pressed", "#202327"), ("active", "#363b42")],
+              foreground=[("disabled", "#72777e")])
+    style.configure("Primary.TButton", background="#126fb6", foreground="#ffffff",
+                    bordercolor="#126fb6", lightcolor="#126fb6", darkcolor="#126fb6")
+    style.map("Primary.TButton", background=[("disabled", "#263c4d"), ("pressed", "#096bb2"), ("active", "#1985d3")],
+              foreground=[("disabled", "#99a6b1")])
+    style.configure("TEntry", fieldbackground="#131518", foreground="#eaecef",
+                    insertcolor="#ffffff", bordercolor="#434951", lightcolor="#434951",
+                    darkcolor="#434951", selectbackground="#176ba7", selectforeground="#ffffff")
+    style.map("TEntry", bordercolor=[("focus", "#2796df")])
+    style.configure("Wizard.Horizontal.TProgressbar", thickness=14, troughcolor="#131518",
+                    background="#2796df", bordercolor="#434951", lightcolor="#2796df", darkcolor="#2796df")
+    return style

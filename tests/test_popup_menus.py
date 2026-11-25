@@ -100,6 +100,9 @@ def test_collection_chevrons_use_qt_owned_cache_and_keep_pixels():
     import pytest
     pytest.importorskip("PySide6")
     script = r'''
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path.cwd() / 'src/playdock'))
 from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QPixmapCache
 from PySide6.QtCore import QSize
@@ -116,5 +119,7 @@ for expanded in (False, True):
 assert collection_chevron(False).pixmap(QSize(20, 20), 2.0).toImage() != collection_chevron(True).pixmap(QSize(20, 20), 2.0).toImage()
 QPixmapCache.clear()
 '''
-    env = dict(os.environ, QT_QPA_PLATFORM='offscreen')
-    subprocess.run([sys.executable, '-c', script], env=env, check=True, timeout=25)
+    root = Path(__file__).resolve().parents[1]
+    env = dict(os.environ, QT_QPA_PLATFORM='offscreen',
+               PYTHONPATH=os.pathsep.join((str(root / 'src/playdock'), str(root), os.environ.get('PYTHONPATH', ''))))
+    subprocess.run([sys.executable, '-c', script], cwd=str(root), env=env, check=True, timeout=25)

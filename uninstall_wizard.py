@@ -28,6 +28,7 @@ from install_management import (
     validate_install_directory,
 )
 from native_caption import darken_tk_root
+from ui.styles import configure_wizard_style
 
 
 class UninstallWizard(tk.Tk):
@@ -37,39 +38,40 @@ class UninstallWizard(tk.Tk):
         self.geometry("620x380")
         self.minsize(580, 330)
         self.resizable(True, False)
-        self.configure(bg="#eff3f7")
+        self.configure(bg="#15171a")
+        self.style = configure_wizard_style(self)
         icon = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets" / "playdock.ico"
         if icon.is_file():
             try:
                 self.iconbitmap(str(icon))
             except tk.TclError:
                 pass
-        header = tk.Frame(self, bg="#16283c", height=88)
+        header = tk.Frame(self, bg="#121416", height=88)
         header.pack(fill="x")
         header.pack_propagate(False)
-        tk.Label(header, text="◈   PLAYDOCK", bg="#16283c", fg="white",
+        tk.Label(header, text="◈   PLAYDOCK", bg="#121416", fg="white",
                  font=("Segoe UI", 18, "bold")).pack(anchor="w", padx=28, pady=(17, 2))
-        tk.Label(header, text="프로그램 제거", bg="#16283c", fg="#bed6e9",
+        tk.Label(header, text="프로그램 제거", bg="#121416", fg="#b8bec6",
                  font=("Malgun Gothic", 10)).pack(anchor="w", padx=30)
-        self.content = tk.Frame(self, bg="#eff3f7")
+        self.content = tk.Frame(self, bg="#15171a")
         self.content.pack(fill="both", expand=True, padx=30, pady=20)
-        tk.Label(self.content, text="PlayDock를 제거하시겠습니까?", bg="#eff3f7",
-                 fg="#182c41", font=("Malgun Gothic", 15, "bold")).pack(anchor="w", pady=(0, 17))
+        tk.Label(self.content, text="PlayDock를 제거하시겠습니까?", bg="#15171a",
+                 fg="#f0f2f5", font=("Malgun Gothic", 15, "bold")).pack(anchor="w", pady=(0, 17))
         message = (
             "게임 라이브러리, 게임 이름 관리자, 프로그램 바로가기만 제거합니다.\n"
             "게임 압축파일(ZIP·7z), 설치한 게임, 저장 파일, 모음집 및 이미지 캐시는 그대로 남습니다."
         )
         tk.Label(self.content, text=message, justify="left", wraplength=540,
-                 bg="#eff3f7", fg="#2e4c64", font=("Malgun Gothic", 10)).pack(anchor="w")
+                 bg="#15171a", fg="#c3c8cf", font=("Malgun Gothic", 10)).pack(anchor="w")
         tk.Label(self.content, text="프로그램 위치: " + str(app_install_directory()),
-                 wraplength=540, justify="left", bg="#eff3f7", fg="#637789",
+                 wraplength=540, justify="left", bg="#15171a", fg="#a4aab2",
                  font=("Malgun Gothic", 9)).pack(anchor="w", pady=(20, 0))
-        bar = tk.Frame(self, bg="#e4eaf0", height=63)
+        bar = tk.Frame(self, bg="#202327", height=63)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
         self.exit_btn = ttk.Button(bar, text="취소", command=self.destroy)
         self.exit_btn.pack(side="right", padx=(0, 23), pady=14)
-        self.remove_btn = ttk.Button(bar, text="프로그램 제거", command=self.remove)
+        self.remove_btn = ttk.Button(bar, text="프로그램 제거", style="Primary.TButton", command=self.remove)
         self.remove_btn.pack(side="right", padx=10, pady=14)
         self.after(0, lambda: darken_tk_root(self))
 
