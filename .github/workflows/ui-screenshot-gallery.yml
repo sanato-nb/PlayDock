@@ -1,7 +1,7 @@
-name: PlayDock 플랫 다크 스킨 시안 검수
+name: PlayDock 그래파이트 다크 스킨 시안 검수
 on:
   push:
-    branches: [experiment/flat-dark-skin-20261125]
+    branches: [experiment/graphite-dark-skin-20261125]
     paths:
       - src/playdock/ui/**
       - scripts/capture_all_ui_windows.py
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: PlayDock-flat-dark-skin-gallery
+          name: PlayDock-graphite-dark-skin-gallery
           path: screenshot-gallery/
           if-no-files-found: error
 
@@ -42,5 +42,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: PlayDock-flat-dark-regression
+          name: PlayDock-graphite-dark-regression
           path: skin-test-results.xml

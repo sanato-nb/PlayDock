@@ -38,8 +38,8 @@ def test_menu_popup_has_explicit_dark_background_and_light_text():
                      isinstance(target, ast.Name) and target.id == 'DARK_POPUP_STYLE'
                      for target in node.targets))
     assert 'QMenu::item:selected' in popup
-    assert 'background-color:#182a3b' in popup
-    assert 'color:#ecf4fc' in popup
+    assert 'background-color:#242428' in popup
+    assert 'color:#f1eff4' in popup
     assert 'from ui.styles import DARK_POPUP_STYLE' in SELECTOR
     assert 'menu.popup(' in SELECTOR
     assert 'self._menu_open' in SELECTOR
@@ -76,8 +76,8 @@ s.resize(300, 40)
 s.show()
 s._show_menu()
 assert s._menu is not None
-assert 'background-color:#182a3b' in s._menu.styleSheet()
-assert 'color:#ecf4fc' in s._menu.styleSheet()
+assert 'background-color:#242428' in s._menu.styleSheet()
+assert 'color:#f1eff4' in s._menu.styleSheet()
 s._menu.close()
 app.processEvents()
 '''

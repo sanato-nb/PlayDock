@@ -144,7 +144,7 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
         bounds = QRectF(self.rect()).adjusted(0.6, 0.6, -0.6, -0.6)
-        bg = '#283c4c' if self.is_menu_open() else '#29333e' if self.isDown() else '#30363d' if self.underMouse() else '#24282d'
+        bg = '#383142' if self.is_menu_open() else '#343039' if self.isDown() else '#303035' if self.underMouse() else '#262629'
         painter.setPen(QPen(QColor('#6b6d71' if self.underMouse() else '#4b4d51'), 1))
         painter.setBrush(QColor(bg))
         painter.drawRoundedRect(bounds, 6, 6)
@@ -155,9 +155,9 @@ class LibraryFilterButton(PopupMenuState, QPushButton):
         badge_x = self.width() - badge_width - 28
         badge_rect = QRectF(badge_x, 8, badge_width, self.height() - 16)
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor('#26445d'))
+        painter.setBrush(QColor('#3c344b'))
         painter.drawRoundedRect(badge_rect, 4, 4)
-        painter.setPen(QColor('#a7d7f6'))
+        painter.setPen(QColor('#d1c0fa'))
         painter.drawText(badge_rect, Qt.AlignmentFlag.AlignCenter, badge_text)
         painter.setPen(QColor('#eaecef'))
         # Prefer the stable section label; status lives in its separate badge.
@@ -216,10 +216,10 @@ def game_placeholder_icon() -> QIcon:
     pix.fill(QColor("#252b32"))
     painter = QPainter(pix)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(QPen(QColor("#7db9e4"), 2.2))
-    painter.setBrush(QBrush(QColor("#394c5b")))
+    painter.setPen(QPen(QColor("#b9a5ed"), 2.2))
+    painter.setBrush(QBrush(QColor("#4a405d")))
     painter.drawRoundedRect(7, 14, 42, 28, 12, 12)
-    painter.setPen(QPen(QColor("#f1f3f6"), 3))
+    painter.setPen(QPen(QColor("#f1eff4"), 3))
     painter.drawLine(16, 27, 28, 27)
     painter.drawLine(22, 21, 22, 33)
     painter.setPen(QPen(QColor("#e0e2e5"), 2.5))
@@ -256,14 +256,13 @@ class Banner(QWidget):
             p.drawPixmap(QRectF(area), img, source)
         else:
             gradient = QLinearGradient(0, 0, area.width(), area.height())
-            gradient.setColorAt(0, QColor("#20262c"))
-            gradient.setColorAt(0.52, QColor("#343d46"))
-            gradient.setColorAt(1, QColor("#171a1e"))
+            gradient.setColorAt(0, QColor("#27252e"))
+            gradient.setColorAt(0.52, QColor("#37313e"))
+            gradient.setColorAt(1, QColor("#19191c"))
             p.fillRect(area, gradient)
-            p.setPen(QPen(QColor(255, 255, 255, 14), 5))
-            for i in range(-8, 15):
-                x = i * 130
-                p.drawLine(x, 0, x + 490, area.height())
+            p.setPen(QPen(QColor(170, 150, 215, 18), 1))
+            for x in range(0, area.width(), 48):
+                p.drawLine(x, 0, x, area.height())
         fade = QLinearGradient(0, 0, area.width() * 0.73, 0)
         fade.setColorAt(0, QColor(10, 11, 13, 210))
         fade.setColorAt(0.65, QColor(12, 13, 16, 85))

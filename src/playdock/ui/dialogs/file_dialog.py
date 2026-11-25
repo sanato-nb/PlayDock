@@ -116,12 +116,12 @@ def style_file_dialog(dialog):
     height = min(600, max(240, area.height() - 64)) if area is not None else 600
     dialog.resize(max(dialog.width(), width), max(dialog.height(), height))
     palette = dialog.palette()
-    for role, color in ((QPalette.ColorRole.Window, "#202327"),
-                        (QPalette.ColorRole.Base, "#15171a"),
+    for role, color in ((QPalette.ColorRole.Window, "#212124"),
+                        (QPalette.ColorRole.Base, "#171719"),
                         (QPalette.ColorRole.AlternateBase, "#1c1f23"),
                         (QPalette.ColorRole.Text, "#f2f4f7"),
                         (QPalette.ColorRole.WindowText, "#ebedf0"),
-                        (QPalette.ColorRole.Highlight, "#234d6b"),
+                        (QPalette.ColorRole.Highlight, "#383243"),
                         (QPalette.ColorRole.HighlightedText, "#ffffff")):
         palette.setColor(role, QColor(color))
     dialog.setPalette(palette)
@@ -192,13 +192,13 @@ class PlayDockFileDialog(QFileDialog):
         self._caption = QFrame(self)
         self._caption.setObjectName("FileDialogCaption")
         self._caption.setStyleSheet(
-            "QFrame#FileDialogCaption { background:#121416; border:none;"
+            "QFrame#FileDialogCaption { background:#171719; border:none;"
             " border-bottom:1px solid #383d43; }"
             "QLabel#FileDialogTitle { color:#eef0f3; background:transparent;"
             " font-size:13px; font-weight:600; }"
             "QPushButton#DialogClose { background:transparent; border:none;"
             " padding:0; min-width:30px; min-height:26px; }"
-            "QPushButton#DialogClose:hover { background:#233d52; }"
+            "QPushButton#DialogClose:hover { background:#383243; }"
         )
         header = QHBoxLayout(self._caption)
         header.setContentsMargins(10, 0, 3, 0)

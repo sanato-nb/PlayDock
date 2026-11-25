@@ -82,7 +82,7 @@ def test_file_chooser_has_own_dark_caption_and_retains_native_qt_selection(monke
         assert dialog.windowFlags() & Qt.WindowType.FramelessWindowHint
         assert dialog.testOption(QFileDialog.Option.DontUseNativeDialog)
         assert dialog._caption_title.text() == "이미지 선택"
-        assert "#111923" in dialog._caption.styleSheet()
+        assert "#171719" in dialog._caption.styleSheet()
         assert dialog.fileMode() == QFileDialog.FileMode.ExistingFile
         assert dialog.nameFilters() == ["이미지 (*.png)"]
         assert not dialog.isSizeGripEnabled()
