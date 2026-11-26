@@ -253,9 +253,12 @@ def test_bulk_artwork_enabled_for_other_game_and_collection_view(app,tmp_path,mo
         window.populate_games(other.id)
         assert window.current().id==other.id
         assert capture_menu(window.function_menu_btn).actions()[0].isEnabled()
-        assert not capture_menu(window.extra_menu_btn).actions()[2].isEnabled()
+        def official_image_action():
+            return next(action for action in capture_menu(window.extra_menu_btn).actions()
+                        if action.text() == "공식 배너·아이콘 적용")
+        assert not official_image_action().isEnabled()
         window.populate_games(game.id)
-        assert capture_menu(window.extra_menu_btn).actions()[2].isEnabled()
+        assert official_image_action().isEnabled()
         window.collections_nav_btn.click()
         assert capture_menu(window.function_menu_btn).actions()[0].isEnabled()
     finally:
