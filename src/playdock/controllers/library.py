@@ -261,8 +261,7 @@ class LibraryControllerMixin:
 
 
     def show_collections_overview(self):
-        self.collections_board.set_data(self.library, self.games, self.collections)
-        self.collections_board.show_overview()
+        self.collections_board.set_data(self.library, self.games, self.collections, overview=True)
         self.main_stack.setCurrentWidget(self.collections_board)
 
 

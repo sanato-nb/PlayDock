@@ -78,9 +78,10 @@ def main():
     if a.reviewed_ui_ref == "d1fcd1124af7410e592108d8315083e1a099222d":
         reviewed_ui["src/playdock/ui/launcher_layout.py"] = "68ec3e703391336ee9ac47fc7b18243203442607"
         reviewed_ui["src/playdock/controllers/window_actions.py"] = "3d7169d5e162c87a91f836a42e23f6094579e7af"
-        reviewed_ui["src/playdock/controllers/library.py"] = "ea0e392f940333ed5e0bf78e64d18e358846ab07"
+        reviewed_ui["src/playdock/controllers/library.py"] = "4c555afd8411cf2d1b3f1c64d87c00de415b6dcf"
         reviewed_ui["src/playdock/ui/dialogs/title.py"] = "ea1b6e91eea45b5e9ec2bd19b19ec52b75f5c2c1"  # approved bulk-title UI correction
         reviewed_ui["src/playdock/ui/widgets/launcher.py"] = "b7a495c5b45b976caa47846c76e3c2141fca86b4"  # collection arrow hit handling
+        reviewed_ui["src/playdock/ui/collection_board.py"] = "03f9b19bdfebe534a11b91e3ff0ec15b57923bc5"  # approved overview includes unassigned
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]
