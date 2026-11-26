@@ -31,6 +31,7 @@ class CatalogEntry:
     explicit_code: str = ""
     steam_app_id: str = ""
     suppress_code: bool = False  # user explicitly cleared the product ID
+    manual_only: bool = False  # explicit override takes precedence over the filename
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,11 @@ def game_catalog_entries(library, games):
         label = re.split(r"[/\\]", str(label))[-1].strip()
         manual = str(meta.get("product_code") or "").strip()
         store = str(meta.get("product_store") or "").lower()
+        if meta.get('manual_work_identity'):
+            output.append(CatalogEntry(game.id, label, 'archive' if game.archive else 'manual',
+                manual.upper() if store == 'dlsite' else '', manual if store == 'steam' else '',
+                not bool(manual), True))
+            continue
         # Only explicit saved IDs or filename IDs: a display title is not evidence.
         code = manual.upper() if store != "steam" and DL_CODE.fullmatch(manual) else ""
         appid = manual if store == "steam" and STEAM_ID.fullmatch(manual) else ""
@@ -63,8 +69,10 @@ def game_catalog_entries(library, games):
             saved_steam = str(meta.get("steam_app_id") or "").strip()
             if STEAM_ID.fullmatch(saved_steam):
                 appid = saved_steam
-        if not code and codes_in(label):
-            code = codes_in(label)[0]
+        if not code:
+            filename_codes = codes_in(label)
+            if filename_codes:
+                code = filename_codes[0]
         output.append(CatalogEntry(
             game.id, label, "archive" if game.archive else "manual",
             code, appid, "product_code" in meta and not meta.get("product_code"),
@@ -77,7 +85,7 @@ def partition_catalog_entries(entries):
     eligible, missing_code = [], []
     for entry in entries:
         name = entry_input(entry).label
-        if not codes_in(name) and not steam_ids_in(name):
+        if entry.suppress_code or (not codes_in(name) and not steam_ids_in(name)):
             missing_code.append(entry)
         else:
             eligible.append(entry)
@@ -87,7 +95,7 @@ def partition_catalog_entries(entries):
 def make_missing_code_prompt(entries) -> str:
     """Request data-only PlayDock JSON, not a rename script or arbitrary code."""
     rows = []
-    for number, entry in enumerate(entries, 1):
+    for number, entry in enumerate((e for e in entries if not e.suppress_code), 1):
         filename = re.split(r"[/\\]", str(entry.label))[-1].replace("\n", " ").replace("\r", " ").strip()
         if filename:
             rows.append({"number": number, "original_filename": filename})
@@ -160,6 +168,11 @@ def make_missing_code_prompt(entries) -> str:
 
 
 def entry_input(entry: CatalogEntry) -> InputItem:
+    if entry.suppress_code:
+        return InputItem('No registered work ID', 'archive')
+    if entry.manual_only:
+        label = f'[{entry.explicit_code}]' if entry.explicit_code else f'[Steam {entry.steam_app_id}]'
+        return InputItem(label, 'archive')
     label = entry.label
     if entry.explicit_code and entry.explicit_code.upper() not in codes_in(label):
         label += f" [{entry.explicit_code}]"

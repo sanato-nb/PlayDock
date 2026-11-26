@@ -69,7 +69,4 @@ class DarkDialogCaptionFilter(QObject):
     def update_caption(ref):
         dlg = ref()
         if dlg is not None:
-            try:
-                windows_dark_caption(int(dlg.winId()))
-            except (RuntimeError, TypeError, ValueError, OverflowError):
-                pass
+            apply_windows_dark_titlebar(dlg)

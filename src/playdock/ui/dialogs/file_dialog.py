@@ -1,26 +1,30 @@
 """PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
 from __future__ import annotations
 
-import weakref
 import os
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QPointF, QObject, QEvent, QSize, QStandardPaths, QUrl
+from PySide6.QtCore import (
+    Qt,
+    QEvent,
+    QSize,
+    QStandardPaths,
+    QUrl,
+)
 from PySide6.QtGui import QColor, QPainter, QPen, QIcon, QPixmap, QPalette
 from PySide6.QtWidgets import (
-    QMainWindow,
-    QWidget,
     QHBoxLayout,
-    QVBoxLayout,
     QFrame,
     QLabel,
-    QPushButton,
-    QLineEdit,
-    QDialog, QFileDialog, QToolButton, QTreeView, QListView, QDialogButtonBox, QSizeGrip,
+    QDialog,
+    QFileDialog,
+    QToolButton,
+    QTreeView,
+    QListView,
+    QDialogButtonBox,
+    QSizeGrip,
 )
 
-from ui.selectors import DarkMenuSelect
-from native_caption import windows_dark_caption
 from ui.styles import FILE_DIALOG_STYLESHEET
 
 

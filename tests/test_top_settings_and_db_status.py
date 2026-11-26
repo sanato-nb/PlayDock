@@ -85,6 +85,8 @@ def test_popup_preserves_all_actions_and_database_status(app):
     class Dummy(WindowActionControllerMixin, QWidget):
         pass
     owner = Dummy()
+    from types import SimpleNamespace
+    owner.library = SimpleNamespace(settings={})
     owner.settings_menu_btn = ChevronMenuButton("설정", owner)
     invoked = []
     paths = {
@@ -103,9 +105,10 @@ def test_popup_preserves_all_actions_and_database_status(app):
     actions = [x for x in shown[0][0].actions() if not x.isSeparator()]
     assert [x.text() for x in actions] == [
         "폴더 설정", "데이터 관리", "라이브러리 속성",
-        "DB 상태 확인",
+        "DB 상태 확인", "개발자 후원 버튼 표시",
     ]
-    for action in actions:
+    assert actions[-1].isCheckable() and actions[-1].isChecked()
+    for action in actions[:-1]:
         action.trigger()
     assert invoked == ["folders", "data", "properties", "db"]
     owner.close()

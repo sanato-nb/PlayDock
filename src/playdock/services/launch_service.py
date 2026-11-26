@@ -41,9 +41,8 @@ def has_executable_candidate(folder: Path) -> bool:
     return next(_iter_executable_paths(folder), None) is not None
 
 
-def executable_candidates(folder: Path, title: str = "") -> list[Path]:
-    """Find plausible game EXEs; never automatically launch an installer."""
-    result: list[tuple[float, Path]] = []
+def _scored_executables(folder: Path, title: str):
+    """Share the original ranking between list and single-result callers."""
     norm_title = re.sub(r"[^a-z0-9]", "", title.casefold())
     for depth, low, path in _iter_executable_paths(folder):
         name = re.sub(r"[^a-z0-9]", "", path.stem.casefold())
@@ -58,18 +57,35 @@ def executable_candidates(folder: Path, title: str = "") -> list[Path]:
             score += min(32, path.stat().st_size / (15 * 1024**2))
         except OSError:
             pass
-        result.append((score, path))
-    result.sort(key=lambda pair: (-pair[0], str(pair[1]).casefold()))
-    return [path for _, path in result]
+        yield score, path
 
-def chosen_executable(library: Library, game: Game) -> Path | None:
+
+def _rank_key(pair):
+    return -pair[0], str(pair[1]).casefold()
+
+
+def executable_candidates(folder: Path, title: str = "") -> list[Path]:
+    """Find plausible game EXEs; never automatically launch an installer."""
+    return [path for _, path in sorted(_scored_executables(folder, title), key=_rank_key)]
+
+
+def best_executable_candidate(folder: Path, title: str = "") -> Path | None:
+    """Same first candidate without allocating or sorting the full result list."""
+    best = min(_scored_executables(folder, title), key=_rank_key, default=None)
+    return best[1] if best is not None else None
+
+
+def chosen_executable(library: Library, game: Game, *, meta: dict | None = None,
+                      title: str | None = None, candidates: list[Path] | None = None) -> Path | None:
     if not game.folder:
         return None
-    meta = library.meta(game)
+    if meta is None:
+        meta = library.meta(game)
     selected = meta.get("executable")
     if isinstance(selected, str):
         path = (game.folder / selected).resolve()
         if path.is_relative_to(game.folder.resolve()) and path.is_file() and path.suffix.casefold() == ".exe":
             return path
-    paths = executable_candidates(game.folder, library.title(game))
-    return paths[0] if paths else None
+    if candidates is not None:
+        return candidates[0] if candidates else None
+    return best_executable_candidate(game.folder, library.title(game) if title is None else title)

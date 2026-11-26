@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 
+import webbrowser
 from sqlite3 import Error as SQLiteError
 from PySide6.QtWidgets import QMenu
 
+from ui.dialogs.common import show_message
 from ui.dialogs.database_status import DatabaseStatusDialog
+
+
+SUPPORT_URL = "https://fairy.hada.io/@playdock"
 
 
 class WindowActionControllerMixin:
@@ -22,24 +27,65 @@ class WindowActionControllerMixin:
         menu.addSeparator()
         menu.addAction("DB 상태 확인").triggered.connect(
             lambda _checked=False: self.show_database_status())
+        menu.addSeparator()
+        support_visibility = menu.addAction("개발자 후원 버튼 표시")
+        support_visibility.setCheckable(True)
+        support_visibility.setChecked(self.library.settings.get("show_support_button", True) is not False)
+        support_visibility.toggled.connect(self.set_support_button_visible)
         self.settings_menu_btn.present_popup(menu, right_align=True)
 
+    def set_support_button_visible(self, visible):
+        """Persist only this optional UI preference; keep all other settings."""
+        settings = self.library.settings
+        missing = "show_support_button" not in settings
+        previous = settings.get("show_support_button", True)
+        settings["show_support_button"] = bool(visible)
+        try:
+            self.library.save_settings()
+        except OSError as exc:
+            if missing:
+                settings.pop("show_support_button", None)
+            else:
+                settings["show_support_button"] = previous
+            show_message(self, "설정 저장 실패", str(exc))
+            return
+        self.support_btn.setVisible(bool(visible))
 
-    def function_availability(self):
+    def open_support_page(self):
+        """Open the optional support page only after an explicit user click."""
+        try:
+            opened = webbrowser.open(SUPPORT_URL)
+        except (OSError, webbrowser.Error):
+            opened = False
+        if not opened:
+            show_message(self, "브라우저 실행 실패", SUPPORT_URL)
+
+
+    def function_availability(self, *, records=None):
         """One source of truth for the button and its two menu actions."""
         try:
-            records = self.collected_library_records()
+            if records is None:
+                records = self.collected_library_records()
             artwork = any(self._record_has_official_images(row) for row in records.values())
             return artwork, bool(records)
         except (OSError, ValueError, SQLiteError):
             return False, False
 
-    def refresh_function_availability(self):
-        artwork, names = self.function_availability()
+    def refresh_function_availability(self, *, meta_by_game=None):
+        records = None
+        if meta_by_game is None:
+            artwork, names = self.function_availability()
+        else:
+            try:
+                records = self.collected_library_records(meta_by_game=meta_by_game)
+                artwork, names = self.function_availability(records=records)
+            except (OSError, ValueError, SQLiteError):
+                artwork, names = False, False
         self.function_menu_btn.setEnabled(artwork or names)
         self.function_menu_btn.setToolTip(
             "" if artwork or names else "게임 정보 수집 후 사용 가능한 기능입니다."
         )
+        return records
 
     def sync_top_navigation(self, *_args):
         library_active = self.main_stack.currentWidget() is self.scroll
@@ -93,6 +139,8 @@ class WindowActionControllerMixin:
 
         rename = menu.addAction('게임 이름 변경 (수동)', self.rename_selected_game)
         rename.setEnabled(game is not None)
+        identity = menu.addAction('작품 코드 설정', self.edit_work_code)
+        identity.setEnabled(game is not None)
 
         images = menu.addMenu('배너·아이콘 수동 설정')
         images.setEnabled(game is not None)

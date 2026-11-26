@@ -182,7 +182,14 @@ def test_controller_sends_only_eligible_entries_to_worker(app, tmp_path, monkeyp
 def test_topbar_placement_separates_official_and_manual_actions():
     root = Path(__file__).resolve().parents[1]
     ui = (root / "src/playdock/ui/launcher_layout.py").read_text("utf-8")
-    top, bottom = ui.split("outer.addWidget(top)", 1)
+    import ast
+    sections = {node.name: ast.get_source_segment(ui, node)
+                for node in ast.parse(ui).body if isinstance(node, ast.FunctionDef)}
+    top = sections["_build_top_bar"]
+    bottom = "\n".join(body for name, body in sections.items() if name != "_build_top_bar")
+    main = sections["build_main_ui"]
+    assert main.index("_build_top_bar(") < main.index("_build_game_details(")
+    assert "_build_sidebar(" in main
     assert top.index("게임 정보 수집") < top.index("새로고침") < top.index("'기능'") < top.index('"설정"')
     assert "게임 정보 수집" not in bottom
     assert "self.extra_menu_btn = ChevronMenuButton('게임 관리')" in bottom
@@ -226,17 +233,26 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
             window.extra_menu_btn.click()
             return menus[-1].actions()
 
+        def named_menu():
+            return {action.text(): action for action in open_menu()}
+
         window.populate_games(other.id)
-        assert not open_menu()[2].isEnabled()  # no official image
-        assert not open_menu()[3].isEnabled()  # not installed
+        assert not named_menu()["공식 배너·아이콘 적용"].isEnabled()
+        assert not named_menu()["실행 옵션 설정"].isEnabled()
+        assert named_menu()["작품 코드 설정"].isEnabled()
 
         window.populate_games(game.id)
-        rename, artwork, official_images, launch, official = open_menu()
-        assert [action.text() for action in (rename, artwork, official_images, launch, official)] == [
-            "게임 이름 변경 (수동)", "배너·아이콘 수동 설정",
+        menu = named_menu()
+        assert list(menu) == [
+            "게임 이름 변경 (수동)", "작품 코드 설정", "배너·아이콘 수동 설정",
             "공식 배너·아이콘 적용", "실행 옵션 설정", "공식 작품 페이지 열기",
         ]
-        assert all(action.isEnabled() for action in (rename, artwork, launch))
+        rename = menu["게임 이름 변경 (수동)"]
+        artwork = menu["배너·아이콘 수동 설정"]
+        official_images = menu["공식 배너·아이콘 적용"]
+        launch = menu["실행 옵션 설정"]
+        official = menu["공식 작품 페이지 열기"]
+        assert all(action.isEnabled() for action in (rename, menu["작품 코드 설정"], artwork, launch))
         assert not official.isEnabled()  # no official URL yet
         assert not official_images.isEnabled()
 
@@ -276,9 +292,9 @@ def test_game_management_menu_applies_to_only_the_displayed_game(app, tmp_path, 
         }])
         assert window.work_db.save_verified_game_link(game.id, "dlsite", "RJ123456")
         window.reload(prefer_id=game.id)
-        assert not open_menu()[2].isEnabled()  # verified link alone is insufficient
-        assert open_menu()[4].isEnabled()
-        open_menu()[4].trigger()
+        assert not named_menu()["공식 배너·아이콘 적용"].isEnabled()  # verified link alone is insufficient
+        assert named_menu()["공식 작품 페이지 열기"].isEnabled()
+        named_menu()["공식 작품 페이지 열기"].trigger()
         assert opened == [url]
         assert "DLsite" in window.game_info.text()
         assert archive.read_bytes() == b"archive content must remain untouched"

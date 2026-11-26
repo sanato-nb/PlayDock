@@ -61,5 +61,7 @@ def test_missing_icon_returns_fallback_without_qt(tmp_path: Path):
 def test_sidebar_uses_normalized_icon_for_both_paths():
     app = (Path(__file__).resolve().parents[1] / 'app.py').read_text(encoding='utf-8') + _ui_main
     assert 'self.tree.setIconSize(QSize(22, 22))' in app
-    assert 'item.setIcon(0, game_art_icon(art, game_placeholder_icon()))' in app
+    assert 'placeholder = game_placeholder_icon()' in app
+    assert 'icons[key] = game_art_icon(art, placeholder)' in app
+    assert 'item.setIcon(0, icons[key])' in app
     assert 'current_item.setIcon(0, game_art_icon(art_file, game_placeholder_icon()))' in app

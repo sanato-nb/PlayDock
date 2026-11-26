@@ -165,51 +165,52 @@ def discover_local(library: Library, game: Game) -> list[str]:
     if game.folder and game.folder.is_dir():
         candidates.extend(_local_images(game.folder))
     embedded = _archive_artwork_candidates(game)
+    # Inspect each candidate once per discovery. Both roles share dimensions.
+    inspected = []
+    for file in candidates:
+        try:
+            if file.is_symlink() or file.stat().st_size > 14 * 1024**2:
+                continue
+            with Image.open(file) as im:
+                width, height = im.size
+            inspected.append((width, height, file.stem.casefold(), file, None))
+        except (OSError, UnidentifiedImageError, ValueError):
+            continue
+    for name, blob in embedded:
+        try:
+            with Image.open(BytesIO(blob)) as im:
+                width, height = im.size
+            inspected.append((width, height, name, None, blob))
+        except (OSError, UnidentifiedImageError, ValueError):
+            continue
+
     found: list[str] = []
     for kind in ('hero', 'icon'):
         target = dest / f'{kind}.png'
         if target.exists():
             continue
         scored = []
-        for file in candidates:
-            try:
-                if file.is_symlink() or file.stat().st_size > 14 * 1024**2:
-                    continue
-                with Image.open(file) as im:
-                    width, height = im.size
-                aspect = width / max(1, height)
-                name = file.stem.casefold()
-                if kind == 'hero' and (aspect < 1.45 or width < 600):
-                    continue
-                if kind == 'icon' and (aspect < 0.7 or aspect > 1.5 or width < 64):
-                    continue
-                score = width * height / 1_000_000
+        for width, height, name, file, blob in inspected:
+            aspect = width / max(1, height)
+            if kind == 'hero' and (aspect < 1.45 or width < 600):
+                continue
+            if kind == 'icon' and (aspect < 0.7 or aspect > 1.5 or width < 64):
+                continue
+            score = width * height / 1_000_000
+            if file is not None:
                 if kind == 'hero' and any(w in name for w in ('hero','header','banner')):
                     score += 25
                 if kind == 'icon' and any(w in name for w in ('icon','cover')):
                     score += 25
                 if 'artwork_library' in file.parts:
                     score += 50  # Explicitly supplied images outrank arbitrary game assets.
-                scored.append((score, file, None))
-            except (OSError, UnidentifiedImageError, ValueError):
-                continue
-        for name, blob in embedded:
-            try:
-                with Image.open(BytesIO(blob)) as im:
-                    width, height = im.size
-                aspect = width / max(1, height)
-                if kind == 'hero' and (aspect < 1.45 or width < 600):
-                    continue
-                if kind == 'icon' and (aspect < 0.7 or aspect > 1.5 or width < 64):
-                    continue
-                score = width * height / 1_000_000 + 5
+            else:
+                score += 5
                 if kind == 'hero' and any(w in name for w in ('banner','header','hero')):
                     score += 20
                 if kind == 'icon' and any(w in name for w in ('cover','icon')):
                     score += 20
-                scored.append((score, None, blob))
-            except (OSError, UnidentifiedImageError, ValueError):
-                continue
+            scored.append((score, file, blob))
         if scored:
             try:
                 _, file, blob = max(scored, key=lambda row: row[0])

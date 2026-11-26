@@ -1,6 +1,6 @@
 """PlayDock MainWindow Qt widget tree/layout.
 
-Event handlers and application state remain owned by app.py.
+Sections own widget construction only; controllers retain event handling and state.
 """
 
 from PySide6.QtCore import Qt, QTimer, QSize
@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QStackedWidget,
 )
 from ui.collection_board import CollectionBoard
+from ui.widgets.launcher import CollectionArrowClickFilter
 
 
 def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
@@ -19,6 +20,29 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     outer.setContentsMargins(0, 0, 0, 0)
     outer.setSpacing(0)
 
+    outer.addWidget(_build_top_bar(self, ChevronMenuButton))
+
+    splitter = QSplitter(Qt.Orientation.Horizontal)
+    splitter.setHandleWidth(2)
+    splitter.setChildrenCollapsible(False)
+    outer.addWidget(splitter, 1)
+
+    splitter.addWidget(_build_sidebar(self, LibraryFilterButton, ChevronMenuButton))
+
+    _build_game_details(self, ChevronMenuButton, Banner)
+    splitter.addWidget(_build_content_stack(self))
+    splitter.setStretchFactor(0, 0)
+    splitter.setStretchFactor(1, 1)
+    splitter.setSizes([318, 1062])
+    # A clean blank footer, like Steam's bottom breathing room. No buttons,
+    # text, install paths, game counts or download-management actions.
+    footer = QFrame()
+    footer.setObjectName("FooterBar")
+    footer.setFixedHeight(42)
+    outer.addWidget(footer)
+
+
+def _build_top_bar(self, ChevronMenuButton):
     top = QFrame()
     top.setObjectName("TopBar")
     top_layout = QHBoxLayout(top)
@@ -56,14 +80,22 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     top_layout.addWidget(self.function_menu_btn)
     self.settings_menu_btn = ChevronMenuButton("설정")
     self.settings_menu_btn.clicked.connect(self.show_settings_menu)
+    self.support_btn = self.action_button("개발자 후원", self.open_support_page)
+    self.support_btn.setObjectName("SupportButton")
+    self.support_btn.setStyleSheet(
+        "QPushButton#SupportButton { background:#25433f; color:#9de1d6;"
+        " border:1px solid #69aaa1; border-radius:4px; padding:9px 10px; font-weight:600; }"
+        "QPushButton#SupportButton:hover { background:#315b54; color:#e1fff9; }"
+        "QPushButton#SupportButton:pressed { background:#1d3633; }"
+        "QPushButton#SupportButton:focus { border-color:#b5f3e6; }"
+    )
+    top_layout.addWidget(self.support_btn)
     top_layout.addWidget(self.settings_menu_btn)
-    outer.addWidget(top)
+    self.support_btn.setVisible(self.library.settings.get("show_support_button", True) is not False)
+    return top
 
-    splitter = QSplitter(Qt.Orientation.Horizontal)
-    splitter.setHandleWidth(2)
-    splitter.setChildrenCollapsible(False)
-    outer.addWidget(splitter, 1)
 
+def _build_sidebar(self, LibraryFilterButton, ChevronMenuButton):
     sidebar = QFrame()
     sidebar.setObjectName("Sidebar")
     sidebar.setMinimumWidth(298)
@@ -129,13 +161,17 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     self.tree.itemSelectionChanged.connect(self.on_tree_select)
     self.tree.itemClicked.connect(self.on_tree_clicked)
+    self.collection_arrow_filter = CollectionArrowClickFilter(self.tree)
+    self.collection_arrow_filter.toggleRequested.connect(self.toggle_group_expansion)
     self.tree.itemExpanded.connect(self.on_group_expanded)
     self.tree.itemCollapsed.connect(self.on_group_collapsed)
     self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
     self.tree.customContextMenuRequested.connect(self.sidebar_context_menu)
     sidebar_layout.addWidget(self.tree, 1)
-    splitter.addWidget(sidebar)
+    return sidebar
 
+
+def _build_game_details(self, ChevronMenuButton, Banner):
     self.scroll = QScrollArea()
     self.scroll.setWidgetResizable(True)
     self.scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -212,6 +248,9 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     content.addWidget(overview)
 
     content.addStretch()
+
+
+def _build_content_stack(self):
     self.collections_board = CollectionBoard()
     self.collections_board.collectionOpened.connect(self.show_collection)
     self.collections_board.gameOpened.connect(self.open_game_from_board)
@@ -222,13 +261,4 @@ def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
     self.main_stack.addWidget(self.scroll)
     self.main_stack.addWidget(self.collections_board)
     self.main_stack.currentChanged.connect(self.sync_top_navigation)
-    splitter.addWidget(self.main_stack)
-    splitter.setStretchFactor(0, 0)
-    splitter.setStretchFactor(1, 1)
-    splitter.setSizes([318, 1062])
-    # A clean blank footer, like Steam's bottom breathing room. No buttons,
-    # text, install paths, game counts or download-management actions.
-    footer = QFrame()
-    footer.setObjectName("FooterBar")
-    footer.setFixedHeight(42)
-    outer.addWidget(footer)
+    return self.main_stack

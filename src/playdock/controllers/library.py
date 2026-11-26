@@ -27,6 +27,13 @@ from ui.dialogs.collection_settings import GameCollectionsDialog
 from services.official_work_service import official_info_rows
 
 
+INSTALL_BUTTON_STYLE = (
+    "QPushButton#Primary { background:#237cb2; color:white; }"
+    "QPushButton#Primary:hover { background:#2d91d0; }"
+    "QPushButton#Primary:disabled { background:#31566e; color:#a7bfce; }"
+)
+
+
 class LibraryControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
 
@@ -62,6 +69,7 @@ class LibraryControllerMixin:
         """Reopen saved files after data recovery, including the collections file."""
         self.library = Library(self.library.store)
         self.collections = CollectionStore(self.library.store)
+        self.support_btn.setVisible(self.library.settings.get("show_support_button", True) is not False)
         self.reload()
 
 
@@ -85,7 +93,13 @@ class LibraryControllerMixin:
 
     def populate_games(self, prefer_id: str | None = None):
         # Qt signals pass an integer or string to this slot; they are not game IDs.
-        if not isinstance(prefer_id, str) or not any(g.id == prefer_id for g in self.games):
+        game_ids = {}
+        def game_id_of(game):
+            key = id(game)
+            if key not in game_ids:
+                game_ids[key] = game.id
+            return game_ids[key]
+        if not isinstance(prefer_id, str) or not any(game_id_of(g) == prefer_id for g in self.games):
             prefer_id = self.selected_id
         desired_id = prefer_id or self.selected_id
         query = self.search.text()
@@ -98,12 +112,18 @@ class LibraryControllerMixin:
             if key not in titles:
                 titles[key] = self.library.title(game)
             return titles[key]
-        rows = make_sidebar_groups(self.games, self.collections.list(), title_of,
+        collections = self.collections.list()
+        group_names = {'__uncategorized__': '미분류'}
+        for collection in collections:
+            group_names.setdefault(collection['id'], collection['name'])
+        rows = make_sidebar_groups(self.games, collections, title_of,
                                   filter_mode or 'all', query, self.sort_mode)
         self.tree.blockSignals(True)
         self.tree.clear()
         self.selected_game_item = None
         first_game_item = None
+        icons = {}
+        placeholder = None
         for group in rows:
             header = QTreeWidgetItem(self.tree)
             header.setData(0, Qt.ItemDataRole.UserRole, ("group", group.id))
@@ -117,21 +137,27 @@ class LibraryControllerMixin:
                 expanded = group.id in self.expanded_groups
             for game in group.games:
                 item = QTreeWidgetItem(header, [title_of(game)])
-                item.setData(0, Qt.ItemDataRole.UserRole, ("game", game.id))
+                game_id = game_id_of(game)
+                item.setData(0, Qt.ItemDataRole.UserRole, ("game", game_id))
                 item.setToolTip(0, "")
-                art = self.library.art_dir(game) / 'icon.png'
-                item.setIcon(0, game_art_icon(art, game_placeholder_icon()))
+                key = id(game)
+                if key not in icons:
+                    if placeholder is None:
+                        placeholder = game_placeholder_icon()
+                    art = self.library.art_dir(game) / 'icon.png'
+                    icons[key] = game_art_icon(art, placeholder)
+                item.setIcon(0, icons[key])
                 if first_game_item is None:
                     first_game_item = item
-                if game.id == desired_id and self.selected_game_item is None:
+                if game_id == desired_id and self.selected_game_item is None:
                     self.selected_game_item = item
             header.setExpanded(expanded)
-            self.update_group_label(header)
+            self.update_group_label(header, name=group_names.get(group.id, '모음집'))
         selected = self.selected_game_item or first_game_item
         if selected is not None:
             selected.parent().setExpanded(True)
-            self.update_group_label(selected.parent())
             _kind, group_id = self.tree_identity(selected.parent())
+            self.update_group_label(selected.parent(), name=group_names.get(group_id, '모음집'))
             if _kind == "group":
                 self.expanded_groups.add(group_id)
             self.tree.setCurrentItem(selected)
@@ -140,13 +166,13 @@ class LibraryControllerMixin:
         else:
             self.selected_id = None
         self.tree.blockSignals(False)
-        visible_ids = {g.id for group in rows for g in group.games}
         # Counts belong to the on-demand Properties dialog, not a footer.
         self.tree.setToolTip("")
         if selected is not None:
             self.present_game()
         else:
             self.banner.set_game('표시할 게임이 없습니다', '검색어나 필터를 변경해 보세요', None)
+            self.main_button.setStyleSheet("")
             self.main_button.setEnabled(False)
             self.status_title.setText('선택된 게임 없음')
             self.status_detail.setText('모음집을 펼쳐 게임을 선택하세요')
@@ -174,21 +200,49 @@ class LibraryControllerMixin:
     def on_tree_clicked(self, item, _column):
         kind, _cid = self.tree_identity(item)
         if kind == 'group':
-            item.setExpanded(not item.isExpanded())
             self.show_collection(_cid)
         elif kind == 'game' and self.main_stack.currentWidget() is not self.scroll:
             self.on_tree_select()
 
 
-    def update_group_label(self, item):
+    def toggle_group_expansion(self, item):
+        """Toggle only the existing sidebar rows; preserve the current detail/board."""
+        kind, _cid = self.tree_identity(item)
+        if kind != 'group':
+            return
+        expanded = not item.isExpanded()
+        previous = self.tree.blockSignals(True)
+        try:
+            item.setExpanded(expanded)
+            # If Qt moved the current row while hiding a child, restore it only
+            # when its group is visible again, without opening or refreshing it.
+            selected = self.selected_game_item
+            if (expanded and selected is not None and selected.parent() is item
+                    and self.main_stack.currentWidget() is self.scroll
+                    and self.tree.currentItem() is not selected):
+                self.tree.setCurrentItem(selected)
+        finally:
+            self.tree.blockSignals(previous)
+        if expanded:
+            self.on_group_expanded(item)
+        else:
+            self.on_group_collapsed(item)
+
+
+    def update_group_label(self, item, *, name=None):
         kind, cid = self.tree_identity(item)
         if kind != 'group':
             return
         if cid == '__uncategorized__':
             name = '미분류'
-        else:
+        elif name is None:
             name = next((c['name'] for c in self.collections.list() if c['id'] == cid), '모음집')
         item.setText(0, f"{name}  ({item.childCount()})")
+        self.update_group_arrow(item)
+
+
+    @staticmethod
+    def update_group_arrow(item):
         item.setIcon(0, collection_chevron(item.isExpanded()))
 
 
@@ -196,19 +250,18 @@ class LibraryControllerMixin:
         kind, cid = self.tree_identity(item)
         if kind == 'group':
             self.expanded_groups.add(cid)
-            self.update_group_label(item)
+            self.update_group_arrow(item)
 
 
     def on_group_collapsed(self, item):
         kind, cid = self.tree_identity(item)
         if kind == 'group':
             self.expanded_groups.discard(cid)
-            self.update_group_label(item)
+            self.update_group_arrow(item)
 
 
     def show_collections_overview(self):
-        self.collections_board.set_data(self.library, self.games, self.collections)
-        self.collections_board.show_overview()
+        self.collections_board.set_data(self.library, self.games, self.collections, overview=True)
         self.main_stack.setCurrentWidget(self.collections_board)
 
 
@@ -362,14 +415,18 @@ class LibraryControllerMixin:
 
 
     def present_game(self):
-        self.refresh_function_availability()
         game = self.current()
         if game is None:
+            self.refresh_function_availability()
             return
         dest = self.library.art_dir(game)
         discover_local(self.library, game)
-        title = self.library.title(game)
-        exe = chosen_executable(self.library, game)
+        meta = self.library.meta(game)
+        records = self.refresh_function_availability(meta_by_game={game.id: meta})
+        _, title = self.library.title_pair(game, meta=meta)
+        exe = chosen_executable(self.library, game, meta=meta, title=title)
+        installed = game.installed
+        status = '설치됨' if installed else '설치 가능' if game.archive else '경로 없음'
         if exe and not (dest / "icon.png").exists():
             try:
                 provider = QFileIconProvider()
@@ -384,9 +441,12 @@ class LibraryControllerMixin:
             art_file = dest / 'icon.png'
             current_item.setIcon(0, game_art_icon(art_file, game_placeholder_icon()))
         hero = dest / "hero.png"
-        self.banner.set_game(title, "PLAYDOCK · " + game.status, hero if hero.exists() else None)
-        self.status_title.setText(game.status)
-        if game.installed:
+        self.banner.set_game(title, "PLAYDOCK · " + status, hero if hero.exists() else None)
+        self.status_title.setText(status)
+        action_style = "" if installed else INSTALL_BUTTON_STYLE
+        if self.main_button.styleSheet() != action_style:
+            self.main_button.setStyleSheet(action_style)
+        if installed:
             self.main_button.setText("▶  플레이" if exe else "실행 파일 선택")
             self.status_detail.setText(f"실행 대상: {exe.name if exe else '지정 필요'}")
         else:
@@ -394,20 +454,21 @@ class LibraryControllerMixin:
             self.status_detail.setText("압축을 풀어 설치할 수 있습니다")
         self.main_button.setEnabled(True)
         self.folder_btn.setEnabled(True)
-        self.uninstall_btn.setVisible(game.installed and not game.external)
-        self.uninstall_btn.setEnabled(game.installed and not game.external and self.install_worker is None and self.uninstall_worker is None)
-        self.select_exe_btn.setEnabled(game.installed)
+        self.uninstall_btn.setVisible(installed and not game.external)
+        self.uninstall_btn.setEnabled(installed and not game.external and self.install_worker is None and self.uninstall_worker is None)
+        self.select_exe_btn.setEnabled(installed)
         archive = str(game.archive) if game.archive else "없음"
         size = ""
         if game.archive and game.archive.exists():
             size = f" ({friendly_bytes(game.archive.stat().st_size)})"
         folder = str(game.folder) if game.folder else "미설치"
-        source = self.library.meta(game).get("artwork_source", "로컬 파일 / 기본 이미지")
+        source = meta.get("artwork_source", "로컬 파일 / 기본 이미지")
         belonging = self.collections.for_game(game.id)
         collection_names = ", ".join(col["name"] for col in belonging) if belonging else "없음"
         from html import escape
-        confirmed = self.collected_game_record(game)
-        product_code = self.library.product_code(game)
+        confirmed = (records.get(game.id) if records is not None else
+                     self.collected_game_record(game, meta=meta))
+        product_code = self.library.product_code(game, meta=meta)
         info_rows = [
             ('모음집', collection_names),
             ('공식 작품 확인', '확인 완료' if confirmed else '정보 수집 필요'),
@@ -415,7 +476,7 @@ class LibraryControllerMixin:
                (not confirmed or product_code != confirmed['code']) else []),
             *official_info_rows(confirmed),
             *([('등록 방식', '외부 게임 직접 등록')] if game.external else []),
-            ('상태', game.status),
+            ('상태', status),
             ('압축 파일', archive + size),
             ('설치 폴더', folder),
             ('실행 파일', str(exe) if exe else '미지정'),

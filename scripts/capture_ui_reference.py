@@ -50,6 +50,31 @@ def main():
     def capture(name,widget):
         widget.show()
         qt.processEvents()
+        support=getattr(widget,"support_btn",None)
+        if support is not None:
+            assert support.isVisible() and support.isEnabled()
+            assert support.text()=="개발자 후원"
+            assert support.geometry().right()<widget.settings_menu_btn.geometry().left()
+            assert support.geometry().right()<support.parentWidget().width()
+            full=out/"approved_topbar"
+            full.mkdir(exist_ok=True)
+            assert widget.grab().save(str(full/(name+".png")))
+            # Normalize only user-approved visual differences for the historical comparison.
+            support.hide()
+            main_style=widget.main_button.styleSheet()
+            widget.main_button.setStyleSheet("")
+        renamed_buttons=[]
+        if name=="10_official_name_dialog":
+            labels={"전체 선택":"보이는 게임 전체 선택","적용":"체크한 변경 사항 저장"}
+            renamed_buttons=[(b,b.text()) for b in widget.findChildren(QPushButton) if b.text() in labels]
+            if renamed_buttons:
+                assert len(renamed_buttons)==2
+                full=out/"approved_title_dialog"
+                full.mkdir(exist_ok=True)
+                assert widget.grab().save(str(full/(name+".png")))
+                for button,label in renamed_buttons:
+                    button.setText(labels[label])
+        qt.processEvents()
         image=widget.grab()
         assert not image.isNull() and image.save(str(out/(name+".png")))
         contract["screens"][name]={"title":widget.windowTitle(),
@@ -57,11 +82,17 @@ def main():
             "size":[widget.width(),widget.height()],
             "buttons":[{"text":b.text(),"object":b.objectName(),"enabled":b.isEnabled(),
                         "visible":b.isVisible(),"geometry":geometry(b,widget) if b.isVisible() else None}
-                       for b in widget.findChildren(QPushButton)],
+                       for b in widget.findChildren(QPushButton) if b is not support],
             "visible_fields":[{"type":type(child).__name__,"object":child.objectName(),
                                "geometry":geometry(child,widget)}
                               for cls in (QLabel,QLineEdit,QFrame) for child in widget.findChildren(cls)
                               if child.isVisible()]}
+        for button,label in renamed_buttons:
+            button.setText(label)
+        if support is not None:
+            widget.main_button.setStyleSheet(main_style)
+            support.show()
+            qt.processEvents()
     def menu_rows(menu):
         return [{"text":a.text(),"enabled":a.isEnabled(),"separator":a.isSeparator(),
                  "checked":a.isChecked(),"children":menu_rows(a.menu()) if a.menu() else []}
@@ -74,6 +105,16 @@ def main():
             open_menu()
             assert len(captured)==1
             m=captured[0]
+            if name=="02_settings_menu" and getattr(window,"support_btn",None) is not None:
+                rows=menu_rows(m)
+                assert rows[-2]["separator"] and rows[-1]=={"text":"개발자 후원 버튼 표시","enabled":True,"separator":False,"checked":True,"children":[]}
+                full=out/"approved_topbar"
+                full.mkdir(exist_ok=True)
+                m.ensurePolished()
+                m.adjustSize()
+                assert m.grab().save(str(full/(name+".png")))
+                for action in m.actions()[-2:]:
+                    m.removeAction(action)
             contract["menus"][name]=menu_rows(m)
             m.ensurePolished()
             m.adjustSize()

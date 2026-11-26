@@ -13,26 +13,30 @@ from PySide6.QtGui import QColor, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QPushButton, QMenu
 
 
-DARK_POPUP_STYLE = """
-QMenu {
-    background-color:#182a3b;
-    color:#ecf4fc;
-    border:1px solid #4b6b85;
-    padding:5px;
-    font-family:'Malgun Gothic','Segoe UI',sans-serif;
-    font-size:13px;
-}
-QMenu::item {
-    color:#ecf4fc;
-    background-color:#182a3b;
-    padding:9px 18px 9px 25px;
-    margin:2px 1px;
-    min-height:20px;
-}
-QMenu::item:selected { background-color:#365a76; color:#ffffff; }
-QMenu::item:disabled { color:#8092a2; }
-QMenu::indicator:checked { image:none; }
-"""
+from ui.styles import DARK_POPUP_STYLE, DARK_SELECTOR_STYLESHEET
+
+
+def draw_menu_chevron(painter, cx, cy, *, expanded, half_width, tip_height):
+    """Draw a menu arrow while preserving each widget's own geometry and pen."""
+    path = QPainterPath()
+    if expanded:
+        path.moveTo(cx - half_width, cy + 2)
+        path.lineTo(cx, cy - tip_height)
+        path.lineTo(cx + half_width, cy + 2)
+    else:
+        path.moveTo(cx - half_width, cy - 2)
+        path.lineTo(cx, cy + tip_height)
+        path.lineTo(cx + half_width, cy - 2)
+    painter.drawPath(path)
+
+
+def add_selection_actions(menu, entries, current_index, select):
+    """Populate checkable menu options with their original index callbacks."""
+    for index, (label, _data) in enumerate(entries):
+        action = menu.addAction(label)
+        action.setCheckable(True)
+        action.setChecked(index == current_index)
+        action.triggered.connect(lambda _checked=False, i=index: select(i))
 
 
 class DarkMenuSelect(QPushButton):
@@ -54,16 +58,7 @@ class DarkMenuSelect(QPushButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setMinimumHeight(37)
         self.setObjectName('DarkMenuSelect')
-        self.setStyleSheet('''
-            QPushButton#DarkMenuSelect {
-                background-color:#1e3143; color:#f3f8fc;
-                border:1px solid #496b82; border-radius:4px;
-                padding:8px 31px 8px 11px;
-                text-align:left;
-            }
-            QPushButton#DarkMenuSelect:hover { background-color:#28465e; border-color:#76a6c2; }
-            QPushButton#DarkMenuSelect:pressed { background-color:#31546e; }
-        ''')
+        self.setStyleSheet(DARK_SELECTOR_STYLESHEET)
         self.clicked.connect(self._show_menu)
 
     def addItem(self, text: str, userData=None):
@@ -109,11 +104,7 @@ class DarkMenuSelect(QPushButton):
         menu = QMenu(self)
         menu.setStyleSheet(DARK_POPUP_STYLE)
         menu.setMinimumWidth(self.width())
-        for index, (label, _data) in enumerate(self._entries):
-            action = menu.addAction(label)
-            action.setCheckable(True)
-            action.setChecked(index == self._index)
-            action.triggered.connect(lambda _checked=False, i=index: self.setCurrentIndex(i))
+        add_selection_actions(menu, self._entries, self._index, self.setCurrentIndex)
         self._menu = menu
         self._menu_open = True
         self.update()
@@ -136,14 +127,5 @@ class DarkMenuSelect(QPushButton):
         painter.setPen(QPen(QColor('#d4e7f5'), 1.8, Qt.PenStyle.SolidLine,
                             Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
         cx, cy = self.width() - 16, self.height() / 2
-        path = QPainterPath()
-        if self._menu_open:
-            path.moveTo(cx - 5, cy + 2)
-            path.lineTo(cx, cy - 3)
-            path.lineTo(cx + 5, cy + 2)
-        else:
-            path.moveTo(cx - 5, cy - 2)
-            path.lineTo(cx, cy + 3)
-            path.lineTo(cx + 5, cy - 2)
-        painter.drawPath(path)
+        draw_menu_chevron(painter, cx, cy, expanded=self._menu_open, half_width=5, tip_height=3)
         painter.end()

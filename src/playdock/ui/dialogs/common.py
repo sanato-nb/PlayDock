@@ -1,13 +1,10 @@
 """PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
 from __future__ import annotations
 
-import weakref
-from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QPointF, QObject, QEvent, QSize
-from PySide6.QtGui import QColor, QPainter, QPen, QIcon, QPixmap, QPalette
+from PySide6.QtCore import Qt, QPointF, QEvent
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (
-    QMainWindow,
     QWidget,
     QHBoxLayout,
     QVBoxLayout,
@@ -15,12 +12,12 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QLineEdit,
-    QDialog, QFileDialog, QToolButton, QTreeView, QListView, QDialogButtonBox, QSizeGrip,
+    QDialog,
+    QFileDialog,
+    QDialogButtonBox,
 )
 
 from ui.selectors import DarkMenuSelect
-from native_caption import windows_dark_caption
-from ui.styles import FILE_DIALOG_STYLESHEET
 
 
 class DialogCloseButton(QPushButton):
@@ -96,6 +93,27 @@ class ThemedDialog(QDialog):
         return super().eventFilter(watched, event)
 
 
+def add_standard_confirmation_box(layout, primary, text, on_accept, on_reject):
+    """Append a native Qt button box with the caller's original action role."""
+    buttons = QDialogButtonBox(primary | QDialogButtonBox.StandardButton.Cancel)
+    buttons.button(primary).setText(text)
+    buttons.accepted.connect(on_accept)
+    buttons.rejected.connect(on_reject)
+    layout.addWidget(buttons)
+
+
+def _add_confirmation_buttons(dialog):
+    buttons = QHBoxLayout()
+    buttons.addStretch(1)
+    ok = QPushButton('OK')
+    cancel = QPushButton('Cancel')
+    ok.clicked.connect(dialog.accept)
+    cancel.clicked.connect(dialog.reject)
+    buttons.addWidget(ok)
+    buttons.addWidget(cancel)
+    dialog.body.addLayout(buttons)
+
+
 class TextEntryDialog(ThemedDialog):
     def __init__(self, title: str, label: str, parent=None, text: str = ''):
         super().__init__(title, parent, 430)
@@ -105,15 +123,7 @@ class TextEntryDialog(ThemedDialog):
         self.body.addWidget(prompt)
         self.edit = QLineEdit(text)
         self.body.addWidget(self.edit)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        ok = QPushButton('OK')
-        cancel = QPushButton('Cancel')
-        ok.clicked.connect(self.accept)
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(ok)
-        buttons.addWidget(cancel)
-        self.body.addLayout(buttons)
+        _add_confirmation_buttons(self)
         self.edit.selectAll()
         self.edit.setFocus()
 
@@ -133,15 +143,7 @@ class ChoiceDialog(ThemedDialog):
         if values:
             self.combo.setCurrentIndex(max(0, min(current, len(values)-1)))
         self.body.addWidget(self.combo)
-        buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        ok = QPushButton('OK')
-        cancel = QPushButton('Cancel')
-        ok.clicked.connect(self.accept)
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(ok)
-        buttons.addWidget(cancel)
-        self.body.addLayout(buttons)
+        _add_confirmation_buttons(self)
         self.combo.setFocus()
 
 

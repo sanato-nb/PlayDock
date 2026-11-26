@@ -192,3 +192,50 @@ def test_ui_has_manual_replace_lookup_restore_undo_bulk_modes():
         assert "'" + mode + "'" in src
     assert "self.preview_table" in src
     assert "self.targets.itemChanged.connect" in src
+
+
+def test_bulk_partition_preserves_valid_rows_and_strict_atomic_api(tmp_path):
+    from services.bulk_title_service import BulkTitleActions
+    lib, games, *_ = sample(tmp_path)
+    g, other = games
+    invalid = BulkChange(g.id, lib.title(g), "日本語タイトル", "localized", "ko",
+                         product_code="RJ01159100", lookup_result=True)
+    valid = BulkChange(other.id, lib.title(other), "새 이름")
+    service = BulkTitleActions(lib)
+    ready, rejected = service.partition_changes(games, [invalid, valid])
+    assert ready == [valid] and rejected[0][0] == invalid
+    assert not (lib.store / "backups").exists()
+    count, backup = service.apply_changes(games, ready)
+    assert count == 1 and backup.is_file()
+    assert lib.title(g) == invalid.expected_name
+    assert lib.title(other) == "새 이름"
+
+
+def test_korean_title_japanese_punctuation_not_mistaken_for_kana(tmp_path):
+    from services.localized_titles import language_is_plausible
+    assert language_is_plausible("한국어・제목", "ko")
+    assert not language_is_plausible("日本語タイトル", "ko")
+    assert not language_is_plausible("ｶﾀｶﾅ", "ko")
+    lib, games, *_ = sample(tmp_path)
+    g = games[0]
+    count, backup = apply_bulk_changes(lib, games, [BulkChange(
+        g.id, lib.title(g), "한국어・제목", "localized", "ko", product_code="RJ01159100")])
+    assert count == 1 and backup.is_file()
+
+
+def test_lookup_preview_retains_worker_snapshot_and_fallback_even_manual(tmp_path):
+    from services.bulk_title_service import BulkTitleActions
+    lib, games, *_ = sample(tmp_path)
+    g = games[0]
+    actions = BulkTitleActions(lib)
+    old = lib.title(g)
+    rows = [{"game_id": g.id, "original": old, "title": "日本語タイトル",
+             "language": "ja", "code": "RJ01159100", "store": "dlsite", "source": "DB"}]
+    record = actions.lookup_preview(games, rows, "ko", save_as_localized=False)[0]
+    assert record.lookup_result and record.method == "manual"
+    assert actions.preview_status(g, record, record.proposed_name, "ko") == ("다른 언어 · 확인 필요", False)
+    save_display_title(lib, g, "다른 곳에서 수정")
+    newer = actions.lookup_preview(games, rows, "ko", save_as_localized=True)[0]
+    assert newer.expected_name == old
+    ready, rejected = actions.partition_changes(games, [newer])
+    assert not ready and "미리보기 이후" in rejected[0][1]

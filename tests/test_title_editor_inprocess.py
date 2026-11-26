@@ -161,3 +161,62 @@ def test_public_installer_does_not_require_editor_companion_exe():
     assert "editor = TitleEditor(game.id, library=self.library, single_game_only=True)" in ctrl
     assert "dialog = BulkTitleSettingsDialog(self.library, self.games, None, self)" in ctrl
     assert "subprocess.Popen" not in ctrl
+
+
+def test_bulk_language_conflict_does_not_block_valid_checked_rows(qt_app, tmp_path, monkeypatch):
+    from services.bulk_title_edit import BulkChange
+    from PySide6.QtWidgets import QPushButton
+    lib, games, a, b = example(tmp_path)
+    g = next(game for game in games if lib.product_code(game) == "RJ123456")
+    other = next(game for game in games if game.id != g.id)
+    dialog = BulkTitleSettingsDialog(lib, games, None)
+    messages = []
+    try:
+        assert dialog.confirm.text() == "적용"
+        assert any(b.text() == "전체 선택" for b in dialog.findChildren(QPushButton))
+        rows = [
+            BulkChange(g.id, lib.title(g), "日本語タイトル", method="localized",
+                       language="ko", product_code="RJ123456", lookup_result=True),
+            BulkChange(other.id, lib.title(other), "사용자 지정 제목"),
+        ]
+        dialog.set_preview_records(rows)
+        assert dialog.preview_table.item(0, 4).text() == "언어 불일치 · 수정 필요"
+        assert dialog.preview_table.item(0, 0).checkState() == Qt.CheckState.Unchecked
+        dialog.preview_table.item(0, 0).setCheckState(Qt.CheckState.Checked)
+        monkeypatch.setattr(QMessageBox, "question", lambda *a: QMessageBox.StandardButton.Yes)
+        monkeypatch.setattr(QMessageBox, "information", lambda *a: messages.append(a[-1]))
+        dialog.apply_preview()
+        assert "사용자 지정 제목" in lib.title(other)
+        assert lib.title(g) == rows[0].expected_name
+        assert "제외 1개" in messages[-1]
+        assert a.read_bytes() == b"first compressed bytes" and b.read_bytes() == b"second compressed bytes"
+        assert len(list((lib.store / "backups").glob("title_bulk_*.zip"))) == 1
+    finally:
+        dialog.close()
+
+
+def test_bulk_filter_scope_and_edited_fallback(qt_app, tmp_path):
+    from services.bulk_title_edit import BulkChange
+    lib, games, *_ = example(tmp_path)
+    g = next(game for game in games if lib.product_code(game) == "RJ123456")
+    dialog = BulkTitleSettingsDialog(lib, games, None)
+    try:
+        dialog.select_visible(True)
+        dialog.filter_edit.setText("First")
+        assert dialog.selected_games() == [g]
+        dialog.select_visible(False)
+        assert not dialog.selected_games()
+        dialog.filter_edit.clear()
+        assert len(dialog.selected_games()) == 1
+        fallback = BulkChange(g.id, lib.title(g), "日本語タイトル", method="localized",
+                              language="ja", product_code="RJ123456", lookup_result=True)
+        dialog.set_preview_records([fallback])
+        assert dialog.preview_table.item(0, 0).checkState() == Qt.CheckState.Unchecked
+        dialog.preview_table.item(0, 2).setText("한국어·제목")
+        assert dialog.preview_table.item(0, 0).checkState() == Qt.CheckState.Checked
+        assert dialog.preview_table.item(0, 4).text() == "직접 수정 · 확인"
+        dialog.preview_table.item(0, 2).setText("")
+        assert dialog.preview_table.item(0, 0).checkState() == Qt.CheckState.Unchecked
+        assert not dialog.confirm.isEnabled()
+    finally:
+        dialog.close()

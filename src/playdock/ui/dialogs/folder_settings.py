@@ -1,36 +1,22 @@
 """PlayDock — Windows-friendly Steam-like launcher for local ZIP/7z/RAR/RAR games."""
 from __future__ import annotations
 
-import os
 from pathlib import Path
-import sys
 
-from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget,
     QHBoxLayout,
-    QVBoxLayout,
-    QFrame,
     QLabel,
     QPushButton,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
-    QCheckBox,
     QDialogButtonBox,
-    QTabWidget,
 )
 
-from core import Game, Library
-from storage.collections import CollectionStore
-from services.collection_service import CollectionMembershipActions
-from services.cache_service import CacheService
+from core import Library
 from services.settings_service import save_folder_settings, proposed_paths
 
 
 from ui.dialogs.file_dialog import PlayDockFileDialog as QFileDialog
-from ui.dialogs.common import ThemedDialog, ask_text, ask_yes_no, show_message
-from ui.widgets.launcher import friendly_bytes
+from ui.dialogs.common import ThemedDialog, show_message, add_standard_confirmation_box
 
 
 class FirstRunDialog(ThemedDialog):
@@ -65,11 +51,8 @@ class FirstRunDialog(ThemedDialog):
         info.setWordWrap(True)
         info.setObjectName("Subtle")
         layout.addWidget(info)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        buttons.button(QDialogButtonBox.StandardButton.Ok).setText("설정 완료")
-        buttons.accepted.connect(self.save)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        add_standard_confirmation_box(
+            layout, QDialogButtonBox.StandardButton.Ok, "설정 완료", self.save, self.reject)
 
     def choose_directory(self, edit: QLineEdit):
         starting = Path(edit.text()).expanduser()

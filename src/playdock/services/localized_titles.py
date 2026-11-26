@@ -19,7 +19,7 @@ from product_titles import (
 
 LANGUAGES = {"ko": ("한국어", "ko_KR"), "en": ("English", "en_US"), "ja": ("日本語", "ja_JP")}
 CODE_ONLY = re.compile(r"^(?:RJ|VJ|BJ|EJ)\d{6,8}$", re.I)
-JAPANESE_KANA = re.compile(r"[\u3040-\u30ff]")
+JAPANESE_KANA = re.compile(r"[\u3041-\u3096\u309d-\u309f\u30a1-\u30fa\u30fd-\u30ff\uff66-\uff9d]")
 EAST_ASIAN_SCRIPT = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]")
 KOREAN_HANGUL = re.compile(r"[\uac00-\ud7a3]")
 
@@ -140,16 +140,38 @@ def display_language_for(meta: dict, settings: dict) -> str:
     return local if local in LANGUAGES else "ko"
 
 
+def normalize_title_priority(priority):
+    """Return a complete ordering of the three supported title locales."""
+    if isinstance(priority, str):
+        priority = priority.split(",")
+    if not isinstance(priority, (list, tuple)):
+        priority = ()
+    return tuple(dict.fromkeys([lang for lang in priority if isinstance(lang, str) and lang in LANGUAGES]
+                               + ["ko", "ja", "en"]))
+
+
 def localized_title_for(meta: dict, settings: dict, *, original_name: str,
                         product_code: str) -> str | None:
     """Prefer chosen locale; for a code-only name allow Japanese fallback."""
     variants = meta.get("localized_titles") or {}
     if not isinstance(variants, dict):
         return None
-    desired = display_language_for(meta, settings)
-    translated = clean_title(variants.get(desired))
-    if not translated and is_code_only_title(original_name):
-        translated = clean_title(variants.get("ja")) or clean_title(variants.get("en"))
+    priority = meta.get("title_language_priority")
+    if priority:
+        order = normalize_title_priority(priority)
+        override = meta.get("title_language")
+        if override in LANGUAGES:
+            order = normalize_title_priority((override, *order))
+        translated = next((clean_title(variants.get(lang)) for lang in order
+                           if clean_title(variants.get(lang)) and
+                           language_is_plausible(variants[lang], lang)), None)
+    else:
+        # Preserve existing users' single-language display rules until they
+        # explicitly apply the new priority mode.
+        desired = display_language_for(meta, settings)
+        translated = clean_title(variants.get(desired))
+        if not translated and is_code_only_title(original_name):
+            translated = clean_title(variants.get("ja")) or clean_title(variants.get("en"))
     if not translated:
         return None
     # Keep the archive's [v...]/[KR]/[revision] metadata separate from the

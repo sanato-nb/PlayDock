@@ -5,12 +5,10 @@ Archives, installed directories, executable choices and collections are untouche
 """
 from __future__ import annotations
 
-import weakref
 
-from PySide6.QtCore import Qt, QUrl, QTimer, QObject, QEvent
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QWidget,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -23,20 +21,25 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QHeaderView,
-    QCheckBox,
 )
 
-from core import Library
-from database.work_repository import WorkDatabase
-from services.bulk_title_service import BulkTitleActions, valid_korean_candidate
-from native_caption import windows_dark_caption
-from services.localized_titles import LANGUAGES, is_code_only_title
-from ui.selectors import DarkMenuSelect
+from services.bulk_title_service import valid_korean_candidate
+from services.localized_titles import LANGUAGES
 from ui.widgets.table_checks import StatusCheckDelegate
 from ui.widgets.buttons import configure_action_button
 
 
-from workers.title import BulkTitleWorker
+
+
+def _add_title_choice_actions(buttons, label, on_accept, on_reject):
+    buttons.addStretch(1)
+    apply = QPushButton(label)
+    configure_action_button(apply, 'Save')
+    apply.clicked.connect(on_accept)
+    buttons.addWidget(apply)
+    cancel = QPushButton('취소')
+    cancel.clicked.connect(on_reject)
+    buttons.addWidget(cancel)
 
 
 class BulkPreviewDialog(QDialog):
@@ -82,14 +85,7 @@ class BulkPreviewDialog(QDialog):
             self.table.setRowHeight(row_index, 47)
         layout.addWidget(self.table)
         buttons = QHBoxLayout()
-        buttons.addStretch(1)
-        apply = QPushButton('선택한 제목 저장')
-        configure_action_button(apply, 'Save')
-        apply.clicked.connect(self.accept)
-        buttons.addWidget(apply)
-        cancel = QPushButton('취소')
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(cancel)
+        _add_title_choice_actions(buttons, '선택한 제목 저장', self.accept, self.reject)
         layout.addLayout(buttons)
 
     def selected_rows(self):
@@ -131,14 +127,7 @@ class KoreanWebCandidatesDialog(QDialog):
         self.open_source_btn = QPushButton('출처 페이지 열기')
         self.open_source_btn.clicked.connect(self.open_source)
         buttons.addWidget(self.open_source_btn)
-        buttons.addStretch(1)
-        apply = QPushButton('이 제목을 후보로 사용')
-        configure_action_button(apply, 'Save')
-        apply.clicked.connect(self.accept_candidate)
-        buttons.addWidget(apply)
-        cancel = QPushButton('취소')
-        cancel.clicked.connect(self.reject)
-        buttons.addWidget(cancel)
+        _add_title_choice_actions(buttons, '이 제목을 후보로 사용', self.accept_candidate, self.reject)
         layout.addLayout(buttons)
         if self.suggestions:
             self.listing.setCurrentRow(0)

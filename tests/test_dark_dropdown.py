@@ -31,9 +31,16 @@ def test_current_title_selectors_are_dark():
 
 def test_menu_popup_has_explicit_dark_background_and_light_text():
     assert 'menu.setStyleSheet(DARK_POPUP_STYLE)' in SELECTOR
-    assert 'QMenu::item:selected' in SELECTOR
-    assert 'background-color:#182a3b' in SELECTOR
-    assert 'color:#ecf4fc' in SELECTOR
+    styles = (ROOT / 'src/playdock/ui/styles.py').read_text(encoding='utf-8')
+    import ast
+    popup = next(ast.literal_eval(node.value) for node in ast.parse(styles).body
+                 if isinstance(node, ast.Assign) and any(
+                     isinstance(target, ast.Name) and target.id == 'DARK_POPUP_STYLE'
+                     for target in node.targets))
+    assert 'QMenu::item:selected' in popup
+    assert 'background-color:#182a3b' in popup
+    assert 'color:#ecf4fc' in popup
+    assert 'from ui.styles import DARK_POPUP_STYLE' in SELECTOR
     assert 'menu.popup(' in SELECTOR
     assert 'self._menu_open' in SELECTOR
 

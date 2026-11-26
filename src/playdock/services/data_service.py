@@ -76,12 +76,20 @@ def inventory(library, games, collections) -> DataInventory:
     games = list(games)
     ids = {game.id for game in games}
     records = collections.list()
-    entries = [gid for col in records for gid in col['game_ids']]
+    membership_count = 0
+    missing_count = 0
+    for col in records:
+        membership_count += len(col['game_ids'])
+        missing_count += sum(gid not in ids for gid in col['game_ids'])
     folders = _cache_folders(library.store)
-    meta = [f for f in folders if (f / 'meta.json').is_file() and not (f / 'meta.json').is_symlink()]
+    metadata_count = orphaned_count = 0
     image_count = 0
     image_bytes = 0
     for folder in folders:
+        meta = folder / 'meta.json'
+        if meta.is_file() and not meta.is_symlink():
+            metadata_count += 1
+            orphaned_count += folder.name not in ids
         for kind in ('hero.png', 'icon.png'):
             p = folder / kind
             if p.is_file() and not p.is_symlink():
@@ -95,9 +103,9 @@ def inventory(library, games, collections) -> DataInventory:
     return DataInventory(
         games=len(games), installed=sum(bool(g.installed) for g in games),
         archives=sum(g.archive is not None for g in games),
-        collections=len(records), collection_memberships=len(entries),
-        missing_memberships=sum(gid not in ids for gid in entries),
-        metadata=len(meta), orphaned_metadata=sum(f.name not in ids for f in meta),
+        collections=len(records), collection_memberships=membership_count,
+        missing_memberships=missing_count,
+        metadata=metadata_count, orphaned_metadata=orphaned_count,
         images=image_count, image_bytes=image_bytes, product_titles=len(titles),
     )
 

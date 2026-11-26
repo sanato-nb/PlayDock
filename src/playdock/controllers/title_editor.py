@@ -12,11 +12,12 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QDialog
 
 from services.simple_title_edit import (
-    save_display_title,
+    save_display_title, save_localized_display_title, original_display_name,
     undo_display_title,
     restore_filename_title,
     title_history,
 )
+from services.bulk_title_service import BulkTitleActions
 from models.game_codes import normalize_code
 from artwork import get_secret
 from ai_providers import PROVIDERS, current_provider, current_models
@@ -131,7 +132,7 @@ class TitleEditorActionsMixin:
         if not game or self.worker is not None:
             return
         if QMessageBox.question(self, '원본 이름으로 복원',
-                f'이 게임의 표시 이름을 원본으로 바꿀까요?\n\n{game.name}\n\n'
+                f'이 게임의 표시 이름을 원본으로 바꿀까요?\n\n{original_display_name(self.library, game)}\n\n'
                 '원본 압축파일은 변경되지 않고, 이 작업도 되돌릴 수 있어.') != QMessageBox.StandardButton.Yes:
             return
         try:
@@ -437,13 +438,14 @@ class TitleEditorActionsMixin:
             QMessageBox.warning(self, '제목 오류', '2~240자의 올바른 게임 제목을 입력하세요.')
             return
         language = self.localized_candidate_language
-        meta = self.library.meta(game)
-        variants = dict(meta.get('localized_titles') or {})
-        sources = dict(meta.get('localized_sources') or {})
-        variants[language] = value
-        sources[language] = self.localized_source
-        self.library.update_meta(game, localized_titles=variants, localized_sources=sources,
-                                 prefer_manual_title=False)
+        try:
+            changed = save_localized_display_title(self.library, game, value, language, self.localized_source)
+        except (ValueError, OSError) as exc:
+            QMessageBox.warning(self, '제목 저장 실패', str(exc))
+            return
+        if not changed:
+            self.status.setText('변경된 내용이 없습니다.')
+            return
         self.refresh()
         preferred = self.language_menu.currentData() or 'ko'
         if preferred != language:
@@ -469,7 +471,7 @@ class TitleEditorActionsMixin:
             return
         if self.worker is not None:
             return
-        entries = [(g.id, g.name, self.library.product_code(g)) for g in self.games
+        entries = [(g.id, self.library.title(g), self.library.product_code(g)) for g in self.games
                    if is_code_only_title(g.name) and self.library.product_code(g)
                    and (self.library.meta(g).get('title') or '').strip() in ('', g.name)
                    and not (self.library.meta(g).get('localized_titles') or {}).get(
@@ -506,21 +508,23 @@ class TitleEditorActionsMixin:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             self.status.setText('적용 취소 · 게임 이름을 변경하지 않았습니다.')
             return
-        changed = 0
-        for record in dialog.selected_rows():
-            game = next((g for g in self.games if g.id == record['game_id']), None)
-            if game is None or self.library.product_code(game) != record['code']:
-                continue
-            meta = self.library.meta(game)
-            variants = dict(meta.get('localized_titles') or {})
-            sources = dict(meta.get('localized_sources') or {})
-            actual = record['language']
-            variants[actual] = record['title']
-            sources[actual] = record['source']
-            self.library.update_meta(game, localized_titles=variants, localized_sources=sources)
-            changed += 1
+        selected = dialog.selected_rows()
+        actions = BulkTitleActions(self.library)
+        changes = actions.lookup_preview(self.games, selected, language, save_as_localized=True)
+        try:
+            ready, rejected = actions.partition_changes(self.games, changes)
+            changed, _backup = actions.apply_changes(self.games, ready)
+        except (ValueError, OSError, RuntimeError) as exc:
+            QMessageBox.warning(self, '일괄 이름 적용 실패', str(exc))
+            return
+        skipped = len(selected) - len(ready)
         self.refresh()
-        self.status.setText(f'선택한 {changed}개 제목을 저장했어. 원본 게임 파일은 변경하지 않았어.')
+        self.status.setText(f'적용 {changed}개 · 변경 없음 {len(ready) - changed}개 · 제외 {skipped}개. 원본 파일은 변경하지 않았습니다.')
+        if rejected:
+            details = "\n".join(f"{change.expected_name}: {reason}" for change, reason in rejected[:10])
+            if len(rejected) > 10:
+                details += f"\n외 {len(rejected) - 10}개"
+            QMessageBox.information(self, '제외된 제목', details)
 
 
     def bulk_finished(self):
@@ -592,7 +596,7 @@ class TitleEditorActionsMixin:
         game = self.current_game()
         if not game or self.worker is not None:
             return
-        self.edit.setText(game.name)
+        self.edit.setText(original_display_name(self.library, game))
         self.suggestion_source = '원본 파일명'
         self.suggestion_code = ''
         self.source.setText('원래 파일명으로 표시 이름만 복원합니다. 저장 버튼을 눌러 확정하세요.')

@@ -24,11 +24,14 @@ on:
       - docs/PlayDock_UserManual_KO_v0.7.7.pdf
       - docs/source_audit/25_feature_matrix.json
       - .github/workflows/source-final-feature-review.yml
+  pull_request:
+    branches: [feature/ai-identity-import-20261124]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   windows:
+    if: github.event_name != 'pull_request' || github.head_ref == 'refactor/ui-cleanup-20261125'
     runs-on: windows-latest
     timeout-minutes: 50
     env:
@@ -81,6 +84,14 @@ jobs:
           git worktree add --detach ../final-upgrade-baseline af10566aeb5a066ac5ee9beb9565823b73895002
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./.venv/Scripts/python.exe scripts/verify_upgrade_compatibility.py --baseline ../final-upgrade-baseline --source . --dist dist --output final-evidence/upgrade.json
+          exit $LASTEXITCODE
+      - name: 최신 기준 기존 데이터와 설치기 호환 검증
+        if: github.head_ref == 'refactor/ui-cleanup-20261125'
+        shell: pwsh
+        run: |
+          git worktree add --detach ../stage10-baseline 86635400e4c925ddfd63e144112214eaaf27f50b
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./.venv/Scripts/python.exe scripts/verify_upgrade_compatibility.py --baseline ../stage10-baseline --source . --dist dist --output final-evidence/upgrade.json
           exit $LASTEXITCODE
       - name: 개인정보 없는 배포 후보 생성 및 독립 체크섬 검사
         shell: pwsh

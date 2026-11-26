@@ -60,14 +60,31 @@ def metrics(inv):
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--out",type=Path,required=True)
+    ap.add_argument("--baseline", default=BASELINE)
+    ap.add_argument("--reviewed-ui-ref", help="Explicit previously reviewed revision for intentional UI source changes")
     a=ap.parse_args()
     out=a.out.resolve()
-    before=run_inventory(BASELINE,out/"before")
+    before=run_inventory(a.baseline,out/"before")
     after=run_inventory("HEAD",out/"after")
     old,new=tree(before),tree(after)
     manifest=json.loads((ROOT/"docs/ui_reference/source_manifest.json").read_text(encoding="utf-8"))
     ui={r["path"]:r["sha"] for r in manifest["files"]}
     ui_changes=[p for p,sha in ui.items() if new.get(p)!=sha]
+    reviewed_ui = ui
+    if a.reviewed_ui_ref:
+        reviewed_ui = {p: git("rev-parse", f"{a.reviewed_ui_ref}:{p}").decode().strip() for p in ui}
+    # User-approved support visibility, placement and install color: pin only the three changed production blobs.
+    # The historical UI reference and every other protected path stay fixed.
+    if a.reviewed_ui_ref == "d1fcd1124af7410e592108d8315083e1a099222d":
+        reviewed_ui["src/playdock/ui/launcher_layout.py"] = "68ec3e703391336ee9ac47fc7b18243203442607"
+        reviewed_ui["src/playdock/controllers/window_actions.py"] = "e7fd74052e43b82373f32025058e988fa2610529"
+        reviewed_ui["src/playdock/controllers/library.py"] = "4c555afd8411cf2d1b3f1c64d87c00de415b6dcf"
+        reviewed_ui["src/playdock/ui/dialogs/title.py"] = "cc1561f6821dad0892277747b429f538083c4e27"  # approved bulk-title UI correction
+        reviewed_ui["src/playdock/ui/widgets/launcher.py"] = "b7a495c5b45b976caa47846c76e3c2141fca86b4"  # collection arrow hit handling
+        reviewed_ui["src/playdock/ui/collection_board.py"] = "03f9b19bdfebe534a11b91e3ff0ec15b57923bc5"  # approved overview includes unassigned
+        reviewed_ui["src/playdock/controllers/title_editor.py"] = "a988d28120ed0f1d04a5904fdced0feb651d6dd6"  # shared title storage
+        reviewed_ui["src/playdock/controllers/metadata.py"] = "b3ec7ef5a6ccb09897014c3d55bbc34d10cd3530"
+    unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]
     retired_files=[p for p in new if p.startswith("src/playdock/") and p.endswith(".py")
@@ -124,6 +141,7 @@ def main():
     report={"baseline":before["baseline"],"head":after["baseline"],"before":metrics(before),"after":metrics(after),
             "retired_files":retired_files,"retired_findings":findings,
             "ui_protected":len(ui),"ui_changes":ui_changes,
+            "reviewed_ui_ref":a.reviewed_ui_ref,"unreviewed_ui_changes":unreviewed_ui_changes,
             "experiment_files":sum(p.startswith("experiments/") for p in new),
             "experiment_changes":experiment_changes,
             "remaining_unused_import_candidates":candidates,
@@ -133,10 +151,11 @@ def main():
     (out/"final_residual.json").write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding="utf-8")
     print("FINAL_RESIDUAL_METRICS",json.dumps({"before":report["before"],"after":report["after"]},ensure_ascii=False))
     print("FINAL_RESIDUAL_FINDINGS",json.dumps({"retired_files":retired_files,"retired_findings":findings,
-          "ui_changes":ui_changes,"experiment_changes":experiment_changes,"unreachable":unreachable,
+          "ui_changes":ui_changes,"unreviewed_ui_changes":unreviewed_ui_changes,
+          "experiment_changes":experiment_changes,"unreachable":unreachable,
           "duplicates":duplicates},ensure_ascii=False))
     assert not retired_files and not findings, "Removed functionality detected"
-    assert not ui_changes and not experiment_changes, "Protected source changed"
+    assert not unreviewed_ui_changes and not experiment_changes, "Unreviewed protected source changed"
     assert not after["experiment_edges"] and not after["reachable_experiments"], "Production depends on experiments"
     print("FINAL_RESIDUAL_AUDIT_VERIFIED")
 

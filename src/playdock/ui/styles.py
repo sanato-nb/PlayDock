@@ -3,7 +3,9 @@
 Keep color and widget state presentation here; business rules remain out of UI.
 """
 
-MAIN_STYLESHEET = """
+MAIN_STYLESHEET = (
+    # 기본 위젯과 공통 입력 컨트롤
+    """
 QWidget { background:#171e28; color:#d8e0e9; font-family:'Malgun Gothic','Segoe UI',sans-serif; font-size:13px; }
 QLabel { background:transparent; }
 QComboBox { background:#182a3a; color:#e6eef7; padding:8px 10px;
@@ -14,7 +16,9 @@ QComboBox QAbstractItemView { background:#172736; color:#e6eef7;
     border:1px solid #49677d; selection-background-color:#315573;
     selection-color:#ffffff; outline:none; }
 
-QMainWindow, QScrollArea { background:#171e28; border:none; }
+"""
+    # 메인 레이아웃과 주요 컨트롤
+    """QMainWindow, QScrollArea { background:#171e28; border:none; }
 QFrame#Sidebar { background:#1b2836; border-right:1px solid #0c1119; }
 QFrame#TopBar { background:#111923; border-bottom:1px solid #243747; }
 QLabel#TopTitle { font-size:17px; font-weight:800; color:#e5f1ff; }
@@ -39,7 +43,9 @@ QProgressBar { border:1px solid #3d5368; background:#0f1720; height:11px; border
 QProgressBar::chunk { background:#2a9ad7; border-radius:5px; }
 QFrame#Panel { background:#202d3b; border:1px solid #33485d; border-radius:3px; }
 QFrame#InfoCard { background:#1c2b39; border:1px solid #2c4152; border-radius:3px; }
-/* A clean track: Qt's default scroll buttons produced tiny square glyphs. */
+"""
+    # 스크롤바 및 목록 공통 스타일
+    """/* A clean track: Qt's default scroll buttons produced tiny square glyphs. */
 QScrollBar:vertical { background:#1b2836; border:none; width:9px; margin:0; }
 QScrollBar::handle:vertical { background:#425a6e; border:none; border-radius:4px; min-height:30px; }
 QScrollBar::handle:vertical:hover { background:#597892; }
@@ -62,7 +68,9 @@ QTreeWidget#GameTree::item { height:29px; border:none; padding:1px 2px; }
 QTreeWidget#GameTree::item:hover { background:#2a3d50; }
 QTreeWidget#GameTree::item:selected { background:#34536f; color:white; }
 QTreeWidget#GameTree::branch { background:#1b2836; }
-QMenu { background:#192a3a; color:#dfeaf3; border:1px solid #38566c; padding:5px; font-size:13px; }
+"""
+    # 메뉴 및 탐색 버튼
+    """QMenu { background:#192a3a; color:#dfeaf3; border:1px solid #38566c; padding:5px; font-size:13px; }
 QMenu::item { padding:9px 20px 9px 22px; border-radius:3px; margin:2px; }
 QMenu::item:selected { background:#2e526d; color:#ffffff; }
 QMenu::item:checked { color:#7cc7f5; }
@@ -82,7 +90,9 @@ QPushButton#MenuChevron:pressed, QPushButton#MenuChevron[menuOpen="true"] {
 QPushButton#MenuChevron:disabled { background:#202b36; border:1px solid #303e4b; color:#738394; }
 QListWidget#CollectionsList { background:#192431; border:1px solid #263a4e; border-radius:5px; }
 QListWidget#CollectionsList::item { padding:7px 10px; }
-/* Steam-like collection overview and clean, deliberately empty footer. */
+"""
+    # 모음집 화면과 하단 영역
+    """/* Steam-like collection overview and clean, deliberately empty footer. */
 QFrame#FooterBar { background:#111923; border-top:1px solid #2d3946; }
 QWidget#CollectionBoardRoot { background:#202a38; }
 QScrollArea#CollectionBoard { background:#202a38; border:none; }
@@ -96,7 +106,9 @@ QPushButton#SectionLink { background:transparent; color:#b8c8d9; font-size:13px;
     font-weight:700; border:none; padding:0px 2px; text-align:left; }
 QPushButton#SectionLink:hover { color:#ffffff; }
 
-QFrame#DialogShell { background:#1d2835; border:1px solid #35506a; border-radius:7px; }
+"""
+    # 공통 대화상자
+    """QFrame#DialogShell { background:#1d2835; border:1px solid #35506a; border-radius:7px; }
 QFrame#DialogHeader { background:#111923; border-bottom:1px solid #31465a; border-top-left-radius:7px; border-top-right-radius:7px; }
 QLabel#DialogTitle { color:#e7f1fb; font-size:13px; font-weight:700; }
 QPushButton#DialogClose { background:transparent; border:none; color:#d8e8f4; min-width:30px; min-height:26px; padding:0; font-size:16px; }
@@ -104,6 +116,7 @@ QPushButton#DialogClose:hover { background:#35506d; border-radius:3px; }
 QLabel#DialogHeading { color:#eef6ff; font-size:15px; font-weight:700; }
 
 """
+)
 
 
 EDITOR_STYLESHEET = """
@@ -160,3 +173,41 @@ QFileDialog QPushButton:default { background:#237cb2; color:#fff; border-color:#
 QFileDialog QPushButton:disabled { background:#263440; color:#8493a1; border-color:#344756; }
 QFileDialog QSizeGrip { background:transparent; width:0px; height:0px; }
 """
+
+
+# Scoped selector styles; separate from the main-window QMenu rules.
+DARK_POPUP_STYLE = """
+QMenu {
+    background-color:#182a3b;
+    color:#ecf4fc;
+    border:1px solid #4b6b85;
+    padding:5px;
+    font-family:'Malgun Gothic','Segoe UI',sans-serif;
+    font-size:13px;
+}
+QMenu::item {
+    color:#ecf4fc;
+    background-color:#182a3b;
+    padding:9px 18px 9px 25px;
+    margin:2px 1px;
+    min-height:20px;
+}
+QMenu::item:selected { background-color:#365a76; color:#ffffff; }
+QMenu::item:disabled { color:#8092a2; }
+QMenu::indicator:checked { image:none; }
+"""
+
+DARK_SELECTOR_STYLESHEET = '''
+            QPushButton#DarkMenuSelect {
+                background-color:#1e3143; color:#f3f8fc;
+                border:1px solid #496b82; border-radius:4px;
+                padding:8px 31px 8px 11px;
+                text-align:left;
+            }
+            QPushButton#DarkMenuSelect:hover { background-color:#28465e; border-color:#76a6c2; }
+            QPushButton#DarkMenuSelect:pressed { background-color:#31546e; }
+        '''
+
+
+# Keep the disabled override local to dialog action buttons.
+DIALOG_ACTION_DISABLED_STYLE = "QPushButton#{role}:disabled {{ color:#74818c; background:#26313b; }}"

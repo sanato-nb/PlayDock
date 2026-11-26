@@ -585,9 +585,13 @@ class WorkDatabase:
         code = str(code or "").strip()
         if store == "dlsite":
             code = code.upper()
-        if not game_id or not self.get_official_work(store, code):
+        if not game_id or store not in ('dlsite', 'steam'):
             return False
         with self.connect() as con:
+            row = con.execute('SELECT * FROM works WHERE store=? AND code=?',
+                              (store, code)).fetchone()
+            if not self._verified_record(row, store, code):
+                return False
             con.execute(
                 """INSERT INTO library_links (game_id,store,code) VALUES (?,?,?)
                 ON CONFLICT(game_id) DO UPDATE SET
@@ -613,6 +617,14 @@ class WorkDatabase:
                 if not manual:
                     continue
                 identity = explicit_work_identity(library, game, meta=meta)
+                if meta.get('manual_work_identity'):
+                    # A manual registration is not a verified association.
+                    # Preserve only an exact link created by collection.
+                    if identity:
+                        con.execute('DELETE FROM library_links WHERE game_id=? AND (store<>? OR code<>?)', (game.id, *identity))
+                    else:
+                        con.execute('DELETE FROM library_links WHERE game_id=?', (game.id,))
+                    continue
                 if not identity:
                     con.execute("DELETE FROM library_links WHERE game_id=?", (game.id,))
                     continue
@@ -624,6 +636,10 @@ class WorkDatabase:
                     WHERE library_links.store IS NOT excluded.store
                        OR library_links.code IS NOT excluded.code""",
                     (game.id, store, code))
+
+    def clear_game_link(self, game_id: str):
+        with self.connect() as con:
+            con.execute('DELETE FROM library_links WHERE game_id=?', (game_id,))
 
     def get_link(self, game_id: str) -> tuple[str, str] | None:
         with self.connect() as con:

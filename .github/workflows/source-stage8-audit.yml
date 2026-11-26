@@ -1,0 +1,57 @@
+name: PlayDock 8단계 최종 소스 통합 감사 (빌드 없음)
+on:
+  pull_request:
+    branches: [feature/ai-identity-import-20261124]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  static:
+    if: github.event_name != 'pull_request' || github.head_ref == 'refactor/ui-cleanup-20261125'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 전체 Git 추적 소스와 호환 경로 감사
+        run: python scripts/audit_final_residual.py --baseline 86635400e4c925ddfd63e144112214eaaf27f50b --reviewed-ui-ref d1fcd1124af7410e592108d8315083e1a099222d --out final-source-audit
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-stage8-source-audit
+          path: final-source-audit/**
+  source-compatibility:
+    if: github.event_name != 'pull_request' || github.head_ref == 'refactor/ui-cleanup-20261125'
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+      PYTHONUTF8: "1"
+      PYTHONPATH: ${{ github.workspace }}/src/playdock;${{ github.workspace }};${{ github.workspace }}/scripts
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: 런타임 의존성 설치 및 일관성 검사
+        run: |
+          python -m pip install -r requirements.txt pytest
+          python -m pip check
+      - name: 기존 소스로 만든 사용자 데이터의 현재 소스 호환 검증
+        shell: pwsh
+        run: |
+          git worktree add --detach ../stage8-baseline 86635400e4c925ddfd63e144112214eaaf27f50b
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/verify_source_compatibility.py --baseline ../stage8-baseline --source . --output stage8-evidence/compatibility.json
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: PlayDock-stage8-data-compatibility
+          path: stage8-evidence/**

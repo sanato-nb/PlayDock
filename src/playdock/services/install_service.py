@@ -45,10 +45,14 @@ def install(game: Game, progress: Callable[[int], None] | None = None,
             _unpack_rar(game.archive, stage, progress, password=password)
         else:
             raise ValueError('지원하지 않는 압축 형식입니다.')
-        entries = list(stage.iterdir())
-        if not entries:
-            raise ValueError('압축파일이 비어 있습니다.')
-        source = entries[0] if len(entries) == 1 and entries[0].is_dir() else stage
+        # Only distinguish empty, one directory, and multiple entries.
+        # Do not allocate a list of every extracted top-level path.
+        with os.scandir(stage) as entries:
+            first = next(entries, None)
+            if first is None:
+                raise ValueError('압축파일이 비어 있습니다.')
+            single = next(entries, None) is None
+            source = Path(first.path) if single and Path(first.path).is_dir() else stage
         if target.exists():
             raise FileExistsError('설치 중 다른 프로세스가 대상 폴더를 만들었습니다.')
         source.rename(target)

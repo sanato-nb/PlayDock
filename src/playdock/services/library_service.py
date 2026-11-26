@@ -38,13 +38,15 @@ class Library:
             # v0.1.1 stored both archives and games under `library`. Keep the old
             # folder as the archive source until the user explicitly changes it.
             self.settings = dict(existing)
-            self.settings.setdefault("archives", self.settings.get("library", str(default_library())))
-            self.settings.setdefault("library", str(default_library()))
+            if "library" not in self.settings:
+                self.settings["library"] = str(default_library())
+            self.settings.setdefault("archives", self.settings["library"])
             self.settings.setdefault("auto_art", False)
         else:
+            default = default_library()
             self.settings = {
-                "library": str(default_library()),
-                "archives": str(default_library().parent / "game_archives"),
+                "library": str(default),
+                "archives": str(default.parent / "game_archives"),
                 "auto_art": False,
             }
         self.manual_path = self.store / "manual_games.json"
@@ -188,9 +190,10 @@ class Library:
         save_json(self.art_dir(game) / "meta.json", data)
         return data
 
-    def base_title(self, game: Game) -> str:
+    def base_title(self, game: Game, *, meta: dict | None = None) -> str:
         """Raw user-visible name, without the optional product-code overlay."""
-        meta = self.meta(game)
+        if meta is None:
+            meta = self.meta(game)
         return self._base_title_from_meta(game, meta, self._product_code_from_meta(game, meta))
 
     def _base_title_from_meta(self, game: Game, meta: dict, code: str) -> str:
@@ -222,8 +225,14 @@ class Library:
         # delete the game or affect archive names, installs, or collections.
         self.update_meta(game, product_code=normalize_code(code))
 
-    def title(self, game: Game) -> str:
+    def title_pair(self, game: Game, *, meta: dict | None = None) -> tuple[str, str]:
+        """Return base and decorated title from one metadata snapshot."""
         from models.game_codes import title_with_code
-        meta = self.meta(game)
+        if meta is None:
+            meta = self.meta(game)
         code = self._product_code_from_meta(game, meta)
-        return title_with_code(self._base_title_from_meta(game, meta, code), code)
+        base = self._base_title_from_meta(game, meta, code)
+        return base, title_with_code(base, code)
+
+    def title(self, game: Game) -> str:
+        return self.title_pair(game)[1]

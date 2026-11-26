@@ -35,7 +35,7 @@ ST_IMG = "https://cdn.akamai.steamstatic.com/steam/apps/1091500/header.jpg"
 def fake_detail(code):
     assert code == "RJ123456"
     return {
-        "code": code, "fallback_title": "공식 일본어 제목",
+        "code": code, "fallback_title": "日本語タイトル",
         "titles": {"ko": "공식 한국어 제목", "ja": "日本語タイトル"},
         "maker": "공식 개발사", "page_url": DL_URL,
         "tags": ["RPG"], "images": [
@@ -256,7 +256,7 @@ def test_steam_name_preview_uses_unified_db_without_web(tmp_path, monkeypatch):
     from services.bulk_title_service import BulkTitleActions
     db = WorkDatabase(tmp_path / "data")
     db._upsert_verified([{
-        "store": "steam", "code": "1091500", "title": "Steam 정식 작품명",
+        "store": "steam", "code": "1091500", "title": "Steam Official Title",
         "category": "game", "page_url": ST_URL,
     }])
     monkeypatch.setattr(title_workers, "lookup_localized_title",
@@ -271,11 +271,12 @@ def test_steam_name_preview_uses_unified_db_without_web(tmp_path, monkeypatch):
     worker.complete.connect(responses.append)
     worker.run()
     record = responses[0][0]
-    assert record["title"] == "Steam 정식 작품명"
+    assert record["title"] == "Steam Official Title"
     assert record["store"] == "steam"
     assert record["language"] == "en"
     previews = BulkTitleActions(library).lookup_preview(
         [game], responses[0], "ko", save_as_localized=True)
     assert len(previews) == 1
-    assert previews[0].method == "manual"
-    assert not previews[0].product_code
+    assert previews[0].method == "localized"
+    assert previews[0].product_code == "1091500"
+    assert previews[0].product_store == "steam"

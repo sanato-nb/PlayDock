@@ -132,9 +132,11 @@ class CatalogCollectionControllerMixin:
             successful = {e.game_id for e in events if e.outcome in ("cached","fetched") and not e.connected}
             verified = []
             titles = {}
+            records = self.work_db.get_official_works(
+                (p.store, p.code) for p in worker.entries if p.game.id in successful)
             for p in worker.entries:
                 if p.game.id in successful:
-                    record = self.work_db.get_official_work(p.store,p.code)
+                    record = records.get((p.store, p.code))
                     if record and record.get("title"):
                         titles[p.game.id] = record["title"]
                         verified.append(p)

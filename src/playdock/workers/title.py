@@ -16,7 +16,8 @@ from PySide6.QtCore import QThread, Signal
 from product_titles import display_title, lookup_title
 from artwork import ai_game_title, get_secret
 from ai_providers import PROVIDERS
-from services.localized_titles import lookup_localized_title
+from services.localized_titles import (lookup_localized_title, language_is_plausible,
+                                       normalize_title_priority, KOREAN_HANGUL, JAPANESE_KANA)
 from title_translation import translate_work_title
 from korean_title_search import find_korean_titles
 
@@ -42,12 +43,44 @@ def _title_from_record(record, language, *, store):
     if not record:
         return None
     titles = record.get("titles") or {}
-    if language in titles and titles[language]:
-        return titles[language], "PlayDock 공식 작품 DB · " + language, language
-    for fallback in ("ja", "en", "ko"):
-        if titles.get(fallback):
-            return titles[fallback], "PlayDock 공식 작품 DB · " + fallback, fallback
-    return record["title"], "PlayDock 공식 작품 DB · 기본 작품명", "en" if store == "steam" else "ja"
+    if not isinstance(titles, dict):
+        titles = {}
+    for actual in dict.fromkeys((language, "ja", "en", "ko")):
+        title = titles.get(actual)
+        if isinstance(title, str) and language_is_plausible(title, actual):
+            return title, "PlayDock 공식 작품 DB · " + actual, actual
+    # The base title has no explicit locale. Retain the existing store default
+    # only when the script is compatible; never relabel a conflicting variant.
+    actual = "en" if store == "steam" else "ja"
+    title = record.get("title")
+    if isinstance(title, str) and language_is_plausible(title, actual):
+        return title, "PlayDock 공식 작품 DB · 기본 작품명", actual
+    return None
+
+
+def _prioritized_titles_from_record(record, priority, *, store):
+    """Retain every compatible official locale, choose the first available."""
+    if not record:
+        return None
+    order = normalize_title_priority(priority)
+    raw = record.get("titles") or {}
+    variants = {lang: title.strip() for lang, title in raw.items()
+                if lang in order and isinstance(title, str) and language_is_plausible(title, lang)} if isinstance(raw, dict) else {}
+    sources = {lang: "PlayDock 공식 작품 DB · " + lang for lang in variants}
+    base = record.get("title")
+    if isinstance(base, str) and base.strip() and base.strip() not in variants.values():
+        # A base title lacks locale metadata. Distinctive script can supply
+        # a conservative fallback; Latin-only titles retain store default.
+        actual = ("ko" if KOREAN_HANGUL.search(base) and not JAPANESE_KANA.search(base)
+                  else "ja" if JAPANESE_KANA.search(base) and not KOREAN_HANGUL.search(base)
+                  else "en" if store == "steam" else "ja")
+        if actual not in variants and language_is_plausible(base, actual):
+            variants[actual] = base.strip()
+            sources[actual] = "PlayDock 공식 작품 DB · 기본 작품명"
+    actual = next((lang for lang in order if lang in variants), None)
+    if actual is None:
+        return None
+    return variants[actual], sources[actual], actual, variants, sources
 
 
 class TitleWorker(QThread):
@@ -124,8 +157,9 @@ class BulkTitleWorker(QThread):
     complete = Signal(object)
 
     def __init__(self, entries, language: str, cache_path: Path, *, db_only=False,
-                 verified_records=None):
+                 verified_records=None, priority=None):
         super().__init__()
+        self.priority = normalize_title_priority(priority) if priority else ()
         self.entries = list(entries)  # game_id, original_title, code, store
         self.language = language
         self.cache_path = cache_path
@@ -161,7 +195,12 @@ class BulkTitleWorker(QThread):
             try:
                 if self.db_only:
                     key = WorkDatabase._official_key(store, code)
-                    cached = _title_from_record((records or {}).get(key), self.language, store=store)
+                    record = (records or {}).get(key)
+                    prioritized = _prioritized_titles_from_record(record, self.priority, store=store) if self.priority else None
+                    cached = prioritized[:3] if prioritized else (
+                        None if self.priority else _title_from_record(record, self.language, store=store))
+                    if record and not cached:
+                        raise LookupError("DB 제목의 언어를 확인할 수 없습니다. 제목을 직접 확인해 주세요.")
                 else:
                     cached = _db_title(code, self.language, self.cache_path, store=store)
                 if cached:
@@ -172,9 +211,12 @@ class BulkTitleWorker(QThread):
                 else:
                     result = lookup_localized_title(code, self.language, self.cache_path)
                     found_title, source, actual = result.title, result.source, result.language
-                results.append({'game_id': game_id, 'original': original,
-                                'code': code, 'store': store, 'title': found_title,
-                                'source': source, 'language': actual})
+                row = {'game_id': game_id, 'original': original,
+                       'code': code, 'store': store, 'title': found_title,
+                       'source': source, 'language': actual}
+                if self.db_only and self.priority and prioritized:
+                    row.update(priority=self.priority, variants=prioritized[3], variant_sources=prioritized[4])
+                results.append(row)
             except (ValueError, LookupError, OSError) as exc:
                 results.append({'game_id': game_id, 'original': original,
                                 'code': code, 'store': store, 'error': str(exc)})
