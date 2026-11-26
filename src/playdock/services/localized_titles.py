@@ -19,7 +19,7 @@ from product_titles import (
 
 LANGUAGES = {"ko": ("한국어", "ko_KR"), "en": ("English", "en_US"), "ja": ("日本語", "ja_JP")}
 CODE_ONLY = re.compile(r"^(?:RJ|VJ|BJ|EJ)\d{6,8}$", re.I)
-JAPANESE_KANA = re.compile(r"[\u3040-\u30ff]")
+JAPANESE_KANA = re.compile(r"[\u3041-\u3096\u309d-\u309f\u30a1-\u30fa\u30fd-\u30ff\uff66-\uff9d]")
 EAST_ASIAN_SCRIPT = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7a3]")
 KOREAN_HANGUL = re.compile(r"[\uac00-\ud7a3]")
 

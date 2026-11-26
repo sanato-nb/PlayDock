@@ -79,6 +79,7 @@ def main():
         reviewed_ui["src/playdock/ui/launcher_layout.py"] = "b4e40cc407b1893b6f8ab4e02161d593bc773178"
         reviewed_ui["src/playdock/controllers/window_actions.py"] = "3d7169d5e162c87a91f836a42e23f6094579e7af"
         reviewed_ui["src/playdock/controllers/library.py"] = "f13c1876ecc91e49521224887f719d93fceeca63"
+        reviewed_ui["src/playdock/ui/dialogs/title.py"] = "e6eb7c32d12fb010c5123a314235db5ddae11faa"  # approved bulk-title UI correction
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]

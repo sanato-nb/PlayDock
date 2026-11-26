@@ -63,6 +63,17 @@ def main():
             support.hide()
             main_style=widget.main_button.styleSheet()
             widget.main_button.setStyleSheet("")
+        renamed_buttons=[]
+        if name=="10_official_name_dialog":
+            labels={"전체 선택":"보이는 게임 전체 선택","적용":"체크한 변경 사항 저장"}
+            renamed_buttons=[(b,b.text()) for b in widget.findChildren(QPushButton) if b.text() in labels]
+            if renamed_buttons:
+                assert len(renamed_buttons)==2
+                full=out/"approved_title_dialog"
+                full.mkdir(exist_ok=True)
+                assert widget.grab().save(str(full/(name+".png")))
+                for button,label in renamed_buttons:
+                    button.setText(labels[label])
         qt.processEvents()
         image=widget.grab()
         assert not image.isNull() and image.save(str(out/(name+".png")))
@@ -76,6 +87,8 @@ def main():
                                "geometry":geometry(child,widget)}
                               for cls in (QLabel,QLineEdit,QFrame) for child in widget.findChildren(cls)
                               if child.isVisible()]}
+        for button,label in renamed_buttons:
+            button.setText(label)
         if support is not None:
             widget.main_button.setStyleSheet(main_style)
             support.show()

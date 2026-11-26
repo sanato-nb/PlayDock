@@ -30,6 +30,7 @@ class BulkChange:
     language: str = "ko"
     source: str = "사용자 일괄 수정"
     product_code: str = ""
+    lookup_result: bool = False
 
 
 def replace_name(title: str, search: str, replacement: str, *, case_sensitive: bool = False) -> str:
