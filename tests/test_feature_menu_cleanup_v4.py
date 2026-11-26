@@ -120,7 +120,7 @@ def test_game_management_functions_and_settings_order(
                     if not x.isSeparator()]
         assert settings == [
             "폴더 설정", "데이터 관리", "라이브러리 속성",
-            "DB 상태 확인", "개발자 후원",
+            "DB 상태 확인",
         ]
         assert not any("AI" in a or "이름 설정" in a or "이미지" in a
                        for a in settings)
@@ -344,7 +344,7 @@ def test_detail_refresh_shares_selected_metadata_and_verified_db_snapshot(app, t
         window.close()
 
 
-def test_support_menu_opens_only_on_click_and_handles_failure(app, tmp_path, monkeypatch):
+def test_support_button_opens_only_on_click_and_handles_failure(app, tmp_path, monkeypatch):
     from controllers import window_actions
     calls = []
     messages = []
@@ -355,14 +355,24 @@ def test_support_menu_opens_only_on_click_and_handles_failure(app, tmp_path, mon
         assert not calls
         actions = capture_menu(window.settings_menu_btn).actions()
         assert not calls
-        assert actions[-2].isSeparator()
-        support = actions[-1]
-        assert support.text() == "개발자 후원" and support.isEnabled()
-        support.trigger()
+        assert all("후원" not in a.text() for a in actions)
+        support = window.support_btn
+        assert support.text() == "♡ 개발자 후원" and support.isEnabled()
+        assert support.parentWidget() is window.settings_menu_btn.parentWidget()
+        assert support.parentWidget().layout().itemAt(support.parentWidget().layout().count()-1).widget() is support
+        window.show()
+        for width, height in ((950, 620), (1380, 840)):
+            window.resize(width, height)
+            app.processEvents()
+            assert support.isVisible()
+            assert support.geometry().left() > window.settings_menu_btn.geometry().right()
+            assert support.geometry().right() < support.parentWidget().width()
+        assert not calls
+        support.click()
         assert calls == ["https://fairy.hada.io/@playdock"]
         assert not messages
         monkeypatch.setattr(window_actions.webbrowser, "open", lambda url: False)
-        support.trigger()
+        support.click()
         assert messages == [(window, "브라우저 실행 실패", "https://fairy.hada.io/@playdock")]
     finally:
         window.close()

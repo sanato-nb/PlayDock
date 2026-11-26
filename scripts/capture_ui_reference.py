@@ -50,6 +50,18 @@ def main():
     def capture(name,widget):
         widget.show()
         qt.processEvents()
+        support=getattr(widget,"support_btn",None)
+        if support is not None:
+            assert support.isVisible() and support.isEnabled()
+            assert support.text()=="♡ 개발자 후원"
+            assert support.geometry().left()>widget.settings_menu_btn.geometry().right()
+            assert support.geometry().right()<support.parentWidget().width()
+            full=out/"approved_topbar"
+            full.mkdir(exist_ok=True)
+            assert widget.grab().save(str(full/(name+".png")))
+            # Compare the historical UI with only the approved new button hidden.
+            support.hide()
+            qt.processEvents()
         image=widget.grab()
         assert not image.isNull() and image.save(str(out/(name+".png")))
         contract["screens"][name]={"title":widget.windowTitle(),
@@ -57,11 +69,14 @@ def main():
             "size":[widget.width(),widget.height()],
             "buttons":[{"text":b.text(),"object":b.objectName(),"enabled":b.isEnabled(),
                         "visible":b.isVisible(),"geometry":geometry(b,widget) if b.isVisible() else None}
-                       for b in widget.findChildren(QPushButton)],
+                       for b in widget.findChildren(QPushButton) if b is not support],
             "visible_fields":[{"type":type(child).__name__,"object":child.objectName(),
                                "geometry":geometry(child,widget)}
                               for cls in (QLabel,QLineEdit,QFrame) for child in widget.findChildren(cls)
                               if child.isVisible()]}
+        if support is not None:
+            support.show()
+            qt.processEvents()
     def menu_rows(menu):
         return [{"text":a.text(),"enabled":a.isEnabled(),"separator":a.isSeparator(),
                  "checked":a.isChecked(),"children":menu_rows(a.menu()) if a.menu() else []}

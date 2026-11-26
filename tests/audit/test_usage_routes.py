@@ -54,6 +54,7 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
         for action in settings.actions():
             if not action.isSeparator():
                 action.trigger()
+        window.support_btn.click()
         manual = menu(window.extra_menu_btn)
         assert not manual.actions()[2].isEnabled()
         assert not manual.actions()[3].isEnabled()

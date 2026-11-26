@@ -80,6 +80,16 @@ def _build_top_bar(self, ChevronMenuButton):
     self.settings_menu_btn = ChevronMenuButton("설정")
     self.settings_menu_btn.clicked.connect(self.show_settings_menu)
     top_layout.addWidget(self.settings_menu_btn)
+    self.support_btn = self.action_button("♡ 개발자 후원", self.open_support_page)
+    self.support_btn.setObjectName("SupportButton")
+    self.support_btn.setStyleSheet(
+        "QPushButton#SupportButton { background:#25433f; color:#9de1d6;"
+        " border:1px solid #69aaa1; border-radius:4px; padding:9px 10px; font-weight:600; }"
+        "QPushButton#SupportButton:hover { background:#315b54; color:#e1fff9; }"
+        "QPushButton#SupportButton:pressed { background:#1d3633; }"
+        "QPushButton#SupportButton:focus { border-color:#b5f3e6; }"
+    )
+    top_layout.addWidget(self.support_btn)
     return top
 
 

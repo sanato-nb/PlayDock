@@ -27,9 +27,6 @@ class WindowActionControllerMixin:
         menu.addSeparator()
         menu.addAction("DB 상태 확인").triggered.connect(
             lambda _checked=False: self.show_database_status())
-        menu.addSeparator()
-        menu.addAction("개발자 후원").triggered.connect(
-            lambda _checked=False: self.open_support_page())
         self.settings_menu_btn.present_popup(menu, right_align=True)
 
     def open_support_page(self):
