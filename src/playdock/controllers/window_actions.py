@@ -2,10 +2,15 @@
 from __future__ import annotations
 
 
+import webbrowser
 from sqlite3 import Error as SQLiteError
 from PySide6.QtWidgets import QMenu
 
+from ui.dialogs.common import show_message
 from ui.dialogs.database_status import DatabaseStatusDialog
+
+
+SUPPORT_URL = "https://fairy.hada.io/@playdock"
 
 
 class WindowActionControllerMixin:
@@ -22,7 +27,19 @@ class WindowActionControllerMixin:
         menu.addSeparator()
         menu.addAction("DB 상태 확인").triggered.connect(
             lambda _checked=False: self.show_database_status())
+        menu.addSeparator()
+        menu.addAction("개발자 후원").triggered.connect(
+            lambda _checked=False: self.open_support_page())
         self.settings_menu_btn.present_popup(menu, right_align=True)
+
+    def open_support_page(self):
+        """Open the optional support page only after an explicit user click."""
+        try:
+            opened = webbrowser.open(SUPPORT_URL)
+        except (OSError, webbrowser.Error):
+            opened = False
+        if not opened:
+            show_message(self, "브라우저 실행 실패", SUPPORT_URL)
 
 
     def function_availability(self, *, records=None):

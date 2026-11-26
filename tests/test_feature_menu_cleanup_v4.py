@@ -94,7 +94,7 @@ def test_top_function_menu_disabled_until_official_link_and_image_candidate(
         window.close()
 
 
-def test_game_management_functions_and_only_four_settings(
+def test_game_management_functions_and_settings_order(
         app, tmp_path, monkeypatch):
     window, _, game = make_window(tmp_path, monkeypatch)
     try:
@@ -120,7 +120,7 @@ def test_game_management_functions_and_only_four_settings(
                     if not x.isSeparator()]
         assert settings == [
             "폴더 설정", "데이터 관리", "라이브러리 속성",
-            "DB 상태 확인",
+            "DB 상태 확인", "개발자 후원",
         ]
         assert not any("AI" in a or "이름 설정" in a or "이미지" in a
                        for a in settings)
@@ -340,5 +340,29 @@ def test_detail_refresh_shares_selected_metadata_and_verified_db_snapshot(app, t
         assert calls == {"meta": 1, "batch": 1, "single": 0}
         assert "Verified title" not in window.game_info.text()
         assert not window.function_menu_btn.isEnabled()
+    finally:
+        window.close()
+
+
+def test_support_menu_opens_only_on_click_and_handles_failure(app, tmp_path, monkeypatch):
+    from controllers import window_actions
+    calls = []
+    messages = []
+    monkeypatch.setattr(window_actions.webbrowser, "open", lambda url: calls.append(url) or True)
+    monkeypatch.setattr(window_actions, "show_message", lambda *args: messages.append(args))
+    window, _, _ = make_window(tmp_path, monkeypatch)
+    try:
+        assert not calls
+        actions = capture_menu(window.settings_menu_btn).actions()
+        assert not calls
+        assert actions[-2].isSeparator()
+        support = actions[-1]
+        assert support.text() == "개발자 후원" and support.isEnabled()
+        support.trigger()
+        assert calls == ["https://fairy.hada.io/@playdock"]
+        assert not messages
+        monkeypatch.setattr(window_actions.webbrowser, "open", lambda url: False)
+        support.trigger()
+        assert messages == [(window, "브라우저 실행 실패", "https://fairy.hada.io/@playdock")]
     finally:
         window.close()

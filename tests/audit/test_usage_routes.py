@@ -31,7 +31,7 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
     # Only intercept business handlers. The real layout, menu builders,
     # QAction signals, DB-based availability and button clicks stay intact.
     routes = ["collect_library_information", "folder_wizard", "data_manager_dialog",
-              "library_info_dialog", "show_database_status", "rename_selected_game",
+              "library_info_dialog", "show_database_status", "open_support_page", "rename_selected_game",
               "change_image", "edit_launch_options", "open_saved_official_page",
               "identify_selected_game", "open_bulk_official_artwork", "open_official_name_settings",
               "open_title_editor", "open_selected_name_settings",
@@ -75,10 +75,10 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
         menu(window.extra_menu_btn).actions()[4].trigger()
         assert [name for name,_ in calls] == [
             "collect_library_information", "folder_wizard", "data_manager_dialog",
-            "library_info_dialog", "show_database_status", "rename_selected_game",
+            "library_info_dialog", "show_database_status", "open_support_page", "rename_selected_game",
             "change_image", "change_image", "open_bulk_official_artwork",
             "open_official_name_settings", "identify_selected_game", "open_saved_official_page"]
-        assert calls[6][1] == ("hero",) and calls[7][1] == ("icon",)
+        assert calls[7][1] == ("hero",) and calls[8][1] == ("icon",)
         assert source.read_bytes() == b"synthetic"
         print("MAIN_MENU_ROUTES_VERIFIED", [name for name,_ in calls])
     finally:
