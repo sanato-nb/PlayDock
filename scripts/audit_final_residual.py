@@ -82,7 +82,7 @@ def main():
         reviewed_ui["src/playdock/ui/dialogs/title.py"] = "2a8af0c5f5f7ceaf48a77f0eb5f3fc4c6868dc0a"  # approved bulk-title UI correction
         reviewed_ui["src/playdock/ui/widgets/launcher.py"] = "b7a495c5b45b976caa47846c76e3c2141fca86b4"  # collection arrow hit handling
         reviewed_ui["src/playdock/ui/collection_board.py"] = "03f9b19bdfebe534a11b91e3ff0ec15b57923bc5"  # approved overview includes unassigned
-        reviewed_ui["src/playdock/controllers/title_editor.py"] = "32db7db798cd63f9bee41690124dc8cd4beff680"  # shared title storage
+        reviewed_ui["src/playdock/controllers/title_editor.py"] = "a988d28120ed0f1d04a5904fdced0feb651d6dd6"  # shared title storage
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]

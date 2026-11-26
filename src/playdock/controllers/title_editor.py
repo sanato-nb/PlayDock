@@ -17,6 +17,7 @@ from services.simple_title_edit import (
     restore_filename_title,
     title_history,
 )
+from services.bulk_title_service import BulkTitleActions
 from models.game_codes import normalize_code
 from artwork import get_secret
 from ai_providers import PROVIDERS, current_provider, current_models
@@ -470,7 +471,7 @@ class TitleEditorActionsMixin:
             return
         if self.worker is not None:
             return
-        entries = [(g.id, g.name, self.library.product_code(g)) for g in self.games
+        entries = [(g.id, self.library.title(g), self.library.product_code(g)) for g in self.games
                    if is_code_only_title(g.name) and self.library.product_code(g)
                    and (self.library.meta(g).get('title') or '').strip() in ('', g.name)
                    and not (self.library.meta(g).get('localized_titles') or {}).get(
@@ -507,18 +508,23 @@ class TitleEditorActionsMixin:
         if dialog.exec() != QDialog.DialogCode.Accepted:
             self.status.setText('적용 취소 · 게임 이름을 변경하지 않았습니다.')
             return
-        changed = 0
-        for record in dialog.selected_rows():
-            game = next((g for g in self.games if g.id == record['game_id']), None)
-            if game is None or self.library.product_code(game) != record['code']:
-                continue
-            try:
-                changed += bool(save_localized_display_title(
-                    self.library, game, record['title'], record['language'], record['source']))
-            except (ValueError, OSError):
-                continue
+        selected = dialog.selected_rows()
+        actions = BulkTitleActions(self.library)
+        changes = actions.lookup_preview(self.games, selected, language, save_as_localized=True)
+        try:
+            ready, rejected = actions.partition_changes(self.games, changes)
+            changed, _backup = actions.apply_changes(self.games, ready)
+        except (ValueError, OSError, RuntimeError) as exc:
+            QMessageBox.warning(self, '일괄 이름 적용 실패', str(exc))
+            return
+        skipped = len(selected) - len(ready)
         self.refresh()
-        self.status.setText(f'선택한 {changed}개 제목을 저장했어. 원본 게임 파일은 변경하지 않았어.')
+        self.status.setText(f'적용 {changed}개 · 변경 없음 {len(ready) - changed}개 · 제외 {skipped}개. 원본 파일은 변경하지 않았습니다.')
+        if rejected:
+            details = "\n".join(f"{change.expected_name}: {reason}" for change, reason in rejected[:10])
+            if len(rejected) > 10:
+                details += f"\n외 {len(rejected) - 10}개"
+            QMessageBox.information(self, '제외된 제목', details)
 
 
     def bulk_finished(self):

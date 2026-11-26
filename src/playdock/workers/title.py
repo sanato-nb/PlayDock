@@ -168,7 +168,10 @@ class BulkTitleWorker(QThread):
             try:
                 if self.db_only:
                     key = WorkDatabase._official_key(store, code)
-                    cached = _title_from_record((records or {}).get(key), self.language, store=store)
+                    record = (records or {}).get(key)
+                    cached = _title_from_record(record, self.language, store=store)
+                    if record and not cached:
+                        raise LookupError("DB 제목의 언어를 확인할 수 없습니다. 제목을 직접 확인해 주세요.")
                 else:
                     cached = _db_title(code, self.language, self.cache_path, store=store)
                 if cached:
