@@ -1,4 +1,4 @@
-name: PlayDock 공개 게시글용 최신 Windows 화면 캡처
+name: PlayDock 공개 게시글용 다국어 개선판 Windows 캡처
 on:
   push:
     branches: [review/public-post-screenshots-20261126]

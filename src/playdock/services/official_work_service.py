@@ -53,7 +53,13 @@ def explicit_work_identity(library, game, *, meta: dict | None = None):
 
 
 def official_metadata_for_game(library, game, db):
-    identity = explicit_work_identity(library, game)
+    meta = library.meta(game)
+    identity = explicit_work_identity(library, game, meta=meta)
+    if meta.get('manual_work_identity'):
+        record = db.get_linked_official_work(game.id)
+        if record and identity == (record['store'], str(record['code'])):
+            return record
+        return None
     if not identity:
         return None
     store, code = identity

@@ -24,7 +24,10 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     rows = []
     failures = []
+    selected = {"02_library_no_official","03_settings_menu","03b_support_hidden","07_library_official","10_collections","10b_collection_games","11_official_names","12_folders","14_collection_done","19_data_tab_4","22_bulk_artwork","24_identity_artwork","25_identity_import","35_executable_choice","36_install_confirm","44_work_code","44b_work_code_steam"}
     def record(name, label, kind, action):
+        if name not in selected:
+            return
         try:
             file = out / (name + ".png")
             size = action(file)
@@ -51,10 +54,6 @@ def main():
         except Exception:
             failures.append(dict(name="qt-session", label="Qt 실행", error=traceback.format_exc()))
         publish()
-        try:
-            tk_capture(root, record)
-        except Exception:
-            failures.append(dict(name="tk-session", label="설치기·제거기 실행", error=traceback.format_exc()))
         publish()
     print("SCREENSHOT_SUMMARY", len(rows), len(failures), flush=True)
     if failures:
@@ -71,6 +70,8 @@ def qt_capture(root, record):
     from ui.dialogs.common import TextEntryDialog, ChoiceDialog, MessageDialog
     from ui.dialogs.file_dialog import PlayDockFileDialog
     from ui.dialogs.title import BulkTitleSettingsDialog
+    from ui.dialogs.work_code import WorkCodeDialog
+    from workers.title import _prioritized_titles_from_record
     from ui.dialogs.title_preview import BulkPreviewDialog, KoreanWebCandidatesDialog
     from ui.dialogs.folder_settings import FirstRunDialog
     from ui.dialogs.catalog_collection import CatalogCollectionDialog
@@ -86,6 +87,7 @@ def qt_capture(root, record):
     from services.identity_import_service import IdentitySuggestion
     from title_editor import TitleEditor
     from ui.widgets.launcher import collection_chevron
+    from PySide6.QtWidgets import QLabel, QLineEdit
 
     QApplication.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeDialogs, True)
     qt = QApplication([])
@@ -110,6 +112,16 @@ def qt_capture(root, record):
         widget.show()
         qt.processEvents()
         time.sleep(.10)
+        qt.processEvents()
+        # Redact only the synthetic runner root in UI text before capture.
+        for label in widget.findChildren(QLabel):
+            text = label.text()
+            if str(root) in text:
+                label.setText(text.replace(str(root), r"C:\PlayDock_Demo"))
+        for edit in widget.findChildren(QLineEdit):
+            text = edit.text()
+            if str(root) in text:
+                edit.setText(text.replace(str(root), r"C:\PlayDock_Demo"))
         qt.processEvents()
         pic = widget.grab()
         assert not pic.isNull() and pic.save(str(file))
@@ -152,15 +164,16 @@ def qt_capture(root, record):
     window.populate_games(game.id)
     shot("02_library_no_official", "라이브러리 · 공식 정보 없음", window)
     menu("03_settings_menu", "설정 메뉴", window.settings_menu_btn, window.show_settings_menu)
-    window.support_btn.hide()
+    window.set_support_button_visible(False)
     shot("03b_support_hidden", "개발자 후원 버튼 숨김", window)
-    window.support_btn.show()
+    window.set_support_button_visible(True)
     qt.processEvents()
     menu("04_game_menu_before", "게임 관리 · 수집 전", window.extra_menu_btn, window.show_extra_menu)
     menu("05_sort_menu", "정렬 메뉴", window.sort_button, window.open_sort_menu)
     menu("06_function_disabled", "전체 기능 · 비활성 상태", window.function_menu_btn, window.show_function_menu)
     page = "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"
     rec = {"store":"dlsite","code":"RJ123456","title":"공식 예시 게임","page_url":page}
+    rec["titles"] = {"ko":"공식 예시 게임","ja":"サンプルゲーム","en":"Sample Game"}
     window.work_db._upsert_verified([rec])
     assert window.work_db.save_verified_game_link(game.id,"dlsite","RJ123456")
     window.work_db.save_official_image_urls("dlsite","RJ123456",{"hero":"https://img.dlsite.jp/cover.jpg"})
@@ -176,8 +189,21 @@ def qt_capture(root, record):
     window.reload(prefer_id=game.id)
     window.show_collections_overview()
     shot("10_collections", "내 모음집", window)
+    window.show_collection(cid)
+    shot("10b_collection_games","개별 모음집의 게임 목록",window)
     window.show_all_games()
-    dialog("11_official_names","공식 게임명 일괄 설정",lambda: BulkTitleSettingsDialog(lib,window.games,None,window))
+    def fill_names(w):
+        w.mode.setCurrentIndex(w.mode.findData("lookup"))
+        w.select_visible(True)
+        actual = _prioritized_titles_from_record(rec, w.title_priority(), store="dlsite")
+        title, source, language, variants, sources = actual
+        row = dict(game_id=game.id, original=lib.title(game), code=rec["code"], store="dlsite",
+                   title=title, source=source, language=language, variants=variants,
+                   variant_sources=sources, priority=w.title_priority())
+        w.set_preview_records(w.bulk_actions.lookup_preview(window.games,[row],"ko",save_as_localized=True))
+    dialog("11_official_names","공식 게임명 일괄 설정",lambda: BulkTitleSettingsDialog(lib,window.games,None,window),fill_names)
+    dialog("44_work_code","작품 코드 설정 · DLsite",lambda: WorkCodeDialog(other.name,"dlsite","RJ123456",False,window))
+    dialog("44b_work_code_steam","작품 코드 설정 · Steam",lambda: WorkCodeDialog(other.name,"steam","620",False,window))
     dialog("12_folders","폴더 설정 마법사",lambda: FirstRunDialog(lib,window))
     def collection(): return CatalogCollectionDialog(3,window,excluded_no_code=["품번 없는 예시 게임.zip"],prompt_text="예시 AI 조사 프롬프트")
     dialog("13_collection_progress","게임 정보 수집 · 진행 중",collection,

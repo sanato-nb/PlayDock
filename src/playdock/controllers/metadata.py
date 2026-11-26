@@ -10,6 +10,8 @@ from PySide6.QtWidgets import QDialog
 
 from artwork import discover_local
 from services.simple_title_edit import save_display_title
+from services.manual_work_identity import current_work_choice, save_manual_work_identity
+from ui.dialogs.work_code import WorkCodeDialog
 from ui.dialogs.title import BulkTitleSettingsDialog
 from workers.work_lookup import WorkLookupThread
 from ui.work_info_dialog import WorkPreviewDialog
@@ -46,6 +48,31 @@ class MetadataControllerMixin:
         if changed:
             self.reload(prefer_id=game.id)
             self.set_message('게임 표시 이름을 변경했습니다.')
+
+    def edit_work_code(self):
+        game = self.current()
+        if game is None:
+            return
+        if self.catalog_worker is not None and self.catalog_worker.isRunning():
+            show_message(self, '게임 정보 수집 중', '수집을 마친 뒤 작품 코드를 변경하세요.')
+            return
+        try:
+            store, code = current_work_choice(self.library, game, self.work_db)
+            record = self.collected_game_record(game)
+            verified = bool(record and (record["store"], str(record["code"])) == (store, code))
+            dialog = WorkCodeDialog(self.library.title(game), store, code, verified, self)
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return
+            selected_store, selected_code = dialog.selection()
+            if verified and (selected_store, selected_code) == (store, code):
+                return
+            if save_manual_work_identity(self.library, game, self.work_db,
+                                         selected_store or "none", selected_code):
+                self.populate_games(game.id)
+                self.collections_board.refresh()
+                self.set_message("작품 코드 설정 완료. 게임 정보 수집에서 공식 작품을 확인할 수 있습니다.")
+        except (ValueError, OSError, SQLiteError) as exc:
+            show_message(self, '작품 코드 설정 실패', str(exc))
 
     def open_saved_official_page(self):
         """Open only a verified official store page from PlayDock's local DB."""
@@ -135,7 +162,11 @@ class MetadataControllerMixin:
         if "product_code" in meta and not meta.get("product_code"):
             return None
         try:
-            return self.work_db.get_linked_official_work(game.id)
+            record = self.work_db.get_linked_official_work(game.id)
+            if meta.get('manual_work_identity') and record:
+                if (record['store'], str(record['code'])) != (meta.get('product_store'), str(meta.get('product_code') or '')):
+                    return None
+            return record
         except (OSError, ValueError):
             return None
 
@@ -147,7 +178,11 @@ class MetadataControllerMixin:
                 meta = meta_by_game.get(game.id) if meta_by_game is not None else None
                 if meta is None:
                     meta = self.library.meta(game)
-                if "product_code" in meta and not meta.get("product_code"):
+                if ("product_code" in meta and not meta.get("product_code")) or (
+                    meta.get("manual_work_identity") and
+                    (records[game.id]["store"], str(records[game.id]["code"])) !=
+                    (meta.get("product_store"), str(meta.get("product_code") or ""))
+                ):
                     records.pop(game.id, None)
         return records
 

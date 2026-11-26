@@ -177,17 +177,22 @@ class CollectionBoard(QScrollArea):
         column.addStretch(1)
         self.viewport().installEventFilter(self)
 
-    def set_data(self, library, games, collections):
+    def set_data(self, library, games, collections, *, overview=False):
         self.library, self.games, self.collections = library, list(games), collections
-        self.refresh()
+        if overview:
+            self.show_overview()
+        else:
+            self.refresh()
 
     def show_overview(self):
         self._active_collection = None
         self.refresh()
+        self.verticalScrollBar().setValue(0)
 
     def show_collection(self, cid: str):
         self._active_collection = cid
         self.refresh()
+        self.verticalScrollBar().setValue(0)
 
     def _go_back(self):
         self.show_overview()
@@ -211,6 +216,7 @@ class CollectionBoard(QScrollArea):
             return
         for card in self._cards:
             self.grid.removeWidget(card)
+            card.hide()
             card.deleteLater()
         self._cards = []
         records = list_collection_cards(self.collections.list(), self.games)
@@ -222,11 +228,11 @@ class CollectionBoard(QScrollArea):
         self.back.setVisible(not overview)
         if overview:
             self.heading.setText('내 모음집')
-            self.count.setText(f'{len(records)}개 모음집')
+            self.count.setText(f'{len(records) + 1}개 모음집')
             create = ArtworkTile('새 모음집 만들기', '', [], is_create=True)
             create.clicked.connect(lambda _checked=False: self.createRequested.emit())
             self._cards.append(create)
-            buckets, _unassigned = partition_collection_games(self.games, records)
+            buckets, unassigned = partition_collection_games(self.games, records)
             for idx, (record, members) in enumerate(zip(records, buckets)):
                 tile = ArtworkTile(record['name'], f"{len(members)}개 게임", self._tile_art(members), idx)
                 tile.clicked.connect(lambda checked=False, cid=record['id']: self.collectionOpened.emit(cid))
@@ -234,6 +240,12 @@ class CollectionBoard(QScrollArea):
                 tile.customContextMenuRequested.connect(
                     lambda pos, cid=record['id'], card=tile: self._card_context(cid, card, pos))
                 self._cards.append(tile)
+            # The built-in group is browsable like a named collection, even
+            # when empty, but cannot be renamed or deleted.
+            tile = ArtworkTile('미분류', f'{len(unassigned)}개 게임',
+                               self._tile_art(unassigned), len(records))
+            tile.clicked.connect(lambda checked=False: self.collectionOpened.emit('__uncategorized__'))
+            self._cards.append(tile)
         else:
             cid = self._active_collection
             if cid == '__uncategorized__':

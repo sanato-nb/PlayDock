@@ -6,7 +6,7 @@ from ui.widgets.artwork_cache import artwork_pixmap, cached_pixmap
 from ui.selectors import add_selection_actions, draw_menu_chevron
 from time import monotonic
 
-from PySide6.QtCore import Qt, Signal, QPoint, QRect, QRectF
+from PySide6.QtCore import Qt, Signal, QPoint, QRect, QRectF, QObject, QEvent
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -51,6 +51,52 @@ def collection_chevron(expanded: bool) -> QIcon:
     pic = cached_pixmap(('collection-chevron-v1', expanded), ('group-arrow', 40),
                         lambda: _render_collection_chevron(expanded))
     return QIcon(pic)
+
+
+class CollectionArrowClickFilter(QObject):
+    """Handle the custom group arrow before Qt selects the row or emits itemClicked."""
+    toggleRequested = Signal(object)
+
+    def __init__(self, tree):
+        super().__init__(tree)
+        self.tree = tree
+        self._pressed = None
+        tree.viewport().installEventFilter(self)
+
+    def _arrow_at(self, point):
+        item = self.tree.itemAt(point)
+        if item is None or item.parent() is not None:
+            return None
+        identity = item.data(0, Qt.ItemDataRole.UserRole)
+        if not isinstance(identity, tuple) or len(identity) != 2 or identity[0] != "group":
+            return None
+        # The existing left-aligned icon is 22px wide with 2px item padding.
+        # Give the arrow the whole icon cell, but not the adjacent title.
+        rect = self.tree.visualItemRect(item)
+        if rect.contains(point) and point.x() < rect.left() + self.tree.iconSize().width() + 4:
+            return item, identity
+        return None
+
+    def eventFilter(self, watched, event):
+        kind = event.type()
+        if kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick):
+            if event.button() == Qt.MouseButton.LeftButton:
+                hit = self._arrow_at(event.position().toPoint())
+                self._pressed = None
+                if hit is not None:
+                    # A double click should not immediately undo the first toggle.
+                    self._pressed = hit[1] if kind == QEvent.Type.MouseButtonPress else ()
+                    return True
+        elif kind == QEvent.Type.MouseMove and self._pressed is not None:
+            return True
+        elif kind == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+            pressed, self._pressed = self._pressed, None
+            if pressed is not None:
+                hit = self._arrow_at(event.position().toPoint())
+                if hit is not None and hit[1] == pressed:
+                    self.toggleRequested.emit(hit[0])
+                return True
+        return super().eventFilter(watched, event)
 
 
 class PopupMenuState:

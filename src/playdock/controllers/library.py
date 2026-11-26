@@ -200,10 +200,33 @@ class LibraryControllerMixin:
     def on_tree_clicked(self, item, _column):
         kind, _cid = self.tree_identity(item)
         if kind == 'group':
-            item.setExpanded(not item.isExpanded())
             self.show_collection(_cid)
         elif kind == 'game' and self.main_stack.currentWidget() is not self.scroll:
             self.on_tree_select()
+
+
+    def toggle_group_expansion(self, item):
+        """Toggle only the existing sidebar rows; preserve the current detail/board."""
+        kind, _cid = self.tree_identity(item)
+        if kind != 'group':
+            return
+        expanded = not item.isExpanded()
+        previous = self.tree.blockSignals(True)
+        try:
+            item.setExpanded(expanded)
+            # If Qt moved the current row while hiding a child, restore it only
+            # when its group is visible again, without opening or refreshing it.
+            selected = self.selected_game_item
+            if (expanded and selected is not None and selected.parent() is item
+                    and self.main_stack.currentWidget() is self.scroll
+                    and self.tree.currentItem() is not selected):
+                self.tree.setCurrentItem(selected)
+        finally:
+            self.tree.blockSignals(previous)
+        if expanded:
+            self.on_group_expanded(item)
+        else:
+            self.on_group_collapsed(item)
 
 
     def update_group_label(self, item, *, name=None):
@@ -215,6 +238,11 @@ class LibraryControllerMixin:
         elif name is None:
             name = next((c['name'] for c in self.collections.list() if c['id'] == cid), '모음집')
         item.setText(0, f"{name}  ({item.childCount()})")
+        self.update_group_arrow(item)
+
+
+    @staticmethod
+    def update_group_arrow(item):
         item.setIcon(0, collection_chevron(item.isExpanded()))
 
 
@@ -222,19 +250,18 @@ class LibraryControllerMixin:
         kind, cid = self.tree_identity(item)
         if kind == 'group':
             self.expanded_groups.add(cid)
-            self.update_group_label(item)
+            self.update_group_arrow(item)
 
 
     def on_group_collapsed(self, item):
         kind, cid = self.tree_identity(item)
         if kind == 'group':
             self.expanded_groups.discard(cid)
-            self.update_group_label(item)
+            self.update_group_arrow(item)
 
 
     def show_collections_overview(self):
-        self.collections_board.set_data(self.library, self.games, self.collections)
-        self.collections_board.show_overview()
+        self.collections_board.set_data(self.library, self.games, self.collections, overview=True)
         self.main_stack.setCurrentWidget(self.collections_board)
 
 

@@ -15,7 +15,8 @@ import zipfile
 
 from core import Library, Game
 from services.simple_title_edit import (
-    MAX_TITLE_HISTORY, SNAPSHOT_FIELDS, title_history, save_display_title,
+    title_history, save_display_title, save_localized_display_title, save_prioritized_display_titles,
+    prioritized_title_changes,
     restore_filename_title, undo_display_title,
 )
 from services.localized_titles import LANGUAGES, language_is_plausible
@@ -30,6 +31,11 @@ class BulkChange:
     language: str = "ko"
     source: str = "사용자 일괄 수정"
     product_code: str = ""
+    lookup_result: bool = False
+    product_store: str = "dlsite"
+    variants: dict | None = None
+    variant_sources: dict | None = None
+    priority: tuple = ()
 
 
 def replace_name(title: str, search: str, replacement: str, *, case_sensitive: bool = False) -> str:
@@ -58,6 +64,12 @@ def validate_changes(library: Library, games: list[Game], changes: list[BulkChan
     by_id = {game.id: game for game in games}
     validated = []
     seen = set()
+    linked_ids = [c.game_id for c in changes if c.method == "localized" and
+                  (c.product_store == "steam" or c.priority)]
+    verified_links = {}
+    if linked_ids:
+        from database.work_repository import WorkDatabase
+        verified_links = WorkDatabase(library.store).get_linked_official_works(linked_ids)
     for change in changes:
         if change.game_id in seen:
             raise ValueError("같은 게임이 일괄 변경 목록에 중복되어 있습니다.")
@@ -78,7 +90,31 @@ def validate_changes(library: Library, games: list[Game], changes: list[BulkChan
                 raise ValueError("저장할 표시 언어가 올바르지 않습니다.")
             if not language_is_plausible(change.proposed_name, change.language):
                 raise ValueError(f"{game.name}: 선택 언어와 제목의 문자가 일치하지 않습니다.")
-            if not change.product_code or library.product_code(game) != change.product_code:
+            if change.priority:
+                prioritized_title_changes({}, change.variants or {}, change.variant_sources or {}, change.priority)
+                if (change.variants or {}).get(change.language) != change.proposed_name:
+                    raise ValueError("대표 제목과 언어별 제목이 일치하지 않습니다.")
+                record = verified_links.get(game.id) or {}
+                if (record.get("store"), str(record.get("code") or "")) != (change.product_store, change.product_code):
+                    raise ValueError(f"{game.name}: 공식 작품 연결이 변경됐거나 확인되지 않았습니다.")
+                meta = library.meta(game)
+                if meta.get("manual_work_identity") and (
+                    meta.get("product_store"), str(meta.get("product_code") or "")
+                ) != (change.product_store, change.product_code):
+                    raise ValueError(f"{game.name}: 작품 코드 설정이 변경됐습니다.")
+            if change.product_store == "steam":
+                record = verified_links.get(game.id) or {}
+                if (not re.fullmatch(r"[1-9]\d{2,9}", change.product_code)
+                        or record.get("store") != "steam"
+                        or str(record.get("code")) != change.product_code):
+                    raise ValueError(f"{game.name}: Steam App ID 연결이 변경됐거나 확인되지 않았습니다.")
+                meta = library.meta(game)
+                if any(k in meta for k in ("product_code", "product_store", "steam_app_id", "artwork_identity_store")):
+                    from services.official_work_service import explicit_work_identity
+                    if explicit_work_identity(library, game, meta=meta) != ("steam", change.product_code):
+                        raise ValueError(f"{game.name}: Steam App ID 설정이 변경됐습니다.")
+            elif (change.product_store != "dlsite" or not change.product_code
+                  or (not change.priority and library.product_code(game) != change.product_code)):
                 raise ValueError(f"{game.name}: 작품 코드가 변경됐거나 확인되지 않았습니다.")
         validated.append((game, change))
     return validated
@@ -122,25 +158,6 @@ def _backup_meta(library: Library, pairs: list[tuple[Game, BulkChange]]) -> Path
     return path
 
 
-def _save_localized_with_history(library: Library, game: Game, change: BulkChange) -> bool:
-    meta = library.meta(game)
-    variants = dict(meta.get('localized_titles') or {})
-    sources = dict(meta.get('localized_sources') or {})
-    if variants.get(change.language) == change.proposed_name and not meta.get('prefer_manual_title'):
-        return False
-    # Simple-mode undo accepts extra snapshot fields and will restore them.
-    snapshot = {key: meta.get(key) for key in SNAPSHOT_FIELDS}
-    snapshot['localized_titles'] = dict(variants)
-    snapshot['localized_sources'] = dict(sources)
-    history = title_history(library, game)
-    history.append(snapshot)
-    variants[change.language] = change.proposed_name
-    sources[change.language] = change.source
-    library.update_meta(game, localized_titles=variants, localized_sources=sources,
-                        prefer_manual_title=False, title_history=history[-MAX_TITLE_HISTORY:])
-    return True
-
-
 def apply_bulk_changes(library: Library, games: list[Game], changes: list[BulkChange]) -> tuple[int, Path | None]:
     """Apply reviewed items with a timestamped backup and rollback on write error."""
     validated = validate_changes(library, games, changes)
@@ -158,7 +175,12 @@ def apply_bulk_changes(library: Library, games: list[Game], changes: list[BulkCh
             elif change.method == 'undo':
                 applied = undo_display_title(library, game)
             elif change.method == 'localized':
-                applied = _save_localized_with_history(library, game, change)
+                if change.priority:
+                    applied = save_prioritized_display_titles(library, game, change.variants or {},
+                                                               change.variant_sources or {}, change.priority)
+                else:
+                    applied = save_localized_display_title(library, game, change.proposed_name,
+                                                           change.language, change.source)
             else:
                 applied = save_display_title(library, game, change.proposed_name, source=change.source)
             updated += bool(applied)

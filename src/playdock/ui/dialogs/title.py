@@ -25,7 +25,7 @@ from PySide6.QtWidgets import (
 from core import Library
 from database.work_repository import WorkDatabase
 from services.bulk_title_service import BulkTitleActions
-from services.localized_titles import LANGUAGES, is_code_only_title
+from services.localized_titles import LANGUAGES, is_code_only_title, normalize_title_priority
 from ui.selectors import DarkMenuSelect
 from ui.widgets.table_checks import StatusCheckDelegate
 from ui.widgets.buttons import configure_action_button
@@ -44,6 +44,9 @@ class BulkTitleSettingsDialog(QDialog):
         self.games = list(games)
         self.worker = None
         self.preview_items = {}
+        self._games_by_id = {game.id: game for game in self.games}
+        self._preview_revision = 0
+        self._lookup_revision = None
         self.setWindowTitle('일괄 이름 변경 · 상세 설정')
         self.resize(1130, 780)
         self.setMinimumSize(850, 640)
@@ -76,11 +79,17 @@ class BulkTitleSettingsDialog(QDialog):
         self.mode.addItem('이전 이름으로 일괄 되돌리기', 'undo')
         self.mode.currentIndexChanged.connect(self.update_mode)
         options.addWidget(self.mode, 2)
-        options.addWidget(QLabel('조회 언어'))
+        options.addWidget(QLabel('언어 우선순위'))
         self.language = DarkMenuSelect()
-        for code, (label, _) in LANGUAGES.items():
-            self.language.addItem(label, code)
-        index = self.language.findData(library.settings.get('title_language', 'ko'))
+        self._priority_orders = {
+            'ko': ('ko', 'ja', 'en'), 'ja': ('ja', 'ko', 'en'), 'en': ('en', 'ko', 'ja'),
+            'ko,en,ja': ('ko', 'en', 'ja'), 'ja,en,ko': ('ja', 'en', 'ko'),
+            'en,ja,ko': ('en', 'ja', 'ko'),
+        }
+        labels = {'ko': '한국어', 'ja': '일본어', 'en': '영어'}
+        for key, order in self._priority_orders.items():
+            self.language.addItem(' → '.join(labels[lang] for lang in order), key)
+        index = self.language.findData(library.settings.get('bulk_title_priority', 'ko'))
         self.language.setCurrentIndex(max(index, 0))
         options.addWidget(self.language, 1)
         outer.addLayout(options)
@@ -102,7 +111,7 @@ class BulkTitleSettingsDialog(QDialog):
         self.keep_custom = QCheckBox('이미 수동으로 수정한 게임은 건너뛰기 (권장)')
         self.keep_custom.setChecked(True)
         outer.addWidget(self.keep_custom)
-        self.localized_save = QCheckBox('품번 조회 결과를 선택 언어의 제목으로 저장 (언어 전환 유지)')
+        self.localized_save = QCheckBox('확인된 모든 언어 제목 저장 (언어 전환 유지)')
         self.localized_save.setChecked(True)
         outer.addWidget(self.localized_save)
 
@@ -117,7 +126,7 @@ class BulkTitleSettingsDialog(QDialog):
         self.scope.addItem('품번이 있는 게임', 'with_code')
         self.scope.currentIndexChanged.connect(self.refilter)
         filter_row.addWidget(self.scope)
-        select_all = QPushButton('보이는 게임 전체 선택')
+        select_all = QPushButton('전체 선택')
         select_all.clicked.connect(lambda: self.select_visible(True))
         filter_row.addWidget(select_all)
         clear = QPushButton('선택 해제')
@@ -158,8 +167,8 @@ class BulkTitleSettingsDialog(QDialog):
         self.progress.setWordWrap(True)
         review_row.addWidget(self.progress, 1)
         outer.addLayout(review_row)
-        self.preview_table = QTableWidget(0, 5)
-        self.preview_table.setHorizontalHeaderLabels(['적용', '현재 제목', '변경할 제목 (편집 가능)', '출처', '확인 상태'])
+        self.preview_table = QTableWidget(0, 6)
+        self.preview_table.setHorizontalHeaderLabels(['적용', '현재 제목', '변경할 제목 (편집 가능)', '출처', '확인 상태', '적용 후 표시'])
         self.preview_table.setItemDelegateForColumn(0, StatusCheckDelegate(self.preview_table))
         self.preview_table.verticalHeader().hide()
         self.preview_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -168,10 +177,11 @@ class BulkTitleSettingsDialog(QDialog):
         self.preview_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.preview_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         self.preview_table.itemChanged.connect(self.preview_edited)
         outer.addWidget(self.preview_table, 1)
         footer = QHBoxLayout()
-        self.confirm = QPushButton('체크한 변경 사항 저장')
+        self.confirm = QPushButton('적용')
         configure_action_button(self.confirm, 'Save')
         self.confirm.setEnabled(False)
         self.confirm.clicked.connect(self.apply_preview)
@@ -191,6 +201,9 @@ class BulkTitleSettingsDialog(QDialog):
         self.targets.itemChanged.connect(lambda *_: self.clear_preview())
         self.update_mode()
 
+    def title_priority(self):
+        return self._priority_orders.get(self.language.currentData(), ('ko', 'ja', 'en'))
+
     def update_mode(self, *_args):
         lookup = self.mode.currentData() == 'lookup'
         self.language.setEnabled(lookup)
@@ -200,6 +213,7 @@ class BulkTitleSettingsDialog(QDialog):
         self.clear_preview()
 
     def clear_preview(self):
+        self._preview_revision += 1
         self.preview_items = {}
         self.preview_table.setRowCount(0)
         self.confirm.setEnabled(False)
@@ -219,14 +233,19 @@ class BulkTitleSettingsDialog(QDialog):
         self.clear_preview()
 
     def select_visible(self, checked: bool):
-        for i in range(self.targets.rowCount()):
-            if not self.targets.isRowHidden(i):
-                self.targets.item(i, 0).setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        previous = self.targets.blockSignals(True)
+        try:
+            for i in range(self.targets.rowCount()):
+                if not self.targets.isRowHidden(i):
+                    self.targets.item(i, 0).setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
+        finally:
+            self.targets.blockSignals(previous)
         self.clear_preview()
 
     def selected_games(self):
         return [game for i, game in enumerate(self.games)
-                if self.targets.item(i, 0).checkState() == Qt.CheckState.Checked]
+                if not self.targets.isRowHidden(i) and
+                self.targets.item(i, 0).checkState() == Qt.CheckState.Checked]
 
     def create_preview(self):
         if self.worker is not None:
@@ -271,10 +290,11 @@ class BulkTitleSettingsDialog(QDialog):
                     '인터넷에서 다시 검색하지 않으며, 미리보기에서 선택한 항목만 저장합니다.'
                     ) != QMessageBox.StandardButton.Yes:
                 return
+            self._lookup_revision = self._preview_revision
             self.worker = BulkTitleWorker(
-                entries, self.language.currentData() or 'ko',
+                entries, self.title_priority()[0],
                 self.library.store / 'localized_product_titles.json',
-                db_only=True, verified_records=verified_records,
+                db_only=True, verified_records=verified_records, priority=self.title_priority(),
             )
             self.worker.progress.connect(self.on_progress)
             self.worker.complete.connect(self.show_lookup_preview)
@@ -297,7 +317,10 @@ class BulkTitleSettingsDialog(QDialog):
         self.progress.setText(f'조회 진행 {done}/{total} · {code}')
 
     def show_lookup_preview(self, rows):
-        language = self.language.currentData() or 'ko'
+        if self._lookup_revision != self._preview_revision:
+            self.progress.setText('조회 중 설정이 변경됐습니다. 다시 미리보기를 만들어 주세요.')
+            return
+        language = self.title_priority()[0]
         records = self.bulk_actions.lookup_preview(
             self.games, rows, language,
             save_as_localized=self.localized_save.isChecked())
@@ -308,11 +331,11 @@ class BulkTitleSettingsDialog(QDialog):
         self.preview_table.blockSignals(True)
         self.preview_table.setRowCount(len(records))
         for i, record in enumerate(records):
-            is_valid = bool(record.proposed_name)
-            is_fallback = record.method == 'localized' and record.language != requested_language
+            status_text, is_valid = self.bulk_actions.preview_status(
+                self._games_by_id.get(record.game_id), record, record.proposed_name, requested_language)
             tick = QTableWidgetItem('')
             tick.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
-            tick.setCheckState(Qt.CheckState.Checked if check_default and is_valid and not is_fallback else Qt.CheckState.Unchecked)
+            tick.setCheckState(Qt.CheckState.Checked if check_default and is_valid else Qt.CheckState.Unchecked)
             tick.setData(Qt.ItemDataRole.UserRole, record.game_id)
             self.preview_table.setItem(i, 0, tick)
             old = QTableWidgetItem(record.expected_name)
@@ -326,18 +349,43 @@ class BulkTitleSettingsDialog(QDialog):
             origin = QTableWidgetItem(record.source or '사용자 지정')
             origin.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.preview_table.setItem(i, 3, origin)
-            status = QTableWidgetItem('다른 언어 · 확인 필요' if is_fallback else
-                                      ('미리보기 확인' if is_valid else '조회 실패 / 직접 입력 가능'))
+            status = QTableWidgetItem(status_text)
             status.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.preview_table.setItem(i, 4, status)
+            final_name = QTableWidgetItem(self.bulk_actions.preview_display(
+                self._games_by_id.get(record.game_id), record, record.proposed_name, requested_language))
+            final_name.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            self.preview_table.setItem(i, 5, final_name)
             self.preview_table.setRowHeight(i, 37)
         self.preview_table.blockSignals(False)
-        self.confirm.setEnabled(bool(records))
-        self.progress.setText(f'미리보기 {len(records)}개 생성 · 선택한 게임만 저장합니다. 변경할 제목은 직접 수정할 수 있습니다.')
+        self.update_apply_state()
+
+    def update_apply_state(self):
+        count = sum(self.preview_table.item(i, 0).checkState() == Qt.CheckState.Checked
+                    for i in range(self.preview_table.rowCount()))
+        self.confirm.setEnabled(count > 0 and self.worker is None)
+        self.progress.setText(f'미리보기 {self.preview_table.rowCount()}개 · 적용 선택 {count}개. 제목을 직접 수정할 수 있습니다.')
 
     def preview_edited(self, item):
         if item.column() == 2:
-            self.preview_table.item(item.row(), 0).setCheckState(Qt.CheckState.Checked)
+            tick = self.preview_table.item(item.row(), 0)
+            original = self.preview_items.get(tick.data(Qt.ItemDataRole.UserRole))
+            if original is None:
+                return
+            status, valid = self.bulk_actions.preview_status(
+                self._games_by_id.get(original.game_id), original, item.text(),
+                self.title_priority()[0])
+            previous = self.preview_table.blockSignals(True)
+            try:
+                self.preview_table.item(item.row(), 4).setText(status)
+                self.preview_table.item(item.row(), 5).setText(self.bulk_actions.preview_display(
+                    self._games_by_id.get(original.game_id), original, item.text(),
+                    self.title_priority()[0]))
+                tick.setCheckState(Qt.CheckState.Checked if valid else Qt.CheckState.Unchecked)
+            finally:
+                self.preview_table.blockSignals(previous)
+        if item.column() in (0, 2):
+            self.update_apply_state()
 
     def apply_preview(self):
         if self.worker is not None:
@@ -353,29 +401,50 @@ class BulkTitleSettingsDialog(QDialog):
             title = self.preview_table.item(i, 2).text()
             approved_edits.append((original, title))
         changes = self.bulk_actions.prepare_changes(
-            approved_edits, self.language.currentData() or 'ko')
+            approved_edits, self.title_priority()[0])
         if not changes:
             QMessageBox.information(self, '선택 없음', '저장할 변경 사항을 선택해 주세요.')
             return
-        if QMessageBox.question(self, '일괄 이름 저장 확인',
-                f'{len(changes)}개 게임의 표시 이름을 변경할까요?\n'
-                '저장 전에 메타데이터를 ZIP으로 백업하고, 게임별 이전 이름을 변경 이력에 기록합니다.\n'
-                '실제 압축파일명과 설치 폴더는 변경하지 않습니다.') != QMessageBox.StandardButton.Yes:
+        checked_count = len(changes)
+        changes, rejected = self.bulk_actions.partition_changes(self.games, changes)
+        skipped = len(rejected)
+        details = "\n".join(f"• {change.expected_name}: {reason}" for change, reason in rejected[:10])
+        if skipped > 10:
+            details += f"\n외 {skipped - 10}개"
+        if not changes:
+            QMessageBox.warning(self, '적용할 수 있는 이름 없음', details)
+            return
+        message = (f'{checked_count}개 선택 · {len(changes)}개 적용 가능 · {skipped}개 제외\n'
+                   '공식 제목은 확인된 언어와 선택한 우선순위에 따라 적용합니다.\n'
+                   '적용 전에 메타데이터를 ZIP으로 백업합니다. 실제 게임 파일은 변경하지 않습니다.')
+        if skipped:
+            message += "\n\n제외 이유:\n" + details
+        if QMessageBox.question(self, '일괄 이름 적용 확인', message) != QMessageBox.StandardButton.Yes:
             return
         try:
             total, backup = self.bulk_actions.apply_changes(self.games, changes)
         except (ValueError, OSError, RuntimeError) as exc:
             QMessageBox.warning(self, '일괄 저장 실패', str(exc))
             return
-        QMessageBox.information(self, '일괄 변경 완료',
-                    f'{total}개 게임 이름 변경 완료.\n백업: {backup}\n'
-                    '원본 파일은 그대로 유지됩니다. 본체에서 새로고침하면 변경된 이름을 확인할 수 있습니다.')
+        result = (f'적용 완료 {total}개 · 변경 없음 {len(changes) - total}개 · 제외 {skipped}개\n'
+                  f'백업: {backup}\n원본 파일은 그대로 유지됩니다.')
+        if skipped:
+            result += "\n\n제외 이유:\n" + details
+        if self.mode.currentData() == 'lookup' and total:
+            self.library.settings['bulk_title_priority'] = self.language.currentData()
+            try:
+                self.library.save_settings()
+            except OSError:
+                result += "\n우선순위 기본값 저장 실패 · 게임 이름은 적용되었습니다."
+        QMessageBox.information(self, '일괄 변경 완료', result)
         self.accept()
 
     def worker_finished(self):
         self.worker = None
         self.preview_btn.setEnabled(True)
         self.preview_btn.setText('변경 전후 미리보기')
+        if self.preview_table.rowCount():
+            self.update_apply_state()
 
     def request_close(self):
         if self.worker is not None and self.worker.isRunning():

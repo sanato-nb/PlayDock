@@ -31,7 +31,7 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
     # Only intercept business handlers. The real layout, menu builders,
     # QAction signals, DB-based availability and button clicks stay intact.
     routes = ["collect_library_information", "folder_wizard", "data_manager_dialog",
-              "library_info_dialog", "show_database_status", "open_support_page", "rename_selected_game",
+              "library_info_dialog", "show_database_status", "open_support_page", "rename_selected_game", "edit_work_code",
               "change_image", "edit_launch_options", "open_saved_official_page",
               "identify_selected_game", "open_bulk_official_artwork", "open_official_name_settings",
               "open_title_editor", "open_selected_name_settings",
@@ -56,11 +56,10 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
                 action.trigger()
         window.support_btn.click()
         manual = menu(window.extra_menu_btn)
-        assert not manual.actions()[2].isEnabled()
-        assert not manual.actions()[3].isEnabled()
-        assert not manual.actions()[4].isEnabled()
+        assert all(not manual.actions()[i].isEnabled() for i in (3, 4, 5))
         manual.actions()[0].trigger()
-        for action in manual.actions()[1].menu().actions():
+        manual.actions()[1].trigger()
+        for action in manual.actions()[2].menu().actions():
             action.trigger()
         assert not window.function_menu_btn.isEnabled()
         page = "https://www.dlsite.com/maniax/work/=/product_id/RJ123456.html"
@@ -72,14 +71,14 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
         for action in menu(window.function_menu_btn).actions():
             assert action.isEnabled()
             action.trigger()
-        menu(window.extra_menu_btn).actions()[2].trigger()
-        menu(window.extra_menu_btn).actions()[4].trigger()
+        menu(window.extra_menu_btn).actions()[3].trigger()
+        menu(window.extra_menu_btn).actions()[5].trigger()
         assert [name for name,_ in calls] == [
             "collect_library_information", "folder_wizard", "data_manager_dialog",
-            "library_info_dialog", "show_database_status", "open_support_page", "rename_selected_game",
+            "library_info_dialog", "show_database_status", "open_support_page", "rename_selected_game", "edit_work_code",
             "change_image", "change_image", "open_bulk_official_artwork",
             "open_official_name_settings", "identify_selected_game", "open_saved_official_page"]
-        assert calls[7][1] == ("hero",) and calls[8][1] == ("icon",)
+        assert calls[8][1] == ("hero",) and calls[9][1] == ("icon",)
         assert source.read_bytes() == b"synthetic"
         print("MAIN_MENU_ROUTES_VERIFIED", [name for name,_ in calls])
     finally:

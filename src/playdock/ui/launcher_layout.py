@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QAbstractItemView, QStackedWidget,
 )
 from ui.collection_board import CollectionBoard
+from ui.widgets.launcher import CollectionArrowClickFilter
 
 
 def build_main_ui(self, *, LibraryFilterButton, ChevronMenuButton, Banner):
@@ -160,6 +161,8 @@ def _build_sidebar(self, LibraryFilterButton, ChevronMenuButton):
     self.tree.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
     self.tree.itemSelectionChanged.connect(self.on_tree_select)
     self.tree.itemClicked.connect(self.on_tree_clicked)
+    self.collection_arrow_filter = CollectionArrowClickFilter(self.tree)
+    self.collection_arrow_filter.toggleRequested.connect(self.toggle_group_expansion)
     self.tree.itemExpanded.connect(self.on_group_expanded)
     self.tree.itemCollapsed.connect(self.on_group_collapsed)
     self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
