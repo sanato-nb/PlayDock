@@ -73,6 +73,10 @@ def main():
     reviewed_ui = ui
     if a.reviewed_ui_ref:
         reviewed_ui = {p: git("rev-parse", f"{a.reviewed_ui_ref}:{p}").decode().strip() for p in ui}
+    # Explicitly reviewed donation-menu-only source change, pinned to an exact
+    # blob. The historical UI reference and all other protected paths stay fixed.
+    if a.reviewed_ui_ref == "d1fcd1124af7410e592108d8315083e1a099222d":
+        reviewed_ui["src/playdock/controllers/window_actions.py"] = "593af5076de3d9ba2b0923ccd016e3f982c02f2b"
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]

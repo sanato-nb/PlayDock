@@ -211,7 +211,11 @@ def main():
         menu = window.settings_menu_btn._popup_menu
         assert menu is not None and menu.isVisible()
         report["settings_menu"] = [x.text() for x in menu.actions() if not x.isSeparator()]
-        assert report["settings_menu"] == ["폴더 설정", "데이터 관리", "라이브러리 속성", "DB 상태 확인"]
+        expected_settings = ["폴더 설정", "데이터 관리", "라이브러리 속성", "DB 상태 확인"]
+        # The fixed pre-refactor baseline predates the approved support action.
+        if report["commit"] != "86635400e4c925ddfd63e144112214eaaf27f50b":
+            expected_settings.append("개발자 후원")
+        assert report["settings_menu"] == expected_settings
         menu.close(); qt.processEvents()
         dialog = TextEntryDialog("Stage 9", "Synthetic input", window)
         QTimer.singleShot(20, dialog.reject)

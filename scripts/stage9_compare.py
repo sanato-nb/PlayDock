@@ -19,12 +19,13 @@ for key, a in old["measurements"].items():
                  "before_rss_mb": statistics.median(a["rss_mb"]),
                  "after_rss_mb": statistics.median(b["rss_mb"])}
 assert old["event_loop_closed"] and new["event_loop_closed"]
-assert old["settings_menu"] == new["settings_menu"]
+assert old["settings_menu"] == ["폴더 설정", "데이터 관리", "라이브러리 속성", "DB 상태 확인"]
+assert new["settings_menu"] == old["settings_menu"] + ["개발자 후원"]
 report = {"count": old["count"], "baseline": old["commit"], "current": new["commit"],
           "startup_window_ms": [old["startup_window_ms"], new["startup_window_ms"]],
           "import_ms": [old["import_ms"], new["import_ms"]],
           "rss_after_window_mb": [old["rss_after_window_mb"], new["rss_after_window_mb"]],
           "detail_counts": [old["detail_operation_counts"], new["detail_operation_counts"]],
-          "same_operation_results": True, "operations": rows}
+          "same_operation_results": True, "approved_settings_change": "개발자 후원", "operations": rows}
 Path(sys.argv[3]).write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
 print("STAGE9_COMPARISON", json.dumps(report, ensure_ascii=False))
