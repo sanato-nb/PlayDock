@@ -76,10 +76,11 @@ def main():
     # User-approved support visibility, placement and install color: pin only the three changed production blobs.
     # The historical UI reference and every other protected path stay fixed.
     if a.reviewed_ui_ref == "d1fcd1124af7410e592108d8315083e1a099222d":
-        reviewed_ui["src/playdock/ui/launcher_layout.py"] = "b4e40cc407b1893b6f8ab4e02161d593bc773178"
+        reviewed_ui["src/playdock/ui/launcher_layout.py"] = "68ec3e703391336ee9ac47fc7b18243203442607"
         reviewed_ui["src/playdock/controllers/window_actions.py"] = "3d7169d5e162c87a91f836a42e23f6094579e7af"
-        reviewed_ui["src/playdock/controllers/library.py"] = "f13c1876ecc91e49521224887f719d93fceeca63"
+        reviewed_ui["src/playdock/controllers/library.py"] = "ea0e392f940333ed5e0bf78e64d18e358846ab07"
         reviewed_ui["src/playdock/ui/dialogs/title.py"] = "ea1b6e91eea45b5e9ec2bd19b19ec52b75f5c2c1"  # approved bulk-title UI correction
+        reviewed_ui["src/playdock/ui/widgets/launcher.py"] = "b7a495c5b45b976caa47846c76e3c2141fca86b4"  # collection arrow hit handling
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]
