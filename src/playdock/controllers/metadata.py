@@ -178,7 +178,11 @@ class MetadataControllerMixin:
                 meta = meta_by_game.get(game.id) if meta_by_game is not None else None
                 if meta is None:
                     meta = self.library.meta(game)
-                if "product_code" in meta and not meta.get("product_code"):
+                if ("product_code" in meta and not meta.get("product_code")) or (
+                    meta.get("manual_work_identity") and
+                    (records[game.id]["store"], str(records[game.id]["code"])) !=
+                    (meta.get("product_store"), str(meta.get("product_code") or ""))
+                ):
                     records.pop(game.id, None)
         return records
 

@@ -27,13 +27,13 @@ def test_manual_identity_override_delete_and_verified_link(tmp_path):
     assert current_work_choice(lib, game, db) == ("steam", "654321")
     entry = game_catalog_entries(lib, [game])[0]
     assert not codes_in(entry_input(entry).label)
-    assert steam_ids_in(entry_input(entry).label) == ["654321"]
+    assert steam_ids_in(entry_input(entry).label) == ("654321",)
     assert db.save_verified_game_link(game.id, "steam", "654321")
     db.sync_library(lib, [game])
     assert official_metadata_for_game(lib, game, db)["title"] == "New"
     assert save_manual_work_identity(lib, game, db, "dlsite", "rj999999")
     entry = game_catalog_entries(lib, [game])[0]
-    assert codes_in(entry_input(entry).label) == ["RJ999999"]
+    assert codes_in(entry_input(entry).label) == ("RJ999999",)
     assert not steam_ids_in(entry_input(entry).label)
     assert save_manual_work_identity(lib, game, db, "none", "")
     db.sync_library(lib, [game])
@@ -56,3 +56,24 @@ def test_invalid_manual_code_does_not_write(tmp_path, store, code):
     with pytest.raises(ValueError):
         save_manual_work_identity(lib, game, db, store, code)
     assert lib.meta(game) == before
+
+
+def test_work_code_dialog_validates_and_cancels_without_writes(monkeypatch):
+    from PySide6.QtWidgets import QApplication, QDialog
+    from ui.dialogs.work_code import WorkCodeDialog
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    qt = QApplication.instance() or QApplication([])
+    dialog = WorkCodeDialog("Example", "dlsite", "RJ123456", True)
+    try:
+        assert dialog.selection() == ("dlsite", "RJ123456")
+        dialog.store.setCurrentIndex(dialog.store.findData("steam"))
+        assert not dialog.apply.isEnabled()
+        dialog.code.setText("654321")
+        assert dialog.apply.isEnabled()
+        assert dialog.selection() == ("steam", "654321")
+        dialog.store.setCurrentIndex(dialog.store.findData("none"))
+        assert dialog.selection() == ("", "")
+        dialog.reject()
+        assert dialog.result() == QDialog.DialogCode.Rejected
+    finally:
+        dialog.close()
