@@ -102,19 +102,20 @@ def test_game_management_functions_and_settings_order(
         manual = capture_menu(window.extra_menu_btn).actions()
         assert [a.text() for a in manual] == [
             "게임 이름 변경 (수동)",
+            "작품 코드 설정",
             "배너·아이콘 수동 설정",
             "공식 배너·아이콘 적용",
             "실행 옵션 설정",
             "공식 작품 페이지 열기",
         ]
-        subitems = manual[1].menu().actions()
+        subitems = manual[2].menu().actions()
         assert [a.text() for a in subitems] == [
             "배너 이미지 선택", "아이콘 이미지 선택",
         ]
-        assert manual[0].isEnabled() and manual[1].isEnabled()
-        assert not manual[2].isEnabled()  # no official image
-        assert not manual[3].isEnabled()  # not installed
-        assert not manual[4].isEnabled()  # no confirmed URL
+        assert all(manual[i].isEnabled() for i in (0, 1, 2))
+        assert not manual[3].isEnabled()  # no official image
+        assert not manual[4].isEnabled()  # not installed
+        assert not manual[5].isEnabled()  # no confirmed URL
 
         settings = [x.text() for x in capture_menu(window.settings_menu_btn).actions()
                     if not x.isSeparator()]

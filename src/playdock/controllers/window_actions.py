@@ -139,6 +139,8 @@ class WindowActionControllerMixin:
 
         rename = menu.addAction('게임 이름 변경 (수동)', self.rename_selected_game)
         rename.setEnabled(game is not None)
+        identity = menu.addAction('작품 코드 설정', self.edit_work_code)
+        identity.setEnabled(game is not None)
 
         images = menu.addMenu('배너·아이콘 수동 설정')
         images.setEnabled(game is not None)
