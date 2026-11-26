@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from services.simple_title_edit import original_display_name, localized_title_changes
+from services.simple_title_edit import original_display_name, localized_title_changes, prioritized_title_changes
 
 from services.bulk_title_edit import (
     BulkChange, replace_name, name_was_manually_changed,
@@ -79,6 +79,9 @@ class BulkTitleActions:
                     language=actual, source=item.get("source", ""),
                     product_code=str(item.get("code") or ""), lookup_result=True,
                     product_store=item.get("store") or "dlsite",
+                    variants=dict(item.get("variants") or {}) if item.get("priority") else None,
+                    variant_sources=dict(item.get("variant_sources") or {}) if item.get("priority") else None,
+                    priority=tuple(item.get("priority") or ()),
                 ))
             else:
                 records.append(BulkChange(
@@ -98,13 +101,19 @@ class BulkTitleActions:
             source = original.source
             if title != original.proposed_name and (original.lookup_result or original.method == "localized"):
                 source = "사용자가 직접 수정한 제목 · 검증 필요"
-                if original.method == "localized":
+                if original.method == "localized" and not original.priority:
                     language = selected_language
+            variants = dict(original.variants or {})
+            sources = dict(original.variant_sources or {})
+            if original.priority and original.method == "localized":
+                variants[language] = title
+                sources[language] = source
             changes.append(BulkChange(
                 original.game_id, original.expected_name, title,
                 method=original.method, language=language,
                 product_code=original.product_code, source=source, lookup_result=original.lookup_result,
                 product_store=original.product_store,
+                variants=variants, variant_sources=sources, priority=original.priority,
             ))
         return changes
 
@@ -135,6 +144,10 @@ class BulkTitleActions:
             if "문자가 일치" in reason:
                 return "언어 불일치 · 수정 필요", False
             return "확인 필요 · " + reason, False
+        if original.priority and change.source == original.source:
+            from services.localized_titles import LANGUAGES
+            label = LANGUAGES[change.language][0]
+            return f"{label} 적용 · {len(change.variants or {})}개 언어" if change.method == "localized" else f"{label} 적용", True
         if (original.lookup_result or original.method == "localized") and text.strip() == original.proposed_name and change.language != selected_language:
             return "다른 언어 · 확인 필요", False
         if original.lookup_result and change.source != original.source:
@@ -151,8 +164,9 @@ class BulkTitleActions:
             return preview_undo_name(self.library, game, meta=meta) or ""
         if change.method == "localized":
             try:
-                meta = dict(meta, **localized_title_changes(meta, change.proposed_name,
-                                                           change.language, change.source))
+                updates = (prioritized_title_changes(meta, change.variants or {}, change.variant_sources or {}, change.priority)
+                           if change.priority else localized_title_changes(meta, change.proposed_name, change.language, change.source))
+                meta = dict(meta, **updates)
             except ValueError:
                 return ""
         else:

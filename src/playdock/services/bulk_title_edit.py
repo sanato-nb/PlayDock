@@ -15,7 +15,8 @@ import zipfile
 
 from core import Library, Game
 from services.simple_title_edit import (
-    title_history, save_display_title, save_localized_display_title,
+    title_history, save_display_title, save_localized_display_title, save_prioritized_display_titles,
+    prioritized_title_changes,
     restore_filename_title, undo_display_title,
 )
 from services.localized_titles import LANGUAGES, language_is_plausible
@@ -32,6 +33,9 @@ class BulkChange:
     product_code: str = ""
     lookup_result: bool = False
     product_store: str = "dlsite"
+    variants: dict | None = None
+    variant_sources: dict | None = None
+    priority: tuple = ()
 
 
 def replace_name(title: str, search: str, replacement: str, *, case_sensitive: bool = False) -> str:
@@ -60,11 +64,12 @@ def validate_changes(library: Library, games: list[Game], changes: list[BulkChan
     by_id = {game.id: game for game in games}
     validated = []
     seen = set()
-    steam_ids = [c.game_id for c in changes if c.method == "localized" and c.product_store == "steam"]
-    steam_links = {}
-    if steam_ids:
+    linked_ids = [c.game_id for c in changes if c.method == "localized" and
+                  (c.product_store == "steam" or c.priority)]
+    verified_links = {}
+    if linked_ids:
         from database.work_repository import WorkDatabase
-        steam_links = WorkDatabase(library.store).get_linked_official_works(steam_ids)
+        verified_links = WorkDatabase(library.store).get_linked_official_works(linked_ids)
     for change in changes:
         if change.game_id in seen:
             raise ValueError("같은 게임이 일괄 변경 목록에 중복되어 있습니다.")
@@ -85,8 +90,20 @@ def validate_changes(library: Library, games: list[Game], changes: list[BulkChan
                 raise ValueError("저장할 표시 언어가 올바르지 않습니다.")
             if not language_is_plausible(change.proposed_name, change.language):
                 raise ValueError(f"{game.name}: 선택 언어와 제목의 문자가 일치하지 않습니다.")
+            if change.priority:
+                prioritized_title_changes({}, change.variants or {}, change.variant_sources or {}, change.priority)
+                if (change.variants or {}).get(change.language) != change.proposed_name:
+                    raise ValueError("대표 제목과 언어별 제목이 일치하지 않습니다.")
+                record = verified_links.get(game.id) or {}
+                if (record.get("store"), str(record.get("code") or "")) != (change.product_store, change.product_code):
+                    raise ValueError(f"{game.name}: 공식 작품 연결이 변경됐거나 확인되지 않았습니다.")
+                meta = library.meta(game)
+                if meta.get("manual_work_identity") and (
+                    meta.get("product_store"), str(meta.get("product_code") or "")
+                ) != (change.product_store, change.product_code):
+                    raise ValueError(f"{game.name}: 작품 코드 설정이 변경됐습니다.")
             if change.product_store == "steam":
-                record = steam_links.get(game.id) or {}
+                record = verified_links.get(game.id) or {}
                 if (not re.fullmatch(r"[1-9]\d{2,9}", change.product_code)
                         or record.get("store") != "steam"
                         or str(record.get("code")) != change.product_code):
@@ -97,7 +114,7 @@ def validate_changes(library: Library, games: list[Game], changes: list[BulkChan
                     if explicit_work_identity(library, game, meta=meta) != ("steam", change.product_code):
                         raise ValueError(f"{game.name}: Steam App ID 설정이 변경됐습니다.")
             elif (change.product_store != "dlsite" or not change.product_code
-                  or library.product_code(game) != change.product_code):
+                  or (not change.priority and library.product_code(game) != change.product_code)):
                 raise ValueError(f"{game.name}: 작품 코드가 변경됐거나 확인되지 않았습니다.")
         validated.append((game, change))
     return validated
@@ -158,8 +175,12 @@ def apply_bulk_changes(library: Library, games: list[Game], changes: list[BulkCh
             elif change.method == 'undo':
                 applied = undo_display_title(library, game)
             elif change.method == 'localized':
-                applied = save_localized_display_title(library, game, change.proposed_name,
-                                                       change.language, change.source)
+                if change.priority:
+                    applied = save_prioritized_display_titles(library, game, change.variants or {},
+                                                               change.variant_sources or {}, change.priority)
+                else:
+                    applied = save_localized_display_title(library, game, change.proposed_name,
+                                                           change.language, change.source)
             else:
                 applied = save_display_title(library, game, change.proposed_name, source=change.source)
             updated += bool(applied)

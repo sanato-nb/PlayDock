@@ -38,20 +38,46 @@ def localized_title_changes(meta: dict, title: str, language: str, source: str) 
     return dict(localized_titles=variants, localized_sources=sources, prefer_manual_title=False)
 
 
-def save_localized_display_title(library: Library, game: Game, title: str,
-                                 language: str, source: str) -> bool:
-    """All localized edits share the same validation and reversible history."""
-    meta = library.meta(game)
-    changes = localized_title_changes(meta, title, language, source)
+def prioritized_title_changes(meta, variants, sources, priority):
+    from services.localized_titles import normalize_title_priority
+    if not variants:
+        raise ValueError("저장할 공식 제목이 없습니다.")
+    changes = {}
+    working = dict(meta)
+    for lang, title in variants.items():
+        changes = localized_title_changes(working, title, lang, sources.get(lang, "PlayDock 공식 작품 DB"))
+        working.update(changes)
+    changes["title_language_priority"] = list(normalize_title_priority(priority))
+    changes["title_language"] = ""
+    return changes
+
+
+def _save_localized_changes(library, game, meta, changes):
     if all(meta.get(key) == value for key, value in changes.items()):
         return False
     snapshot = _snapshot(meta)
     snapshot["localized_titles"] = dict(meta.get("localized_titles") or {})
     snapshot["localized_sources"] = dict(meta.get("localized_sources") or {})
+    for key in ("title_language_priority", "title_language"):
+        if key in changes:
+            snapshot[key] = meta.get(key)
     history = title_history(library, game, meta=meta)
     history.append(snapshot)
     library.update_meta(game, **changes, title_history=history[-MAX_TITLE_HISTORY:])
     return True
+
+
+def save_localized_display_title(library: Library, game: Game, title: str,
+                                 language: str, source: str) -> bool:
+    meta = library.meta(game)
+    return _save_localized_changes(library, game, meta,
+                                   localized_title_changes(meta, title, language, source))
+
+
+def save_prioritized_display_titles(library, game, variants, sources, priority):
+    meta = library.meta(game)
+    return _save_localized_changes(library, game, meta,
+                                   prioritized_title_changes(meta, variants, sources, priority))
 
 
 def save_display_title(library: Library, game: Game, title: str,
