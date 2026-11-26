@@ -398,7 +398,7 @@ class BulkTitleSettingsDialog(QDialog):
             QMessageBox.warning(self, '적용할 수 있는 이름 없음', details)
             return
         message = (f'{checked_count}개 선택 · {len(changes)}개 적용 가능 · {skipped}개 제외\n'
-                   '다른 언어 후보를 직접 선택한 경우에는 해당 언어로 저장합니다.\n'
+                   '언어별 저장 후보는 실제 언어에, 직접 수정 방식은 표시 이름에 저장합니다.\n'
                    '적용 전에 메타데이터를 ZIP으로 백업합니다. 실제 게임 파일은 변경하지 않습니다.')
         if skipped:
             message += "\n\n제외 이유:\n" + details

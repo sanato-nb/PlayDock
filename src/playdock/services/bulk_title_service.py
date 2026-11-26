@@ -98,7 +98,7 @@ class BulkTitleActions:
             title = entered_title.strip()
             language = original.language
             source = original.source
-            if title != original.proposed_name and original.lookup_result:
+            if title != original.proposed_name and (original.lookup_result or original.method == "localized"):
                 source = "사용자가 직접 수정한 제목 · 검증 필요"
                 if original.method == "localized":
                     language = selected_language
@@ -136,7 +136,7 @@ class BulkTitleActions:
             if "문자가 일치" in reason:
                 return "언어 불일치 · 수정 필요", False
             return "확인 필요 · " + reason, False
-        if original.lookup_result and text.strip() == original.proposed_name and change.language != selected_language:
+        if (original.lookup_result or original.method == "localized") and text.strip() == original.proposed_name and change.language != selected_language:
             return "다른 언어 · 확인 필요", False
         if original.lookup_result and change.source != original.source:
             return "직접 수정 · 확인", True
