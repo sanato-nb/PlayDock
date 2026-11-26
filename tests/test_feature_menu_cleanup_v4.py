@@ -120,7 +120,7 @@ def test_game_management_functions_and_settings_order(
                     if not x.isSeparator()]
         assert settings == [
             "폴더 설정", "데이터 관리", "라이브러리 속성",
-            "DB 상태 확인",
+            "DB 상태 확인", "개발자 후원 버튼 표시",
         ]
         assert not any("AI" in a or "이름 설정" in a or "이미지" in a
                        for a in settings)
@@ -355,17 +355,18 @@ def test_support_button_opens_only_on_click_and_handles_failure(app, tmp_path, m
         assert not calls
         actions = capture_menu(window.settings_menu_btn).actions()
         assert not calls
-        assert all("후원" not in a.text() for a in actions)
+        assert actions[-1].text() == "개발자 후원 버튼 표시"
+        assert actions[-1].isCheckable() and actions[-1].isChecked()
         support = window.support_btn
-        assert support.text() == "♡ 개발자 후원" and support.isEnabled()
+        assert support.text() == "개발자 후원" and support.isEnabled()
         assert support.parentWidget() is window.settings_menu_btn.parentWidget()
-        assert support.parentWidget().layout().itemAt(support.parentWidget().layout().count()-1).widget() is support
+        assert support.parentWidget().layout().itemAt(support.parentWidget().layout().count()-2).widget() is support
         window.show()
         for width, height in ((950, 620), (1380, 840)):
             window.resize(width, height)
             app.processEvents()
             assert support.isVisible()
-            assert support.geometry().left() > window.settings_menu_btn.geometry().right()
+            assert support.geometry().right() < window.settings_menu_btn.geometry().left()
             assert support.geometry().right() < support.parentWidget().width()
         assert not calls
         support.click()
@@ -374,5 +375,38 @@ def test_support_button_opens_only_on_click_and_handles_failure(app, tmp_path, m
         monkeypatch.setattr(window_actions.webbrowser, "open", lambda url: False)
         support.click()
         assert messages == [(window, "브라우저 실행 실패", "https://fairy.hada.io/@playdock")]
+    finally:
+        window.close()
+
+    
+def test_support_visibility_persists_and_install_button_is_blue(app, tmp_path, monkeypatch):
+    import app as launcher
+    window, lib, game = make_window(tmp_path, monkeypatch)
+    try:
+        window.populate_games(game.id)
+        assert "#237cb2" in window.main_button.styleSheet()
+        window.show()
+        app.processEvents()
+        assert window.support_btn.isVisible()
+        original = dict(lib.settings)
+        action = capture_menu(window.settings_menu_btn).actions()[-1]
+        assert action.isChecked()
+        action.trigger()
+        assert window.support_btn.isHidden()
+        reopened = Library(lib.store)
+        assert reopened.settings == {**original, "show_support_button": False}
+        monkeypatch.setattr(launcher, "Library", lambda: reopened)
+        second = launcher.MainWindow()
+        try:
+            second.show()
+            app.processEvents()
+            assert second.support_btn.isHidden()
+            action = capture_menu(second.settings_menu_btn).actions()[-1]
+            assert not action.isChecked()
+            action.trigger()
+            assert second.support_btn.isVisible()
+            assert Library(lib.store).settings["show_support_button"] is True
+        finally:
+            second.close()
     finally:
         window.close()

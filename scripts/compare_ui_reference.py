@@ -24,7 +24,7 @@ if refactor_base:
 # hide only the new button, never skip the rest of the screen or settings menu.
 approved_topbar_images=sorted(p.name for p in (new/"approved_topbar").glob("*.png"))
 if refactor_base=="86635400e4c925ddfd63e144112214eaaf27f50b":
-    assert approved_topbar_images==["01_library_no_official_data.png","06_library_with_official_data.png","09_collections.png"]
+    assert approved_topbar_images==["01_library_no_official_data.png","02_settings_menu.png","06_library_with_official_data.png","09_collections.png"]
 differences=[k for k in sorted(set(a)|set(b)) if a.get(k)!=b.get(k)]
 old_png={p.name:p for p in old.glob("*.png")}
 new_png={p.name:p for p in new.glob("*.png")}

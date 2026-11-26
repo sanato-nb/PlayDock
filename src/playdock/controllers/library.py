@@ -27,6 +27,13 @@ from ui.dialogs.collection_settings import GameCollectionsDialog
 from services.official_work_service import official_info_rows
 
 
+INSTALL_BUTTON_STYLE = (
+    "QPushButton#Primary { background:#237cb2; color:white; }"
+    "QPushButton#Primary:hover { background:#2d91d0; }"
+    "QPushButton#Primary:disabled { background:#31566e; color:#a7bfce; }"
+)
+
+
 class LibraryControllerMixin:
     """Keep workflow/event handling outside the Qt window layout."""
 
@@ -62,6 +69,7 @@ class LibraryControllerMixin:
         """Reopen saved files after data recovery, including the collections file."""
         self.library = Library(self.library.store)
         self.collections = CollectionStore(self.library.store)
+        self.support_btn.setVisible(self.library.settings.get("show_support_button", True) is not False)
         self.reload()
 
 
@@ -164,6 +172,7 @@ class LibraryControllerMixin:
             self.present_game()
         else:
             self.banner.set_game('표시할 게임이 없습니다', '검색어나 필터를 변경해 보세요', None)
+            self.main_button.setStyleSheet("")
             self.main_button.setEnabled(False)
             self.status_title.setText('선택된 게임 없음')
             self.status_detail.setText('모음집을 펼쳐 게임을 선택하세요')
@@ -407,6 +416,9 @@ class LibraryControllerMixin:
         hero = dest / "hero.png"
         self.banner.set_game(title, "PLAYDOCK · " + status, hero if hero.exists() else None)
         self.status_title.setText(status)
+        action_style = "" if installed else INSTALL_BUTTON_STYLE
+        if self.main_button.styleSheet() != action_style:
+            self.main_button.setStyleSheet(action_style)
         if installed:
             self.main_button.setText("▶  플레이" if exe else "실행 파일 선택")
             self.status_detail.setText(f"실행 대상: {exe.name if exe else '지정 필요'}")

@@ -53,15 +53,17 @@ def main():
         support=getattr(widget,"support_btn",None)
         if support is not None:
             assert support.isVisible() and support.isEnabled()
-            assert support.text()=="♡ 개발자 후원"
-            assert support.geometry().left()>widget.settings_menu_btn.geometry().right()
+            assert support.text()=="개발자 후원"
+            assert support.geometry().right()<widget.settings_menu_btn.geometry().left()
             assert support.geometry().right()<support.parentWidget().width()
             full=out/"approved_topbar"
             full.mkdir(exist_ok=True)
             assert widget.grab().save(str(full/(name+".png")))
-            # Compare the historical UI with only the approved new button hidden.
+            # Normalize only user-approved visual differences for the historical comparison.
             support.hide()
-            qt.processEvents()
+            main_style=widget.main_button.styleSheet()
+            widget.main_button.setStyleSheet("")
+        qt.processEvents()
         image=widget.grab()
         assert not image.isNull() and image.save(str(out/(name+".png")))
         contract["screens"][name]={"title":widget.windowTitle(),
@@ -75,6 +77,7 @@ def main():
                               for cls in (QLabel,QLineEdit,QFrame) for child in widget.findChildren(cls)
                               if child.isVisible()]}
         if support is not None:
+            widget.main_button.setStyleSheet(main_style)
             support.show()
             qt.processEvents()
     def menu_rows(menu):
@@ -89,6 +92,16 @@ def main():
             open_menu()
             assert len(captured)==1
             m=captured[0]
+            if name=="02_settings_menu" and getattr(window,"support_btn",None) is not None:
+                rows=menu_rows(m)
+                assert rows[-2]["separator"] and rows[-1]=={"text":"개발자 후원 버튼 표시","enabled":True,"separator":False,"checked":True,"children":[]}
+                full=out/"approved_topbar"
+                full.mkdir(exist_ok=True)
+                m.ensurePolished()
+                m.adjustSize()
+                assert m.grab().save(str(full/(name+".png")))
+                for action in m.actions()[-2:]:
+                    m.removeAction(action)
             contract["menus"][name]=menu_rows(m)
             m.ensurePolished()
             m.adjustSize()

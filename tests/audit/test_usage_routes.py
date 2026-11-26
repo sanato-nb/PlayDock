@@ -52,7 +52,7 @@ def test_active_main_menu_routes(qapp, tmp_path, monkeypatch):
         window.catalog_collection_btn.click()
         settings = menu(window.settings_menu_btn)
         for action in settings.actions():
-            if not action.isSeparator():
+            if not action.isSeparator() and not action.isCheckable():
                 action.trigger()
         window.support_btn.click()
         manual = menu(window.extra_menu_btn)

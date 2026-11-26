@@ -27,7 +27,29 @@ class WindowActionControllerMixin:
         menu.addSeparator()
         menu.addAction("DB 상태 확인").triggered.connect(
             lambda _checked=False: self.show_database_status())
+        menu.addSeparator()
+        support_visibility = menu.addAction("개발자 후원 버튼 표시")
+        support_visibility.setCheckable(True)
+        support_visibility.setChecked(self.library.settings.get("show_support_button", True) is not False)
+        support_visibility.toggled.connect(self.set_support_button_visible)
         self.settings_menu_btn.present_popup(menu, right_align=True)
+
+    def set_support_button_visible(self, visible):
+        """Persist only this optional UI preference; keep all other settings."""
+        settings = self.library.settings
+        missing = "show_support_button" not in settings
+        previous = settings.get("show_support_button", True)
+        settings["show_support_button"] = bool(visible)
+        try:
+            self.library.save_settings()
+        except OSError as exc:
+            if missing:
+                settings.pop("show_support_button", None)
+            else:
+                settings["show_support_button"] = previous
+            show_message(self, "설정 저장 실패", str(exc))
+            return
+        self.support_btn.setVisible(bool(visible))
 
     def open_support_page(self):
         """Open the optional support page only after an explicit user click."""

@@ -73,11 +73,12 @@ def main():
     reviewed_ui = ui
     if a.reviewed_ui_ref:
         reviewed_ui = {p: git("rev-parse", f"{a.reviewed_ui_ref}:{p}").decode().strip() for p in ui}
-    # User-approved B layout: pin only the two changed production blobs.
+    # User-approved support visibility, placement and install color: pin only the three changed production blobs.
     # The historical UI reference and every other protected path stay fixed.
     if a.reviewed_ui_ref == "d1fcd1124af7410e592108d8315083e1a099222d":
-        reviewed_ui["src/playdock/ui/launcher_layout.py"] = "d6cbd10f64de59c25978f2bb2b0982a96ce48289"
-        reviewed_ui["src/playdock/controllers/window_actions.py"] = "d446e75a96eda3a0705e82bbc3be4db7ea7cb30b"
+        reviewed_ui["src/playdock/ui/launcher_layout.py"] = "b4e40cc407b1893b6f8ab4e02161d593bc773178"
+        reviewed_ui["src/playdock/controllers/window_actions.py"] = "3d7169d5e162c87a91f836a42e23f6094579e7af"
+        reviewed_ui["src/playdock/controllers/library.py"] = "f13c1876ecc91e49521224887f719d93fceeca63"
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]
