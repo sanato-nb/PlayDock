@@ -79,9 +79,10 @@ def main():
         reviewed_ui["src/playdock/ui/launcher_layout.py"] = "68ec3e703391336ee9ac47fc7b18243203442607"
         reviewed_ui["src/playdock/controllers/window_actions.py"] = "3d7169d5e162c87a91f836a42e23f6094579e7af"
         reviewed_ui["src/playdock/controllers/library.py"] = "4c555afd8411cf2d1b3f1c64d87c00de415b6dcf"
-        reviewed_ui["src/playdock/ui/dialogs/title.py"] = "ea1b6e91eea45b5e9ec2bd19b19ec52b75f5c2c1"  # approved bulk-title UI correction
+        reviewed_ui["src/playdock/ui/dialogs/title.py"] = "2a8af0c5f5f7ceaf48a77f0eb5f3fc4c6868dc0a"  # approved bulk-title UI correction
         reviewed_ui["src/playdock/ui/widgets/launcher.py"] = "b7a495c5b45b976caa47846c76e3c2141fca86b4"  # collection arrow hit handling
         reviewed_ui["src/playdock/ui/collection_board.py"] = "03f9b19bdfebe534a11b91e3ff0ec15b57923bc5"  # approved overview includes unassigned
+        reviewed_ui["src/playdock/controllers/title_editor.py"] = "32db7db798cd63f9bee41690124dc8cd4beff680"  # shared title storage
     unreviewed_ui_changes = [p for p,sha in reviewed_ui.items() if new.get(p)!=sha]
     experiment_changes=[p for p in sorted(old.keys()|new.keys())
                         if p.startswith("experiments/") and old.get(p)!=new.get(p)]

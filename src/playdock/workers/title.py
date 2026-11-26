@@ -16,7 +16,7 @@ from PySide6.QtCore import QThread, Signal
 from product_titles import display_title, lookup_title
 from artwork import ai_game_title, get_secret
 from ai_providers import PROVIDERS
-from services.localized_titles import lookup_localized_title
+from services.localized_titles import lookup_localized_title, language_is_plausible
 from title_translation import translate_work_title
 from korean_title_search import find_korean_titles
 
@@ -42,12 +42,19 @@ def _title_from_record(record, language, *, store):
     if not record:
         return None
     titles = record.get("titles") or {}
-    if language in titles and titles[language]:
-        return titles[language], "PlayDock 공식 작품 DB · " + language, language
-    for fallback in ("ja", "en", "ko"):
-        if titles.get(fallback):
-            return titles[fallback], "PlayDock 공식 작품 DB · " + fallback, fallback
-    return record["title"], "PlayDock 공식 작품 DB · 기본 작품명", "en" if store == "steam" else "ja"
+    if not isinstance(titles, dict):
+        titles = {}
+    for actual in dict.fromkeys((language, "ja", "en", "ko")):
+        title = titles.get(actual)
+        if isinstance(title, str) and language_is_plausible(title, actual):
+            return title, "PlayDock 공식 작품 DB · " + actual, actual
+    # The base title has no explicit locale. Retain the existing store default
+    # only when the script is compatible; never relabel a conflicting variant.
+    actual = "en" if store == "steam" else "ja"
+    title = record.get("title")
+    if isinstance(title, str) and language_is_plausible(title, actual):
+        return title, "PlayDock 공식 작품 DB · 기본 작품명", actual
+    return None
 
 
 class TitleWorker(QThread):

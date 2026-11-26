@@ -161,8 +161,8 @@ class BulkTitleSettingsDialog(QDialog):
         self.progress.setWordWrap(True)
         review_row.addWidget(self.progress, 1)
         outer.addLayout(review_row)
-        self.preview_table = QTableWidget(0, 5)
-        self.preview_table.setHorizontalHeaderLabels(['적용', '현재 제목', '변경할 제목 (편집 가능)', '출처', '확인 상태'])
+        self.preview_table = QTableWidget(0, 6)
+        self.preview_table.setHorizontalHeaderLabels(['적용', '현재 제목', '변경할 제목 (편집 가능)', '출처', '확인 상태', '적용 후 표시'])
         self.preview_table.setItemDelegateForColumn(0, StatusCheckDelegate(self.preview_table))
         self.preview_table.verticalHeader().hide()
         self.preview_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
@@ -171,6 +171,7 @@ class BulkTitleSettingsDialog(QDialog):
         self.preview_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         self.preview_table.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.preview_table.horizontalHeader().setSectionResizeMode(5, QHeaderView.ResizeMode.Stretch)
         self.preview_table.itemChanged.connect(self.preview_edited)
         outer.addWidget(self.preview_table, 1)
         footer = QHBoxLayout()
@@ -342,6 +343,10 @@ class BulkTitleSettingsDialog(QDialog):
             status = QTableWidgetItem(status_text)
             status.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
             self.preview_table.setItem(i, 4, status)
+            final_name = QTableWidgetItem(self.bulk_actions.preview_display(
+                self._games_by_id.get(record.game_id), record, record.proposed_name, requested_language))
+            final_name.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
+            self.preview_table.setItem(i, 5, final_name)
             self.preview_table.setRowHeight(i, 37)
         self.preview_table.blockSignals(False)
         self.update_apply_state()
@@ -364,6 +369,9 @@ class BulkTitleSettingsDialog(QDialog):
             previous = self.preview_table.blockSignals(True)
             try:
                 self.preview_table.item(item.row(), 4).setText(status)
+                self.preview_table.item(item.row(), 5).setText(self.bulk_actions.preview_display(
+                    self._games_by_id.get(original.game_id), original, item.text(),
+                    self.language.currentData() or 'ko'))
                 tick.setCheckState(Qt.CheckState.Checked if valid else Qt.CheckState.Unchecked)
             finally:
                 self.preview_table.blockSignals(previous)

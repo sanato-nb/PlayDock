@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from pathlib import Path
+from services.simple_title_edit import original_display_name, localized_title_changes
 
 from services.bulk_title_edit import (
     BulkChange, replace_name, name_was_manually_changed,
@@ -54,8 +54,7 @@ class BulkTitleActions:
                 method = "undo"
             else:
                 # First-seen archive filename is immutable once recorded.
-                archived_name = meta.get("original_archive_name")
-                proposed = Path(archived_name).stem if archived_name else game.name
+                proposed = original_display_name(self.library, game, meta=meta)
                 if base == proposed:
                     continue
                 method = "original"
@@ -74,13 +73,12 @@ class BulkTitleActions:
             title = item.get("title") or ""
             if title:
                 actual = item.get("language") or language
-                is_steam = item.get("store") == "steam"
                 records.append(BulkChange(
                     game.id, item.get("original") or self.library.title(game), title,
-                    method="manual" if is_steam else (
-                        "localized" if save_as_localized else "manual"),
+                    method="localized" if save_as_localized else "manual",
                     language=actual, source=item.get("source", ""),
-                    product_code="" if is_steam else item.get("code", ""), lookup_result=True,
+                    product_code=str(item.get("code") or ""), lookup_result=True,
+                    product_store=item.get("store") or "dlsite",
                 ))
             else:
                 records.append(BulkChange(
@@ -106,6 +104,7 @@ class BulkTitleActions:
                 original.game_id, original.expected_name, title,
                 method=original.method, language=language,
                 product_code=original.product_code, source=source, lookup_result=original.lookup_result,
+                product_store=original.product_store,
             ))
         return changes
 
@@ -141,6 +140,27 @@ class BulkTitleActions:
         if original.lookup_result and change.source != original.source:
             return "직접 수정 · 확인", True
         return "미리보기 확인", True
+
+    def preview_display(self, game, original, text, selected_language):
+        """Compute the actual displayed name with the same library rendering."""
+        if game is None:
+            return ""
+        change = self.prepare_changes([(original, text)], selected_language)[0]
+        meta = self.library.meta(game)
+        if change.method == "undo":
+            return preview_undo_name(self.library, game, meta=meta) or ""
+        if change.method == "localized":
+            try:
+                meta = dict(meta, **localized_title_changes(meta, change.proposed_name,
+                                                           change.language, change.source))
+            except ValueError:
+                return ""
+        else:
+            if not change.proposed_name:
+                return ""
+            meta = dict(meta, title=change.proposed_name, prefer_manual_title=True,
+                        title_product_code="")
+        return self.library.title_pair(game, meta=meta)[1]
 
     def apply_changes(self, games, changes):
         """기존 원자적 저장과 메타데이터 백업·롤백을 그대로 사용한다."""
